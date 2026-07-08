@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: feftms-db
+    environment:
+      POSTGRES_DB: falcon_energy_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d falcon_energy_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: feftms-app
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=falcon_energy_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=1234
+      - JWT_SECRET=407f349c235728a5cf570f7cf49d5930b80b2a7c88b90a6f8b9e6f8c7b8d9e6f
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

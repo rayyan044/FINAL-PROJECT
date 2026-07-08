@@ -1,0 +1,195 @@
+.fef-landing {
+  min-height: 100vh;
+  background: #fff;
+}
+
+.fef-hero {
+  position: relative;
+  min-height: 88vh;
+  display: grid;
+  place-items: center;
+  padding: 60px 24px;
+  background:
+    linear-gradient(135deg, rgba(8, 30, 80, 0.92), rgba(21, 101, 192, 0.78)),
+    radial-gradient(circle at 20% 30%, rgba(249, 168, 37, 0.25), transparent 50%),
+    linear-gradient(135deg, #0b3d91, #1565c0);
+  overflow: hidden;
+}
+.fef-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+.fef-hero-inner {
+  position: relative;
+  max-width: 1100px;
+  width: 100%;
+  text-align: center;
+  color: #fff;
+}
+.fef-hero-eyebrow {
+  display: inline-block;
+  padding: 6px 14px;
+  background: rgba(249, 168, 37, 0.18);
+  color: var(--feftms-accent);
+  border: 1px solid rgba(249, 168, 37, 0.4);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+.fef-hero-title {
+  font-size: clamp(34px, 5vw, 58px);
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0 0 18px;
+  letter-spacing: -0.02em;
+}
+.fef-hero-title span {
+  color: var(--feftms-accent);
+}
+.fef-hero-sub {
+  max-width: 720px;
+  margin: 0 auto 48px;
+  font-size: clamp(15px, 1.6vw, 18px);
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.fef-portal-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+@media (max-width: 680px) {
+  .fef-portal-cards {
+    grid-template-columns: 1fr;
+  }
+}
+.fef-portal-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px 28px;
+  text-align: left;
+  color: var(--feftms-text);
+  box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.4);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.fef-portal-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 40px 70px -25px rgba(0, 0, 0, 0.5);
+}
+.fef-portal-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  color: #fff;
+}
+.fef-portal-icon-accent {
+  background: linear-gradient(135deg, #f9a825, #d68910);
+  color: #1a2238;
+}
+.fef-portal-icon-primary {
+  background: linear-gradient(135deg, var(--feftms-primary), var(--feftms-secondary));
+}
+.fef-portal-card h3 {
+  font-size: 22px;
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+.fef-portal-card p {
+  color: var(--feftms-text-muted);
+  font-size: 14.5px;
+  margin: 0 0 22px;
+  line-height: 1.55;
+}
+
+.fef-features {
+  padding: 90px 24px;
+  background: var(--feftms-bg-soft);
+}
+.fef-features-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  text-align: center;
+}
+.fef-features h2 {
+  font-size: clamp(26px, 3.2vw, 36px);
+  font-weight: 800;
+  color: var(--feftms-primary);
+  margin: 0 0 14px;
+  letter-spacing: -0.02em;
+}
+.fef-section-sub {
+  color: var(--feftms-text-muted);
+  max-width: 620px;
+  margin: 0 auto 48px;
+  font-size: 16px;
+}
+.fef-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 22px;
+}
+.fef-feature {
+  background: #fff;
+  border: 1px solid var(--feftms-border);
+  border-radius: 14px;
+  padding: 28px 24px;
+  text-align: left;
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s;
+  color: var(--feftms-secondary);
+}
+.fef-feature:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--feftms-shadow);
+}
+.fef-feature h4 {
+  margin: 14px 0 6px;
+  color: var(--feftms-text);
+  font-size: 17px;
+}
+.fef-feature p {
+  color: var(--feftms-text-muted);
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.fef-footer {
+  background: var(--feftms-primary);
+  color: #fff;
+  padding: 32px 24px;
+}
+.fef-footer-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.fef-footer p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+.fef-footer-meta {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}

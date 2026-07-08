@@ -1,0 +1,10 @@
+ALTER TABLE fuel_orders ADD COLUMN driver_name VARCHAR(150);
+ALTER TABLE fuel_orders ADD COLUMN driver_phone VARCHAR(50);
+ALTER TABLE fuel_orders ADD COLUMN driver_email VARCHAR(100);
+ALTER TABLE fuel_orders ADD COLUMN location_gps VARCHAR(100);
+ALTER TABLE fuel_orders ADD COLUMN location_address TEXT;
+ALTER TABLE fuel_orders ADD COLUMN location_landmark TEXT;
+ALTER TABLE fuel_orders ADD COLUMN vehicle_type VARCHAR(50);
+ALTER TABLE fuel_orders ADD COLUMN emergency_level VARCHAR(50);
+ALTER TABLE fuel_orders ADD COLUMN payment_method VARCHAR(50);
+ALTER TABLE fuel_orders ADD COLUMN notes TEXT;

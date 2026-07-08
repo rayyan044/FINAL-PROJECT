@@ -1,0 +1,60 @@
+.fef-sitenav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--feftms-border);
+}
+.fef-sitenav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.fef-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fef-brand-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--feftms-primary), var(--feftms-secondary));
+  color: #fff;
+  font-weight: 800;
+  border-radius: 10px;
+  box-shadow: 0 6px 14px -6px rgba(11, 61, 145, 0.55);
+}
+.fef-brand-text {
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--feftms-primary);
+}
+.fef-brand-text span {
+  color: var(--feftms-accent);
+}
+.fef-sitenav-links {
+  display: flex;
+  gap: 28px;
+}
+.fef-sitenav-links a {
+  font-weight: 500;
+  color: var(--feftms-text-muted);
+  font-size: 15px;
+  transition: color 0.2s;
+}
+.fef-sitenav-links a:hover,
+.fef-sitenav-links a.active {
+  color: var(--feftms-primary);
+}
+@media (max-width: 720px) {
+  .fef-sitenav-links {
+    display: none;
+  }
+}

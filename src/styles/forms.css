@@ -1,0 +1,268 @@
+.fef-page {
+  min-height: 100vh;
+  background: var(--feftms-bg-soft);
+}
+
+.fef-form-wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+.fef-form-head {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.fef-form-head h1 {
+  font-size: clamp(26px, 3vw, 34px);
+  margin: 0 0 8px;
+  color: var(--feftms-primary);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.fef-form-head p {
+  color: var(--feftms-text-muted);
+  margin: 0;
+}
+
+.fef-form {
+  padding: 32px;
+}
+.fef-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.fef-field-full {
+  grid-column: 1 / -1;
+}
+@media (max-width: 640px) {
+  .fef-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .fef-form {
+    padding: 22px;
+  }
+}
+.fef-form-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Login */
+.fef-login-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--feftms-bg);
+}
+@media (max-width: 900px) {
+  .fef-login-shell {
+    grid-template-columns: 1fr;
+  }
+}
+.fef-login-art {
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(8, 30, 80, 0.92), rgba(21, 101, 192, 0.85)),
+    radial-gradient(circle at 70% 20%, rgba(249, 168, 37, 0.3), transparent 55%);
+  color: #fff;
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+@media (max-width: 900px) {
+  .fef-login-art {
+    display: none;
+  }
+}
+.fef-login-art h2 {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 14px;
+}
+.fef-login-art p {
+  color: rgba(255, 255, 255, 0.8);
+  max-width: 380px;
+  line-height: 1.6;
+}
+.fef-login-form-wrap {
+  display: grid;
+  place-items: center;
+  padding: 48px 24px;
+}
+.fef-login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 36px;
+}
+.fef-login-card h1 {
+  margin: 0 0 6px;
+  color: var(--feftms-primary);
+  font-size: 26px;
+}
+.fef-login-card .fef-sub {
+  color: var(--feftms-text-muted);
+  margin: 0 0 26px;
+  font-size: 14px;
+}
+.fef-login-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  margin: 6px 0 18px;
+}
+.fef-login-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--feftms-text-muted);
+}
+.fef-login-row a {
+  color: var(--feftms-secondary);
+  font-weight: 600;
+}
+
+/* Floating Overlay Modal */
+.fef-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 15, 30, 0.65);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fefFadeIn 0.25s ease-out;
+}
+
+.fef-modal-window {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--feftms-shadow-lg);
+  border: 1px solid var(--feftms-border);
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 28px;
+  animation: fefSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+}
+
+.fef-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--feftms-text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.fef-modal-close:hover {
+  color: var(--feftms-text);
+}
+
+/* Detail Modal specific styles */
+.fef-detail-modal-header {
+  margin-bottom: 20px;
+}
+.fef-detail-modal-badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.fef-detail-modal-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--feftms-primary);
+}
+.fef-detail-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.fef-detail-section {
+  border-bottom: 1px solid var(--feftms-border);
+  padding-bottom: 16px;
+}
+.fef-detail-section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.fef-detail-section-title {
+  margin: 0 0 12px 0;
+  color: var(--feftms-text);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.fef-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  font-size: 14px;
+}
+.fef-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fef-detail-label {
+  color: var(--feftms-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.fef-detail-value {
+  color: var(--feftms-text);
+  font-weight: 600;
+}
+.fef-detail-value a {
+  color: var(--feftms-secondary);
+  text-decoration: underline;
+}
+.fef-detail-value code {
+  background: var(--feftms-bg-soft);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: monospace;
+}
+.fef-detail-gps-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.fef-detail-notes {
+  margin: 0;
+  font-size: 14px;
+  color: var(--feftms-text);
+  font-style: italic;
+  background: var(--feftms-bg-soft);
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid var(--feftms-primary);
+}
+.fef-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+

@@ -1,0 +1,16 @@
+package com.falconenergy.repository;
+
+import com.falconenergy.entity.Invoice;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
+    Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
+    boolean existsByInvoiceNumber(String invoiceNumber);
+    boolean existsByOrderId(Long orderId);
+    Optional<Invoice> findByOrderId(Long orderId);
+}
