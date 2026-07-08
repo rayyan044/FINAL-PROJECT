@@ -72,4 +72,33 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         return invoiceMapper.toResponse(updated);
     }
+
+    @Override
+    public InvoiceResponse overrideInvoiceStatus(Long id, String status, String updatedBy) {
+        log.info("Overriding payment status for invoice: {} to {} by {}", id, status, updatedBy);
+        Invoice invoice = invoiceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with id: " + id));
+
+        String oldStatus = invoice.getPaymentStatus();
+        invoice.setPaymentStatus(status.toUpperCase());
+        if ("PAID".equalsIgnoreCase(status)) {
+            invoice.setFinanceApprovedBy(updatedBy != null && !updatedBy.isBlank() ? updatedBy : "admin");
+            invoice.setFinanceApprovedAt(LocalDateTime.now());
+        } else {
+            invoice.setFinanceApprovedBy(null);
+            invoice.setFinanceApprovedAt(null);
+        }
+
+        Invoice updated = invoiceRepository.save(invoice);
+
+        auditLogService.log(
+                "INVOICE_OVERRIDE",
+                "INVOICE",
+                updated.getId(),
+                updated.getOrder().getCustomer().getCustomerCode(),
+                "Invoice status overridden from " + oldStatus + " to " + status.toUpperCase() + " by " + updatedBy
+        );
+
+        return invoiceMapper.toResponse(updated);
+    }
 }

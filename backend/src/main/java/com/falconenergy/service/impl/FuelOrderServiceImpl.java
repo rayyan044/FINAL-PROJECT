@@ -643,7 +643,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
                 .subtotal(subtotal)
                 .tax(tax)
                 .grandTotal(grandTotal)
-                .paymentStatus("PENDING")
+                .paymentStatus("PENDING_PAYMENT")
                 .termsAndConditions("1. Payment is due within 14 days of invoice date.\n2. Interest will be charged at 1.5% per month on late payments.\n3. Fuel deliveries are subject to standard terms of carriage.")
                 .build();
 

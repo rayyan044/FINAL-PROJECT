@@ -43,7 +43,7 @@ public class Invoice extends BaseEntity {
 
     @Column(name = "payment_status", nullable = false, length = 30)
     @Builder.Default
-    private String paymentStatus = "PENDING"; // PENDING, PAID, CANCELLED
+    private String paymentStatus = "PENDING_PAYMENT"; // PENDING_PAYMENT, PAID, CANCELLED
 
     @Column(name = "finance_approved_by", length = 100)
     private String financeApprovedBy;

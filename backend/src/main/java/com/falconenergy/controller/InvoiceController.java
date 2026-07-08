@@ -24,7 +24,7 @@ public class InvoiceController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE', 'SALES_OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE')")
     public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getAllInvoices(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -38,7 +38,7 @@ public class InvoiceController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE', 'SALES_OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE')")
     public ResponseEntity<ApiResponse<InvoiceResponse>> getInvoiceById(@PathVariable Long id) {
         InvoiceResponse invoice = invoiceService.getInvoiceById(id);
         return ResponseEntity.ok(ApiResponse.success("Invoice retrieved successfully", invoice));
@@ -51,5 +51,17 @@ public class InvoiceController {
         String approvedBy = auth != null ? auth.getName() : "system";
         InvoiceResponse invoice = invoiceService.approveInvoicePayment(id, approvedBy);
         return ResponseEntity.ok(ApiResponse.success("Invoice payment processed and approved", invoice));
+    }
+
+    @PostMapping("/{id}/override")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> overrideInvoiceStatus(
+            @PathVariable Long id,
+            @RequestParam String status
+    ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String updatedBy = auth != null ? auth.getName() : "system";
+        InvoiceResponse invoice = invoiceService.overrideInvoiceStatus(id, status, updatedBy);
+        return ResponseEntity.ok(ApiResponse.success("Invoice status overridden successfully", invoice));
     }
 }
