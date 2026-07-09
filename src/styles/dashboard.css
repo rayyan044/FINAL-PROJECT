@@ -327,7 +327,15 @@
   background: #fff4e0;
   color: #b26a00;
 }
+.fef-badge-pending_payment {
+  background: #fff4e0;
+  color: #b26a00;
+}
 .fef-badge-approved {
+  background: #e3f5e7;
+  color: #2e7d32;
+}
+.fef-badge-paid {
   background: #e3f5e7;
   color: #2e7d32;
 }

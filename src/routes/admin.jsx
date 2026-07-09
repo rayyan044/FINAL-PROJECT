@@ -33,6 +33,8 @@ import { getAdminDashboardStats } from "../services/dashboardService";
 import { listAuditLogs } from "../services/auditService";
 import { checkAndSeedDatabase } from "../services/seedService";
 import { listRequests } from "../services/requestService";
+import { listInvoices } from "../services/invoiceService";
+import { InvoiceModal } from "../components/InvoiceModal";
 import "../styles/forms.css";
 
 export const Route = createFileRoute("/admin")({
@@ -44,6 +46,7 @@ const SIDE = [
   { key: "dash", label: "Dashboard", icon: FiHome },
   { key: "users", label: "Users", icon: FiUsers },
   { key: "requests", label: "All Orders", icon: FiClipboard },
+  { key: "invoices", label: "Invoices", icon: FiFileText },
   { key: "audit", label: "Audit Logs", icon: FiFileText },
 ];
 
@@ -62,6 +65,8 @@ function AdminDash() {
 
   const [usersList, setUsersList] = useState([]);
   const [ordersList, setOrdersList] = useState([]);
+  const [invoicesList, setInvoicesList] = useState([]);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -167,9 +172,26 @@ function AdminDash() {
       });
   };
 
+  const loadInvoices = () => {
+    setLoading(true);
+    setError("");
+    listInvoices({ size: 100 })
+      .then((res) => {
+        setInvoicesList(res.content || []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError("Failed to load invoices.");
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
     if (activeTab === "audit") {
       loadAuditLogs(0);
+    } else if (activeTab === "invoices") {
+      loadInvoices();
     } else {
       loadData();
     }
@@ -341,6 +363,8 @@ function AdminDash() {
             ? "User Accounts"
             : activeTab === "audit"
             ? "Audit Logs"
+            : activeTab === "invoices"
+            ? "Invoices"
             : "All Orders"
         }
         crumbs={["Admin", activeTab]}
@@ -903,6 +927,78 @@ function AdminDash() {
             </>
           )}
         </div>
+      )}
+
+      {/* INVOICES TAB */}
+      {activeTab === "invoices" && (
+        <div className="fef-panel">
+          <div className="fef-panel-head">
+            <h3>Ledger Invoices Summary</h3>
+          </div>
+          <div className="fef-table-wrap">
+            <table className="fef-table">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Customer Name</th>
+                  <th>Fuel Product</th>
+                  <th>Quantity (L)</th>
+                  <th>Grand Total</th>
+                  <th>Payment Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoicesList.map((inv) => {
+                  const o = inv.order || {};
+                  return (
+                    <tr key={inv.id}>
+                      <td><strong>{inv.invoiceNumber}</strong></td>
+                      <td>{o.customerName === "Stranded Drivers (Emergency Requests)" && o.driverName ? o.driverName : (o.customerName || "Stranded Driver")}</td>
+                      <td>{o.productName}</td>
+                      <td>{o.quantity?.toLocaleString()} L</td>
+                      <td style={{ color: "var(--feftms-success)", fontWeight: 600 }}>
+                        ${inv.grandTotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td>
+                        <span className={`fef-badge fef-badge-${inv.paymentStatus?.toLowerCase()}`}>
+                          {inv.paymentStatus === "PENDING_PAYMENT" ? "Pending Payment" : inv.paymentStatus === "PAID" ? "Paid" : inv.paymentStatus}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="fef-btn fef-btn-primary"
+                          style={{ padding: "6px 12px", fontSize: "13px" }}
+                          onClick={() => setSelectedInvoice(inv)}
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {invoicesList.length === 0 && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}>
+                      No invoices generated yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {selectedInvoice && (
+        <InvoiceModal
+          invoice={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
+          onRefresh={() => {
+            loadInvoices();
+          }}
+          userRole="ADMIN"
+        />
       )}
       </DashboardLayout>
     </RouteGuard>

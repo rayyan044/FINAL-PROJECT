@@ -44,6 +44,10 @@ public class FuelOrderResponse {
     private BigDecimal originalQuantity;
     private BigDecimal approvedQuantity;
     private String editReason;
+    
+    private Long invoiceId;
+    private String invoiceNumber;
+    private String paymentStatus;
 
     public String getCustomerName() {
         return customer != null ? customer.getCompanyName() : null;

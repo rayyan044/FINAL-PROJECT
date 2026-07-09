@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   FiPackage,
   FiUserPlus,
@@ -892,7 +893,7 @@ function OpsDash() {
       )}
 
       {/* MODAL: STOCK UPDATE */}
-      {showStockModal && selectedProduct && (
+      {showStockModal && selectedProduct && typeof window !== "undefined" && createPortal(
         <div className="fef-modal-backdrop" onClick={() => setShowStockModal(false)}>
           <div className="fef-modal-window" style={{ maxWidth: "500px" }} onClick={(e) => e.stopPropagation()}>
             <button className="fef-modal-close" onClick={() => setShowStockModal(false)}>
@@ -969,7 +970,8 @@ function OpsDash() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       </DashboardLayout>
     </RouteGuard>

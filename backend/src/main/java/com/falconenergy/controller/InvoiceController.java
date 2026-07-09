@@ -24,7 +24,7 @@ public class InvoiceController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE', 'SALES_OFFICER', 'CUSTOMER')")
     public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> getAllInvoices(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -38,7 +38,7 @@ public class InvoiceController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE', 'SALES_OFFICER', 'CUSTOMER')")
     public ResponseEntity<ApiResponse<InvoiceResponse>> getInvoiceById(@PathVariable Long id) {
         InvoiceResponse invoice = invoiceService.getInvoiceById(id);
         return ResponseEntity.ok(ApiResponse.success("Invoice retrieved successfully", invoice));

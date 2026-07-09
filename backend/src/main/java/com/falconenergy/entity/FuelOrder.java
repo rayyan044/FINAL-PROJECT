@@ -90,4 +90,7 @@ public class FuelOrder extends BaseEntity {
 
     @Column(name = "edit_reason")
     private String editReason;
+
+    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
+    private Invoice invoice;
 }

@@ -1,11 +1,147 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { FiX, FiPrinter, FiCheck, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
-import { approveInvoicePayment } from "../services/invoiceService";
+import { approveInvoicePayment, overrideInvoiceStatus } from "../services/invoiceService";
+import logoImg from "../assets/falcon-logo.png";
+import signatureImg from "../assets/authorized-signature.png";
+import stampImg from "../assets/falcon-stamp.png";
+
+// Helper to convert number to words for USD amounts
+function numberToWords(num) {
+  if (num === null || num === undefined || isNaN(num)) return "";
+  
+  const ones = ["", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", 
+                "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN"];
+  const tens = ["", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY"];
+  const scales = ["", "THOUSAND", "MILLION", "BILLION"];
+
+  function convertInteger(n) {
+    if (n === 0) return "ZERO";
+    
+    let words = [];
+    let scaleIndex = 0;
+    
+    while (n > 0) {
+      let chunk = n % 1000;
+      if (chunk > 0) {
+        let chunkWords = [];
+        let hundreds = Math.floor(chunk / 100);
+        let remainder = chunk % 100;
+        
+        if (hundreds > 0) {
+          chunkWords.push(ones[hundreds] + " HUNDRED");
+        }
+        
+        if (remainder > 0) {
+          if (remainder < 20) {
+            chunkWords.push(ones[remainder]);
+          } else {
+            let tenPart = Math.floor(remainder / 10);
+            let onePart = remainder % 10;
+            chunkWords.push(tens[tenPart] + (onePart > 0 ? " " + ones[onePart] : ""));
+          }
+        }
+        
+        if (scales[scaleIndex]) {
+          chunkWords.push(scales[scaleIndex]);
+        }
+        
+        words.unshift(chunkWords.join(" "));
+      }
+      n = Math.floor(n / 1000);
+      scaleIndex++;
+    }
+    
+    return words.join(" ");
+  }
+
+  const parts = Number(num).toFixed(2).split(".");
+  const dollars = parseInt(parts[0], 10);
+  const cents = parseInt(parts[1], 10);
+
+  let result = "UNITED STATES DOLLARS " + convertInteger(dollars);
+  if (cents > 0) {
+    result += " AND " + convertInteger(cents) + " CENTS";
+  }
+  result += " ONLY";
+  
+  return result.toUpperCase();
+}
+
+// Helper to format date in long format (e.g. October 21, 2025)
+function formatDateLong(dateStr) {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Helper to get ordinal suffix (1st, 2nd, etc.)
+function getOrdinalSuffix(day) {
+  if (day > 3 && day < 21) return 'th';
+  switch (day % 10) {
+    case 1:  return "st";
+    case 2:  return "nd";
+    case 3:  return "rd";
+    default: return "th";
+  }
+}
+
+// Helper to format validity date: e.g., 30th Sep, 2025
+function formatValidityDate(dateObj) {
+  if (!dateObj) return "";
+  const day = dateObj.getDate();
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = monthNames[dateObj.getMonth()];
+  const year = dateObj.getFullYear();
+  return `${day}${getOrdinalSuffix(day)} ${month}, ${year}`;
+}
+
+// Helper to separate a single address text into Box Office and Physical Address
+function parseCustomerAddress(addressStr) {
+  if (!addressStr) {
+    return {
+      postal: "BUYER BOX OFFICE ADDRESS",
+      physical: "BUYER PHYSICAL ADDRESS"
+    };
+  }
+
+  const lines = addressStr.split(/\n+/);
+  if (lines.length > 1) {
+    const postalIndex = lines.findIndex(l => /p\.?o\.?\s*box/i.test(l));
+    if (postalIndex !== -1) {
+      const postal = lines[postalIndex].trim();
+      const physical = lines.filter((_, i) => i !== postalIndex).join(", ").trim();
+      return { postal, physical: physical || "N/A" };
+    }
+    return {
+      postal: lines[0].trim(),
+      physical: lines.slice(1).join(", ").trim()
+    };
+  }
+
+  const parts = addressStr.split(/,\s*/);
+  const postalIndex = parts.findIndex(p => /p\.?o\.?\s*box/i.test(p));
+  if (postalIndex !== -1) {
+    const postal = parts[postalIndex].trim();
+    const physical = parts.filter((_, i) => i !== postalIndex).join(", ").trim();
+    return { postal, physical: physical || "N/A" };
+  }
+
+  if (/p\.?o\.?\s*box/i.test(addressStr)) {
+    return { postal: addressStr.trim(), physical: "N/A" };
+  }
+
+  return {
+    postal: "P.O. Box Not Provided",
+    physical: addressStr.trim()
+  };
+}
 
 export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [overrideStatus, setOverrideStatus] = useState(invoice?.paymentStatus || "PENDING_PAYMENT");
 
   if (!invoice) return null;
 
@@ -15,65 +151,46 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
     setSuccess("");
     try {
       await approveInvoicePayment(invoice.id);
-      setSuccess("Invoice payment processed and marked as PAID successfully.");
+      setSuccess("Invoice payment confirmed and marked as Paid successfully.");
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error(err);
-      setError(err?.message || "Failed to process payment approval.");
+      setError(err?.message || "Failed to confirm payment.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOverrideStatus = async () => {
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      await overrideInvoiceStatus(invoice.id, overrideStatus);
+      setSuccess(`Invoice status successfully overridden to ${overrideStatus === "PENDING_PAYMENT" ? "Pending Payment" : "Paid"}.`);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Failed to override invoice status.");
     } finally {
       setLoading(false);
     }
   };
 
   const handlePrint = () => {
-    const printContent = document.getElementById("invoice-printable-area").innerHTML;
-    const originalContent = document.body.innerHTML;
-    
-    // Create print stylesheet dynamically
-    const style = document.createElement('style');
-    style.innerHTML = `
-      @media print {
-        body {
-          background: white !important;
-          color: black !important;
-          padding: 20px !important;
-        }
-        .no-print {
-          display: none !important;
-        }
-        .invoice-card {
-          border: none !important;
-          box-shadow: none !important;
-          background: white !important;
-          color: black !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        table {
-          width: 100% !important;
-          border-collapse: collapse !important;
-        }
-        th, td {
-          border-bottom: 1px solid #ddd !important;
-          padding: 8px !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
     window.print();
-    document.head.removeChild(style);
   };
 
   const order = invoice.order || {};
   const customer = order.customer || {};
   const product = order.product || {};
 
-  const isPending = invoice.paymentStatus?.toUpperCase() === "PENDING";
+  const isPending = invoice.paymentStatus?.toUpperCase() === "PENDING" || invoice.paymentStatus?.toUpperCase() === "PENDING_PAYMENT";
   const isPaid = invoice.paymentStatus?.toUpperCase() === "PAID";
 
-  return (
+  if (typeof window === "undefined") return null;
+
+  return createPortal(
     <div className="fef-modal-backdrop" onClick={onClose} style={{ zIndex: 9999 }}>
       <div 
         className="fef-modal-window" 
@@ -81,11 +198,11 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sticky Modal Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.1)", background: "rgba(30, 41, 59, 0.95)" }}>
+        <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.1)", background: "rgba(30, 41, 59, 0.95)" }}>
           <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px" }}>
             <span>Invoice Details</span>
             <span className={`fef-badge fef-badge-${invoice.paymentStatus?.toLowerCase()}`} style={{ fontSize: "12px", padding: "2px 8px" }}>
-              {invoice.paymentStatus}
+              {invoice.paymentStatus === "PENDING_PAYMENT" ? "Pending Payment" : invoice.paymentStatus === "PAID" ? "Paid" : invoice.paymentStatus}
             </span>
           </h3>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -99,7 +216,7 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
         </div>
 
         {/* Modal Scrollable Content */}
-        <div style={{ overflowY: "auto", padding: "24px", flex: 1, background: "#f8fafc", color: "#1e293b" }}>
+        <div className="fef-modal-scrollable-content" style={{ overflowY: "auto", padding: "24px", flex: 1, background: "#f8fafc", color: "#1e293b" }}>
           {error && (
             <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 20 }}>
               <FiAlertCircle style={{ verticalAlign: "-2px", marginRight: 6 }} />
@@ -115,184 +232,291 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
           )}
 
           <div id="invoice-printable-area">
-            <div className="invoice-card" style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "32px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)" }}>
-              
-              {/* Header: Company Logo & Info */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #e2e8f0", paddingBottom: "24px", marginBottom: "24px" }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                    <div style={{ background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", width: "32px", height: "32px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "bold" }}>
-                      F
+            {(() => {
+              const productNameUpper = (order.productName || product.productName || "").toUpperCase();
+              const fuelTypeUpper = (product.fuelType || "").toUpperCase();
+              const isPMS = productNameUpper.includes("PMS") || productNameUpper.includes("PETROL") || fuelTypeUpper === "PMS";
+              const productDescription = isPMS
+                ? "Premium Motor Spirit – Automotive Gasoline 90 RON (According to East African Standards)"
+                : "Automotive Gasoil – Diesel 50 ppm (According to East African Standards)";
+
+              const parsedAddress = parseCustomerAddress(customer.address || order.locationAddress);
+
+              const qtyInCbm = (order.quantity || 0) / 1000;
+              const pricePerCbm = (product.unitPrice || 0) * 1000;
+              const grandTotal = invoice.grandTotal || (qtyInCbm * pricePerCbm);
+              const totalAmountWords = numberToWords(grandTotal);
+
+              const invoiceDateVal = invoice.invoiceDate ? new Date(invoice.invoiceDate) : new Date();
+              const validityDateVal = new Date(invoiceDateVal.getTime());
+              validityDateVal.setDate(validityDateVal.getDate() + 30);
+              const validityDateStr = formatValidityDate(validityDateVal);
+
+              return (
+                <div className="invoice-card" style={{ 
+                  background: "#ffffff", 
+                  color: "#000000",
+                  border: "3px double #000000", 
+                  borderRadius: "8px", 
+                  padding: "40px", 
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  fontFamily: "Arial, sans-serif"
+                }}>
+                  {/* Header: Logo and Company Info */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                    <div>
+                      <img src={logoImg} alt="Falcon Energy Logo" style={{ height: "90px", width: "auto" }} />
                     </div>
-                    <span style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a", letterSpacing: "0.5px" }}>FALCON ENERGY LTD</span>
+                    <div style={{ textAlign: "right", fontSize: "13px", lineHeight: "1.5", color: "#000000" }}>
+                      <div style={{ fontSize: "20px", fontWeight: "bold", color: "#000000", letterSpacing: "0.5px", marginBottom: "4px" }}>
+                        FALCON ENERGY LIMITED
+                      </div>
+                      <div style={{ fontWeight: "600" }}>P.O. Box : 45431, 6th Floor, SALAMANDER TOWER</div>
+                      <div style={{ fontWeight: "600" }}>SAMORA AVENUE, DAR ES SALAAM</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.6" }}>
-                    Falcon Tower, Mombasa Road<br />
-                    P.O. Box 99882 - 00100, Nairobi, Kenya<br />
-                    Tel: +254 700 000 000 | Email: billing@falconenergy.com<br />
-                    VAT No: VAT-FE-998822 | TIN: P051234567Z
+
+                  {/* Document Title */}
+                  <div style={{ 
+                    textAlign: "center", 
+                    fontSize: "20px", 
+                    fontWeight: "bold", 
+                    borderTop: "1px solid #000000", 
+                    borderBottom: "1px solid #000000", 
+                    padding: "6px 0",
+                    marginBottom: "20px",
+                    letterSpacing: "1px",
+                    color: "#000000"
+                  }}>
+                    PROFORMA INVOICE
                   </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <h1 style={{ margin: "0 0 6px 0", fontSize: "28px", fontWeight: "900", color: "#0f172a", letterSpacing: "-0.5px" }}>INVOICE</h1>
-                  <table style={{ borderCollapse: "collapse", fontSize: "12px", color: "#64748b", float: "right" }}>
+
+                  {/* Order adjustment warning if present */}
+                  {order.originalQuantity && order.originalQuantity !== order.quantity && (
+                    <div className="no-print" style={{ 
+                      background: "#fffbeb", 
+                      border: "1px solid #fef3c7", 
+                      borderRadius: "6px", 
+                      padding: "8px 12px", 
+                      marginBottom: "15px", 
+                      fontSize: "12px", 
+                      color: "#92400e" 
+                    }}>
+                      <strong>⚠️ Order Adjustment Audit Trail:</strong>
+                      <span style={{ marginLeft: "8px" }}>
+                        Original: {order.originalQuantity?.toLocaleString()} L | Adjusted: {order.quantity?.toLocaleString()} L
+                        {order.editReason && ` (${order.editReason})`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Main Invoice Table */}
+                  <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000000", fontSize: "13px", color: "#000000" }}>
                     <tbody>
+                      {/* Row 1: Date & Invoice No */}
                       <tr>
-                        <td style={{ padding: "2px 8px", fontWeight: "bold", color: "#334155", textAlign: "right" }}>Invoice No:</td>
-                        <td style={{ padding: "2px 8px", color: "#0f172a", fontWeight: "bold" }}>{invoice.invoiceNumber}</td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: "2px 8px", fontWeight: "bold", color: "#334155", textAlign: "right" }}>Date:</td>
-                        <td style={{ padding: "2px 8px", color: "#0f172a" }}>
-                          {invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : ""}
+                        <td style={{ width: "15%", border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>DATE:</td>
+                        <td style={{ width: "45%", border: "1px solid #000000", padding: "8px 12px" }}>
+                          {formatDateLong(invoice.invoiceDate)}
+                        </td>
+                        <td style={{ width: "15%", border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>INVOICE No:</td>
+                        <td style={{ width: "25%", border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>
+                          {invoice.invoiceNumber}
                         </td>
                       </tr>
+
+                      {/* Row 2: Buyer Details */}
                       <tr>
-                        <td style={{ padding: "2px 8px", fontWeight: "bold", color: "#334155", textAlign: "right" }}>Order Ref:</td>
-                        <td style={{ padding: "2px 8px", color: "#0f172a" }}>{order.orderNumber}</td>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold", verticalAlign: "top" }}>BUYER:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px", verticalAlign: "top" }}>
+                          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                            {order.customerName || customer.companyName || "BUYER NAME"}
+                          </div>
+                          <div style={{ marginBottom: "2px" }}>{parsedAddress.postal}</div>
+                          <div>{parsedAddress.physical}</div>
+                        </td>
                       </tr>
+
+                      {/* Row 3: Product Description */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold", verticalAlign: "top" }}>PRODUCT:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>
+                          {productDescription}
+                        </td>
+                      </tr>
+
+                      {/* Row 4: Quantity */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>QUANTITY:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px" }}>
+                          {qtyInCbm.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })} CBM
+                        </td>
+                      </tr>
+
+                      {/* Row 5: Price */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>PRICE (FUEL):</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px" }}>
+                          Us$ {pricePerCbm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Per CBM
+                        </td>
+                      </tr>
+
+                      {/* Row 6: Incoterms */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>INCOTERMS:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px" }}>
+                          EX-TANGA PORT
+                        </td>
+                      </tr>
+
+                      {/* Row 7: Grand Total Numeric */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px" }}></td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold", fontSize: "14px" }}>
+                          US $ {grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+
+                      {/* Row 8: Grand Total Words */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold", verticalAlign: "top" }}>TOTAL AMOUNT:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>
+                          ({totalAmountWords})
+                        </td>
+                      </tr>
+
+                      {/* Row 9: Payment Instructions Header */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>PAYMENT INSTRUCTIONS:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>
+                          PREPAYMENT
+                        </td>
+                      </tr>
+
+                      {/* Row 10: Bank Title */}
+                      <tr>
+                        <td colSpan={4} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold", textDecoration: "underline" }}>
+                          PLEASE PAY THE ABOVE AMOUNT BY TT TO:
+                        </td>
+                      </tr>
+
+                      {/* Row 11: Bank Table & Stamp Split */}
+                      <tr>
+                        <td colSpan={2} style={{ width: "60%", border: "1px solid #000000", padding: 0, verticalAlign: "top" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                            <tbody>
+                              <tr style={{ borderBottom: "1px solid #000000" }}>
+                                <td style={{ width: "30%", padding: "6px 8px", borderRight: "1px solid #000000", fontWeight: "bold" }}>Beneficiary:</td>
+                                <td style={{ width: "70%", padding: "6px 8px", fontWeight: "bold" }}>FALCON ENERGY LIMITED</td>
+                              </tr>
+                              <tr style={{ borderBottom: "1px solid #000000" }}>
+                                <td style={{ padding: "6px 8px", borderRight: "1px solid #000000", fontWeight: "bold" }}>Bank Name:</td>
+                                <td style={{ padding: "6px 8px", fontWeight: "bold" }}>CRDB BANK</td>
+                              </tr>
+                              <tr style={{ borderBottom: "1px solid #000000" }}>
+                                <td style={{ padding: "6px 8px", borderRight: "1px solid #000000", fontWeight: "bold" }}>Branch Name:</td>
+                                <td style={{ padding: "6px 8px", fontWeight: "bold" }}>TEMEKE TAIFA BRANCH</td>
+                              </tr>
+                              <tr style={{ borderBottom: "1px solid #000000" }}>
+                                <td style={{ padding: "6px 8px", borderRight: "1px solid #000000", fontWeight: "bold" }}>Account No:</td>
+                                <td style={{ padding: "6px 8px", fontWeight: "bold" }}>025000130UJ00</td>
+                              </tr>
+                              <tr style={{ borderBottom: "1px solid #000000" }}>
+                                <td style={{ padding: "6px 8px", borderRight: "1px solid #000000", fontWeight: "bold" }}>Swift Code:</td>
+                                <td style={{ padding: "6px 8px", fontWeight: "bold" }}>CORUTZTZ</td>
+                              </tr>
+                              <tr>
+                                <td style={{ padding: "6px 8px", borderRight: "1px solid #000000", fontWeight: "bold" }}>Currency:</td>
+                                <td style={{ padding: "6px 8px", fontWeight: "bold" }}>United States Dollars</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+                        <td colSpan={2} style={{ width: "40%", border: "1px solid #000000", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>
+                          <img src={stampImg} alt="Falcon Energy Limited Stamp" style={{ height: "115px", width: "auto", display: "inline-block" }} />
+                        </td>
+                      </tr>
+
+                      {/* Row 12: Validity */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>PLEASE NOTE:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>
+                          This Proforma is Valid Until {validityDateStr}
+                        </td>
+                      </tr>
+
+                      {/* Row 13: FOR */}
+                      <tr>
+                        <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>FOR:</td>
+                        <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>
+                          FALCON ENERGY LIMITED
+                        </td>
+                      </tr>
+
+                      {/* Row 14: Signature */}
+                      <tr>
+                        <td colSpan={4} style={{ border: "1px solid #000000", padding: "6px 12px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                            <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: "12px", width: "50%", textAlign: "center" }}>
+                              AUTHORIZED SIGNATORY
+                            </div>
+                            <div style={{ width: "50%", textAlign: "right", paddingRight: "40px" }}>
+                              <img src={signatureImg} alt="Authorized Signature" style={{ height: "45px", width: "auto", display: "inline-block" }} />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+
                     </tbody>
                   </table>
                 </div>
-              </div>
-
-              {/* Bill To & Details Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "28px" }}>
-                <div>
-                  <h4 style={{ margin: "0 0 8px 0", fontSize: "12px", textTransform: "uppercase", color: "#64748b", letterSpacing: "0.5px" }}>BILLED TO:</h4>
-                  <div style={{ fontSize: "14px", fontWeight: "bold", color: "#0f172a", marginBottom: "4px" }}>{order.customerName}</div>
-                  <div style={{ fontSize: "12px", color: "#475569", lineHeight: "1.5" }}>
-                    {customer.contactPerson && <div>Attn: {customer.contactPerson}</div>}
-                    {customer.address && <div>Address: {customer.address}</div>}
-                    {customer.phone && <div>Tel: {customer.phone}</div>}
-                    {customer.email && <div>Email: {customer.email}</div>}
-                    {customer.tinNumber && <div style={{ marginTop: "4px", fontSize: "11px", color: "#64748b" }}>TIN/KRA PIN: <strong>{customer.tinNumber}</strong></div>}
-                  </div>
-                </div>
-
-                <div style={{ background: "#f1f5f9", borderRadius: "6px", padding: "16px", fontSize: "12px", color: "#475569" }}>
-                  <h4 style={{ margin: "0 0 8px 0", fontSize: "11px", textTransform: "uppercase", color: "#64748b", letterSpacing: "0.5px" }}>DELIVERY DETAILS:</h4>
-                  <div style={{ lineHeight: "1.6" }}>
-                    {order.locationAddress && <div>📍 <strong>Address:</strong> {order.locationAddress}</div>}
-                    {order.driverName && <div>🚛 <strong>Driver:</strong> {order.driverName} ({order.driverPhone})</div>}
-                    {order.vehicleType && <div>🚒 <strong>Vehicle Type:</strong> <span style={{ textTransform: "capitalize" }}>{order.vehicleType}</span></div>}
-                    {order.paymentMethod && <div>💳 <strong>Payment Method:</strong> {order.paymentMethod}</div>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "24px" }}>
-                <thead>
-                  <tr style={{ background: "#0f172a", color: "white" }}>
-                    <th style={{ padding: "10px 12px", textAlign: "left", fontSize: "12px", textTransform: "uppercase" }}>Description (Fuel Product)</th>
-                    <th style={{ padding: "10px 12px", textAlign: "right", fontSize: "12px", textTransform: "uppercase" }}>Approved Qty</th>
-                    <th style={{ padding: "10px 12px", textAlign: "right", fontSize: "12px", textTransform: "uppercase" }}>Unit Price</th>
-                    <th style={{ padding: "10px 12px", textAlign: "right", fontSize: "12px", textTransform: "uppercase" }}>Total Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ padding: "12px", fontSize: "13px", color: "#0f172a" }}>
-                      <strong>{order.productName || product.productName}</strong>
-                      <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>Fuel Type: {product.fuelType || "N/A"} | Density: {product.density || "N/A"} kg/L</div>
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: "13px", color: "#0f172a" }}>
-                      {order.quantity?.toLocaleString()} L
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: "13px", color: "#0f172a" }}>
-                      ${product.unitPrice?.toFixed(2)}/L
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: "13px", color: "#0f172a", fontWeight: "600" }}>
-                      ${invoice.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {/* History / Modification Log */}
-              {order.originalQuantity && order.originalQuantity !== order.quantity && (
-                <div style={{ background: "#fffbeb", border: "1px solid #fef3c7", borderRadius: "6px", padding: "12px", marginBottom: "24px", fontSize: "12px", color: "#92400e" }}>
-                  <strong>⚠️ Order Adjustment Audit Trail:</strong>
-                  <div style={{ marginTop: "4px", lineHeight: "1.4" }}>
-                    • Original Customer Requested Quantity: <strong>{order.originalQuantity?.toLocaleString()} L</strong><br />
-                    • Approved / Adjusted Quantity: <strong>{order.quantity?.toLocaleString()} L</strong><br />
-                    {order.editReason && <span>• Reason for Adjustment: <em>"{order.editReason}"</em></span>}
-                  </div>
-                </div>
-              )}
-
-              {/* Financial Calculation Summary */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "32px" }}>
-                <table style={{ width: "280px", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <tbody>
-                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "8px 0", color: "#64748b" }}>Subtotal:</td>
-                      <td style={{ padding: "8px 0", textAlign: "right", color: "#0f172a", fontWeight: "600" }}>
-                        ${invoice.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "8px 0", color: "#64748b" }}>VAT (16%):</td>
-                      <td style={{ padding: "8px 0", textAlign: "right", color: "#0f172a", fontWeight: "600" }}>
-                        ${invoice.tax?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr style={{ borderBottom: "2px solid #0f172a" }}>
-                      <td style={{ padding: "10px 0", color: "#0f172a", fontWeight: "800", fontSize: "15px" }}>Grand Total:</td>
-                      <td style={{ padding: "10px 0", textAlign: "right", color: "var(--feftms-primary, #ea580c)", fontWeight: "800", fontSize: "16px" }}>
-                        ${invoice.grandTotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Terms and Finance Approval Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "24px", fontSize: "11px", color: "#64748b", borderTop: "1px solid #e2e8f0", paddingTop: "20px" }}>
-                <div>
-                  <h4 style={{ margin: "0 0 6px 0", fontSize: "11px", color: "#334155", textTransform: "uppercase" }}>Terms & Conditions</h4>
-                  <div style={{ whiteSpace: "pre-line", lineHeight: "1.5" }}>
-                    {invoice.termsAndConditions}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "flex-end", textAlign: "right" }}>
-                  <h4 style={{ margin: "0 0 6px 0", fontSize: "11px", color: "#334155", textTransform: "uppercase" }}>Finance Approval</h4>
-                  {isPaid ? (
-                    <div style={{ border: "2px solid #16a34a", color: "#16a34a", padding: "8px 12px", borderRadius: "6px", background: "#f0fdf4", display: "inline-block", fontWeight: "bold", textTransform: "uppercase", fontSize: "12px", textAlign: "center" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", justifyContent: "center" }}>
-                        <FiCheckCircle /> PAID & APPROVED
-                      </div>
-                      <div style={{ fontSize: "9px", color: "#15803d", fontWeight: "normal", textTransform: "none", marginTop: "2px" }}>
-                        By: {invoice.financeApprovedBy}<br />
-                        At: {new Date(invoice.financeApprovedAt).toLocaleString()}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ border: "2px dashed #ca8a04", color: "#ca8a04", padding: "8px 12px", borderRadius: "6px", background: "#fef9c3", display: "inline-block", fontWeight: "bold", textTransform: "uppercase", fontSize: "11px" }}>
-                      Payment Pending
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
+              );
+            })()}
           </div>
         </div>
-
         {/* Sticky Modal Footer: Action Bar */}
-        {isPending && userRole === "FINANCE" && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", padding: "16px 24px", borderTop: "1px solid rgba(255,255,255,0.1)", background: "rgba(30, 41, 59, 0.95)" }}>
-            <button className="fef-btn fef-btn-outline" onClick={onClose} disabled={loading}>
-              Close
-            </button>
+        <div className="no-print" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "12px", padding: "16px 24px", borderTop: "1px solid rgba(255,255,255,0.1)", background: "rgba(30, 41, 59, 0.95)" }}>
+          <button className="fef-btn fef-btn-outline" onClick={onClose} disabled={loading}>
+            Close
+          </button>
+
+          {isPending && userRole === "FINANCE" && (
             <button className="fef-btn fef-btn-success" onClick={handleApprovePayment} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <FiCheck /> {loading ? "Processing..." : "Approve Payment"}
+              <FiCheck /> {loading ? "Processing..." : "Confirm Payment"}
             </button>
-          </div>
-        )}
+          )}
+
+          {userRole === "ADMIN" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <select
+                value={overrideStatus}
+                onChange={(e) => setOverrideStatus(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  background: "#0f172a",
+                  color: "white",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  fontSize: "13px"
+                }}
+                disabled={loading}
+              >
+                <option value="PENDING_PAYMENT">Pending Payment</option>
+                <option value="PAID">Paid</option>
+              </select>
+              <button
+                className="fef-btn fef-btn-primary"
+                onClick={handleOverrideStatus}
+                disabled={loading}
+                style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}
+              >
+                <FiCheck /> {loading ? "Overriding..." : "Override Status"}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

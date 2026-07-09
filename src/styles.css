@@ -291,3 +291,74 @@ button {
 .fef-password-toggle:hover {
   color: var(--feftms-secondary);
 }
+
+/* Print layout overrides to isolate proforma invoice sheet */
+@media print {
+  /* Hide all page content except the modal backdrop/portal */
+  body > *:not(.fef-modal-backdrop) {
+    display: none !important;
+  }
+  /* Reset html/body heights and overflows to print multiple pages */
+  html, body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  /* Hide marked UI sections like headers, footers, scrollbars */
+  .no-print {
+    display: none !important;
+  }
+  /* Reset modal backdrop constraint */
+  .fef-modal-backdrop {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* Reset modal window constraints */
+  .fef-modal-window {
+    position: relative !important;
+    max-height: none !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* Reset the scroll container constraints */
+  .fef-modal-scrollable-content {
+    overflow: visible !important;
+    overflow-y: visible !important;
+    height: auto !important;
+    flex: none !important;
+    padding: 0 !important;
+    background: none !important;
+  }
+  /* Position the printable area at the very top-left of the page */
+  #invoice-printable-area {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* Ensure the invoice card has clean spacing and A4 borders */
+  .invoice-card {
+    border: 3px double #000000 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    width: 100% !important;
+    background: white !important;
+    color: black !important;
+  }
+}

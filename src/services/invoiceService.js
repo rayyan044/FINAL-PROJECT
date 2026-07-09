@@ -26,3 +26,13 @@ export async function getInvoiceById(id) {
 export async function approveInvoicePayment(id) {
   return api.post(`/invoices/${id}/approve`).then((r) => r.data);
 }
+
+/**
+ * Override payment status for an invoice (Admin).
+ * @param {number|string} id
+ * @param {string} status
+ * @returns {Promise<Object>}
+ */
+export async function overrideInvoiceStatus(id, status) {
+  return api.post(`/invoices/${id}/override`, null, { params: { status } }).then((r) => r.data);
+}

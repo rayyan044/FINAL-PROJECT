@@ -9,6 +9,9 @@ import org.mapstruct.MappingTarget;
 
 @Mapper(componentModel = "spring", uses = {CustomerMapper.class, FuelProductMapper.class})
 public interface FuelOrderMapper {
+    @Mapping(target = "invoiceId", source = "invoice.id")
+    @Mapping(target = "invoiceNumber", source = "invoice.invoiceNumber")
+    @Mapping(target = "paymentStatus", source = "invoice.paymentStatus")
     FuelOrderResponse toResponse(FuelOrder fuelOrder);
 
     @Mapping(target = "customer", ignore = true)

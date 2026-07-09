@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   FiHome,
   FiFileText,
@@ -270,7 +271,7 @@ function FinanceDash() {
                     return (
                       <tr key={inv.id}>
                         <td><strong>{inv.invoiceNumber}</strong></td>
-                        <td>{o.customerName || "Stranded Driver"}</td>
+                        <td>{o.customerName === "Stranded Drivers (Emergency Requests)" && o.driverName ? o.driverName : (o.customerName || "Stranded Driver")}</td>
                         <td>{o.productName}</td>
                         <td>{o.quantity?.toLocaleString()} L</td>
                         <td style={{ color: "var(--feftms-success)", fontWeight: 600 }}>
@@ -278,7 +279,7 @@ function FinanceDash() {
                         </td>
                         <td>
                           <span className={`fef-badge fef-badge-${inv.paymentStatus?.toLowerCase()}`}>
-                            {inv.paymentStatus}
+                            {inv.paymentStatus === "PENDING_PAYMENT" ? "Pending Payment" : inv.paymentStatus === "PAID" ? "Paid" : inv.paymentStatus}
                           </span>
                         </td>
                         <td>
@@ -307,7 +308,7 @@ function FinanceDash() {
         )}
 
         {/* MODAL: EDIT PRICE */}
-        {showEditModal && selectedProduct && (
+        {showEditModal && selectedProduct && typeof window !== "undefined" && createPortal(
           <div className="fef-modal-backdrop" onClick={() => setShowEditModal(false)}>
             <div className="fef-modal-window" style={{ maxWidth: "450px" }} onClick={(e) => e.stopPropagation()}>
               <button className="fef-modal-close" onClick={() => setShowEditModal(false)}>
@@ -343,7 +344,8 @@ function FinanceDash() {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {selectedInvoice && (

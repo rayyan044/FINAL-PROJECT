@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   FiClock,
   FiCheckSquare,
@@ -24,7 +25,7 @@ import { RouteGuard } from "../components/RouteGuard";
 import { listRequests, updateRequestStatus, approveRequestWithEdit } from "../services/requestService";
 import { listCustomers, createCustomer } from "../services/customerService";
 import { listProducts } from "../services/productService";
-import { listInvoices } from "../services/invoiceService";
+import { getInvoiceById } from "../services/invoiceService";
 import { InvoiceModal } from "../components/InvoiceModal";
 import "../styles/forms.css";
 
@@ -50,10 +51,9 @@ function SalesDash() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   
   // Invoice & Editing States
-  const [invoicesList, setInvoicesList] = useState([]);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editQty, setEditQty] = useState("");
   const [editReason, setEditReason] = useState("");
@@ -78,13 +78,9 @@ function SalesDash() {
     Promise.all([
       listRequests({ size: 100 }),
       listCustomers({ size: 100 }),
-      listProducts({ size: 100 }),
-      listInvoices({ size: 100 }).catch(err => {
-        console.warn("Failed to fetch invoices", err);
-        return { content: [] };
-      })
+      listProducts({ size: 100 })
     ])
-      .then(([reqs, custs, prods, invs]) => {
+      .then(([reqs, custs, prods]) => {
         const content = reqs.content || [];
         const pendingCount = content.filter(o => o.orderStatus === "PENDING").length;
         const approvedCount = content.filter(o => o.orderStatus === "APPROVED").length;
@@ -98,7 +94,6 @@ function SalesDash() {
         setOrdersList(content);
         setCustomersList(custs.content || []);
         setProductsList(prods.content || []);
-        setInvoicesList(invs.content || []);
         setLoading(false);
       })
       .catch((err) => {
@@ -169,6 +164,20 @@ function SalesDash() {
       loadData();
     } catch (err) {
       setValidationError(err?.response?.data?.message || err?.message || "Failed to approve edited order.");
+    }
+  };
+
+  const handleViewInvoice = async (invoiceId) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await getInvoiceById(invoiceId);
+      setSelectedInvoice(res);
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Failed to load invoice details.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -356,9 +365,16 @@ function SalesDash() {
                     <td>{o.quantity?.toLocaleString()} L</td>
                     <td>${o.amount?.toLocaleString()}</td>
                     <td>
-                      <span className={`fef-badge fef-badge-${o.orderStatus?.toLowerCase()}`}>
-                        {o.orderStatus}
-                      </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span className={`fef-badge fef-badge-${o.orderStatus?.toLowerCase()}`}>
+                          {o.orderStatus}
+                        </span>
+                        {o.paymentStatus && (
+                          <span className={`fef-badge fef-badge-${o.paymentStatus.toLowerCase()}`} style={{ fontSize: "10px", width: "fit-content" }}>
+                            {o.paymentStatus === "PENDING_PAYMENT" ? "Pending Payment" : o.paymentStatus === "PAID" ? "Paid" : o.paymentStatus}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ display: "flex", gap: "6px" }}>
                       <button
@@ -369,23 +385,6 @@ function SalesDash() {
                       >
                         {o.orderStatus === "PENDING" ? "Review" : "View"}
                       </button>
-                      {(o.orderStatus === "APPROVED" || o.orderStatus === "DELIVERED") && (
-                        <button
-                          className="fef-btn fef-btn-success"
-                          style={{ padding: "6px 12px", fontSize: "13px", background: "#16a34a", borderColor: "#16a34a", color: "white" }}
-                          onClick={() => {
-                            const inv = invoicesList.find(i => i.order?.id === o.id || i.order?.orderNumber === o.orderNumber);
-                            if (inv) {
-                              setSelectedInvoice(inv);
-                            } else {
-                              alert("Invoice is not generated or still being processed.");
-                            }
-                          }}
-                          title="View generated invoice"
-                        >
-                          Invoice
-                        </button>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -528,11 +527,12 @@ function SalesDash() {
 
       {/* Detail / Review Modal */}
       {selectedRequest && (() => {
+        if (typeof window === "undefined") return null;
         const prod = productsList.find(p => p.id === selectedRequest.product?.id || p.productName === selectedRequest.productName);
         const availableStock = prod ? prod.availableQuantity : 0;
         const isStockLow = selectedRequest.orderStatus === "PENDING" && (availableStock < selectedRequest.quantity);
 
-        return (
+        return createPortal(
           <div className="fef-modal-backdrop" onClick={() => {
             setSelectedRequest(null);
             setIsEditing(false);
@@ -566,6 +566,11 @@ function SalesDash() {
                   {selectedRequest.emergencyLevel && (
                     <span className={`fef-badge fef-badge-${selectedRequest.emergencyLevel.toLowerCase().includes('critical') ? 'danger' : 'info'}`}>
                       {selectedRequest.emergencyLevel} Priority
+                    </span>
+                  )}
+                  {selectedRequest.paymentStatus && (
+                    <span className={`fef-badge fef-badge-${selectedRequest.paymentStatus.toLowerCase()}`} style={{ fontSize: "11px" }}>
+                      Payment: {selectedRequest.paymentStatus === "PENDING_PAYMENT" ? "Pending" : selectedRequest.paymentStatus === "PAID" ? "Paid" : selectedRequest.paymentStatus}
                     </span>
                   )}
                 </div>
@@ -635,8 +640,8 @@ function SalesDash() {
                       {isEditing ? (
                         <input
                           type="number"
-                          className="fef-input"
-                          style={{ width: "100%", padding: "6px 10px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", borderRadius: "8px", fontSize: "14px" }}
+                          className={`fef-order-edit-input ${validationError ? 'fef-input-invalid' : ''}`}
+                          placeholder="e.g. 5000"
                           value={editQty}
                           onChange={(e) => {
                             setEditQty(e.target.value);
@@ -674,6 +679,16 @@ function SalesDash() {
                         <span className="fef-detail-value">{selectedRequest.paymentMethod}</span>
                       </div>
                     )}
+                    {selectedRequest.paymentStatus && (
+                      <div className="fef-detail-item">
+                        <span className="fef-detail-label">Payment Status</span>
+                        <span className="fef-detail-value">
+                          <span className={`fef-badge fef-badge-${selectedRequest.paymentStatus.toLowerCase()}`} style={{ padding: "2px 8px", fontSize: "12px" }}>
+                            {selectedRequest.paymentStatus === "PENDING_PAYMENT" ? "Pending Payment" : selectedRequest.paymentStatus === "PAID" ? "Paid" : selectedRequest.paymentStatus}
+                          </span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -686,8 +701,8 @@ function SalesDash() {
                         Reason for edit (Recommended)
                       </label>
                       <textarea
-                        className="fef-input"
-                        style={{ width: "100%", height: "60px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", borderRadius: "8px", padding: "8px", resize: "none" }}
+                        className="fef-order-edit-input"
+                        style={{ height: "60px", resize: "none" }}
                         value={editReason}
                         onChange={(e) => setEditReason(e.target.value)}
                         placeholder="e.g. Stock limitations require quantity reduction."
@@ -827,18 +842,30 @@ function SalesDash() {
                       )}
                     </>
                   ) : (
-                    <button
-                      className="fef-btn fef-btn-outline"
-                      onClick={() => setSelectedRequest(null)}
-                      style={{ padding: "10px 20px" }}
-                    >
-                      Close
-                    </button>
+                    <div style={{ display: "flex", gap: "10px", width: "100%" }}>
+                      <button
+                        className="fef-btn fef-btn-outline"
+                        onClick={() => setSelectedRequest(null)}
+                        style={{ padding: "10px 20px", flex: 1 }}
+                      >
+                        Close
+                      </button>
+                      {selectedRequest.invoiceId && (
+                        <button
+                          className="fef-btn fef-btn-primary"
+                          onClick={() => handleViewInvoice(selectedRequest.invoiceId)}
+                          style={{ padding: "10px 20px", flex: 1 }}
+                        >
+                          <FiFileText style={{ marginRight: "4px", verticalAlign: "-2px" }} /> View Invoice
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
       {selectedInvoice && (

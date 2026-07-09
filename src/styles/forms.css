@@ -265,4 +265,39 @@
   margin-top: 10px;
 }
 
+/* Sales Officer Order Edit Form Inputs */
+.fef-order-edit-input {
+  width: 100% !important;
+  padding: 8px 12px !important;
+  background: #ffffff !important;
+  border: 1.5px solid var(--feftms-border) !important;
+  color: var(--feftms-text) !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
 
+.fef-order-edit-input::placeholder {
+  color: var(--feftms-text-muted) !important;
+  opacity: 0.8 !important;
+}
+
+.fef-order-edit-input:focus {
+  outline: none !important;
+  border-color: var(--feftms-secondary) !important;
+  box-shadow: 0 0 0 4px rgba(21, 101, 192, 0.12) !important;
+}
+
+.fef-order-edit-input:disabled {
+  background: var(--feftms-bg-muted) !important;
+  color: var(--feftms-text-muted) !important;
+  cursor: not-allowed !important;
+}
+
+.fef-order-edit-input.fef-input-invalid {
+  border-color: var(--feftms-danger) !important;
+}
+
+.fef-order-edit-input.fef-input-invalid:focus {
+  box-shadow: 0 0 0 4px rgba(198, 40, 40, 0.12) !important;
+}
