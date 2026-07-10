@@ -21,6 +21,19 @@ public class InvoiceResponse {
     private String financeApprovedBy;
     private LocalDateTime financeApprovedAt;
     private String termsAndConditions;
+    private Long paymentAccountId;
+    private String paymentMethod;
+    private String beneficiaryName;
+    private String bankName;
+    private String branchName;
+    private String accountNumber;
+    private String swiftCode;
+    private String paymentAccountCurrency;
+    private String paymentTerms;
+    private String paymentInstructions;
+    private LocalDateTime validityDate;
+    private String invoiceType;
+    private CompanySettingsResponse companyDetails;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

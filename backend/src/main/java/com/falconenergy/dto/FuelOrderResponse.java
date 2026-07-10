@@ -19,6 +19,7 @@ public class FuelOrderResponse {
     private LocalDateTime orderDate;
     private LocalDateTime deliveryDate;
     private String orderStatus;
+    private String currency;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -37,7 +38,6 @@ public class FuelOrderResponse {
     private String locationGps;
     private String locationAddress;
     private String locationLandmark;
-    private String vehicleType;
     private String emergencyLevel;
     private String paymentMethod;
     private String notes;

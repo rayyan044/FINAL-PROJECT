@@ -59,6 +59,12 @@ class FuelOrderServiceImplTest {
     @Mock
     private com.falconenergy.repository.InvoiceRepository invoiceRepository;
 
+    @Mock
+    private com.falconenergy.repository.PaymentAccountRepository paymentAccountRepository;
+
+    @Mock
+    private com.falconenergy.repository.UserRepository userRepository;
+
     @InjectMocks
     private FuelOrderServiceImpl fuelOrderService;
 
@@ -93,6 +99,18 @@ class FuelOrderServiceImplTest {
         when(fuelOrderRepository.findById(30L)).thenReturn(Optional.of(order));
         when(fuelOrderRepository.save(any(FuelOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(fuelProductRepository.findById(20L)).thenReturn(Optional.of(product));
+        
+        com.falconenergy.entity.PaymentAccount paymentAccount = com.falconenergy.entity.PaymentAccount.builder()
+                .id(1L)
+                .paymentMethod("Bank Transfer")
+                .beneficiaryName("FALCON ENERGY LIMITED")
+                .bankName("CRDB BANK")
+                .accountNumber("025000130UJ00")
+                .currency("USD")
+                .status("ACTIVE")
+                .validityDays(30)
+                .build();
+        when(paymentAccountRepository.findByStatus("ACTIVE")).thenReturn(java.util.List.of(paymentAccount));
         when(invoiceRepository.save(any(com.falconenergy.entity.Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         SecurityContextHolder.getContext().setAuthentication(

@@ -70,8 +70,7 @@ public class FuelOrder extends BaseEntity {
     @Column(name = "location_landmark", columnDefinition = "TEXT")
     private String locationLandmark;
 
-    @Column(name = "vehicle_type", length = 50)
-    private String vehicleType;
+
 
     @Column(name = "emergency_level", length = 50)
     private String emergencyLevel;
@@ -90,6 +89,10 @@ public class FuelOrder extends BaseEntity {
 
     @Column(name = "edit_reason")
     private String editReason;
+
+    @Column(name = "currency", nullable = false, length = 10)
+    @Builder.Default
+    private String currency = "USD";
 
     @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
     private Invoice invoice;

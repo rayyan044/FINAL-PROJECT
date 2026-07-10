@@ -35,7 +35,6 @@ public class FuelOrderRequest {
     private String locationGps;
     private String locationAddress;
     private String locationLandmark;
-    private String vehicleType;
     private String emergencyLevel;
     private String paymentMethod;
     private String notes;

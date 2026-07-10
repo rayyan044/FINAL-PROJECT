@@ -53,4 +53,37 @@ public class Invoice extends BaseEntity {
 
     @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
     private String termsAndConditions;
+
+    @Column(name = "payment_account_id")
+    private Long paymentAccountId;
+
+    @Column(name = "payment_method", length = 50)
+    private String paymentMethod;
+
+    @Column(name = "beneficiary_name", length = 150)
+    private String beneficiaryName;
+
+    @Column(name = "bank_name", length = 150)
+    private String bankName;
+
+    @Column(name = "branch_name", length = 150)
+    private String branchName;
+
+    @Column(name = "account_number", length = 100)
+    private String accountNumber;
+
+    @Column(name = "swift_code", length = 50)
+    private String swiftCode;
+
+    @Column(name = "payment_account_currency", length = 10)
+    private String paymentAccountCurrency;
+
+    @Column(name = "payment_terms", length = 255)
+    private String paymentTerms;
+
+    @Column(name = "payment_instructions", columnDefinition = "TEXT")
+    private String paymentInstructions;
+
+    @Column(name = "validity_date")
+    private LocalDateTime validityDate;
 }

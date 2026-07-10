@@ -40,4 +40,8 @@ public class FuelProduct extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private String status = "ACTIVE";
+
+    @Column(name = "currency", nullable = false, length = 10)
+    @Builder.Default
+    private String currency = "USD";
 }

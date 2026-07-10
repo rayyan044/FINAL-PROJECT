@@ -8,6 +8,10 @@ import com.falconenergy.entity.UserStatus;
 import com.falconenergy.repository.CustomerRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.UserRepository;
+import com.falconenergy.repository.PaymentAccountRepository;
+import com.falconenergy.repository.CompanySettingsRepository;
+import com.falconenergy.entity.PaymentAccount;
+import com.falconenergy.entity.CompanySettings;
 import com.falconenergy.service.AuditLogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -25,19 +29,25 @@ public class DatabaseBootstrap implements CommandLineRunner {
     private final FuelProductRepository fuelProductRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final PaymentAccountRepository paymentAccountRepository;
+    private final CompanySettingsRepository companySettingsRepository;
 
     public DatabaseBootstrap(
             UserRepository userRepository,
             CustomerRepository customerRepository,
             FuelProductRepository fuelProductRepository,
             PasswordEncoder passwordEncoder,
-            AuditLogService auditLogService
+            AuditLogService auditLogService,
+            PaymentAccountRepository paymentAccountRepository,
+            CompanySettingsRepository companySettingsRepository
     ) {
         this.userRepository = userRepository;
         this.customerRepository = customerRepository;
         this.fuelProductRepository = fuelProductRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogService = auditLogService;
+        this.paymentAccountRepository = paymentAccountRepository;
+        this.companySettingsRepository = companySettingsRepository;
     }
 
     @Override
@@ -195,6 +205,60 @@ public class DatabaseBootstrap implements CommandLineRunner {
                     .status("ACTIVE")
                     .build();
             fuelProductRepository.save(pms);
+        }
+
+        // Bootstrap default Company Settings
+        if (companySettingsRepository.count() == 0) {
+            log.info("Bootstrapping default Company Settings...");
+            CompanySettings settings = CompanySettings.builder()
+                    .companyName("FALCON ENERGY LIMITED")
+                    .postalAddress("P.O. Box : 45431, 6th Floor, SALAMANDER TOWER")
+                    .officeAddress("SAMORA AVENUE, DAR ES SALAAM")
+                    .phoneNumber("+255 22 212 3456")
+                    .email("info@falconenergy.co.tz")
+                    .logo("assets/falcon-logo.png")
+                    .signatoryName("AUTHORIZED SIGNATORY")
+                    .signatoryTitle("FINANCE CONTROLLER")
+                    .signatorySignature("assets/authorized-signature.png")
+                    .build();
+            companySettingsRepository.save(settings);
+        }
+
+        // Bootstrap default active Payment Accounts
+        if (paymentAccountRepository.count() == 0) {
+            log.info("Bootstrapping default active Payment Accounts...");
+            
+            // USD Account
+            PaymentAccount usdAccount = PaymentAccount.builder()
+                    .paymentMethod("Bank Transfer")
+                    .beneficiaryName("FALCON ENERGY LIMITED")
+                    .bankName("CRDB BANK")
+                    .branchName("TEMEKE TAIFA BRANCH")
+                    .accountNumber("025000130UJ00")
+                    .swiftCode("CORUTZTZ")
+                    .currency("USD")
+                    .paymentTerms("PREPAYMENT")
+                    .paymentInstructions("PLEASE PAY THE ABOVE USD AMOUNT BY TT TO THE SPECIFIED USD ACCOUNT.")
+                    .status("ACTIVE")
+                    .validityDays(30)
+                    .build();
+            paymentAccountRepository.save(usdAccount);
+
+            // TZS Account
+            PaymentAccount tzsAccount = PaymentAccount.builder()
+                    .paymentMethod("Bank Transfer")
+                    .beneficiaryName("FALCON ENERGY LIMITED")
+                    .bankName("CRDB BANK")
+                    .branchName("TEMEKE TAIFA BRANCH")
+                    .accountNumber("015000130UJ00")
+                    .swiftCode("CORUTZTZ")
+                    .currency("TZS")
+                    .paymentTerms("PREPAYMENT")
+                    .paymentInstructions("TAFADHALI LIPIA KIASI HICHO CHA TZS KUPITIA AKAUNTI HII YA SHILINGI.")
+                    .status("ACTIVE")
+                    .validityDays(30)
+                    .build();
+            paymentAccountRepository.save(tzsAccount);
         }
     }
 }

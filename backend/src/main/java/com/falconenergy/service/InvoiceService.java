@@ -9,4 +9,5 @@ public interface InvoiceService {
     InvoiceResponse getInvoiceById(Long id);
     InvoiceResponse approveInvoicePayment(Long id, String approvedBy);
     InvoiceResponse overrideInvoiceStatus(Long id, String status, String updatedBy);
+    InvoiceResponse updateInvoicePaymentAccount(Long id, Long paymentAccountId, String updatedBy);
 }

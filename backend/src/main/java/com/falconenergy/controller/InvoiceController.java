@@ -64,4 +64,16 @@ public class InvoiceController {
         InvoiceResponse invoice = invoiceService.overrideInvoiceStatus(id, status, updatedBy);
         return ResponseEntity.ok(ApiResponse.success("Invoice status overridden successfully", invoice));
     }
+
+    @PostMapping("/{id}/payment-account")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> updateInvoicePaymentAccount(
+            @PathVariable Long id,
+            @RequestParam Long paymentAccountId
+    ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String updatedBy = auth != null ? auth.getName() : "system";
+        InvoiceResponse invoice = invoiceService.updateInvoicePaymentAccount(id, paymentAccountId, updatedBy);
+        return ResponseEntity.ok(ApiResponse.success("Invoice payment instructions updated", invoice));
+    }
 }

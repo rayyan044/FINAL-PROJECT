@@ -17,6 +17,7 @@ public class FuelProductResponse {
     private BigDecimal density;
     private BigDecimal availableQuantity;
     private String status;
+    private String currency;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

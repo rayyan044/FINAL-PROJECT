@@ -33,6 +33,8 @@ import com.falconenergy.repository.UserRepository;
 import com.falconenergy.entity.Invoice;
 import com.falconenergy.repository.InvoiceRepository;
 import com.falconenergy.dto.FuelOrderEditApprovalRequest;
+import com.falconenergy.repository.PaymentAccountRepository;
+import com.falconenergy.entity.PaymentAccount;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -54,6 +56,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
     private final com.falconenergy.service.FuelTransactionService fuelTransactionService;
     private final UserRepository userRepository;
     private final InvoiceRepository invoiceRepository;
+    private final PaymentAccountRepository paymentAccountRepository;
 
     public FuelOrderServiceImpl(
             FuelOrderRepository fuelOrderRepository,
@@ -66,7 +69,8 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             AuditLogService auditLogService,
             com.falconenergy.service.FuelTransactionService fuelTransactionService,
             UserRepository userRepository,
-            InvoiceRepository invoiceRepository
+            InvoiceRepository invoiceRepository,
+            PaymentAccountRepository paymentAccountRepository
     ) {
         this.fuelOrderRepository = fuelOrderRepository;
         this.customerRepository = customerRepository;
@@ -79,6 +83,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         this.fuelTransactionService = fuelTransactionService;
         this.userRepository = userRepository;
         this.invoiceRepository = invoiceRepository;
+        this.paymentAccountRepository = paymentAccountRepository;
     }
 
     @Override
@@ -101,6 +106,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         order.setCustomer(customer);
         order.setProduct(product);
         order.setAmount(amount);
+        order.setCurrency(product.getCurrency() != null ? product.getCurrency() : "USD");
         order.setOrderStatus("PENDING");
 
         FuelOrder savedOrder = fuelOrderRepository.save(order);
@@ -209,6 +215,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         order.setCustomer(customer);
         order.setProduct(product);
         order.setAmount(amount);
+        order.setCurrency(product.getCurrency() != null ? product.getCurrency() : "USD");
 
         FuelOrder updated = fuelOrderRepository.save(order);
         log.info("Fuel order updated successfully with amount: {}", amount);
@@ -631,20 +638,68 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             return;
         }
 
+        // 1. Dynamic Validations (Required check)
+        if (order.getCustomer() == null) {
+            throw new BadRequestException("Cannot generate invoice: Customer details are missing.");
+        }
+        if (order.getCustomer().getCustomerCode() == null || order.getCustomer().getCustomerCode().isBlank()) {
+            throw new BadRequestException("Cannot generate invoice: Customer code is missing.");
+        }
+        if (order.getProduct() == null) {
+            throw new BadRequestException("Cannot generate invoice: Fuel product details are missing.");
+        }
+        if (order.getQuantity() == null || order.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Cannot generate invoice: Quantity must be greater than zero.");
+        }
+        if (order.getProduct().getUnitPrice() == null || order.getProduct().getUnitPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Cannot generate invoice: Fuel product unit price is missing or invalid.");
+        }
+        String currency = order.getCurrency() != null ? order.getCurrency() : order.getProduct().getCurrency();
+        if (currency == null || currency.isBlank()) {
+            throw new BadRequestException("Cannot generate invoice: Transaction currency is missing.");
+        }
+
+        // 2. Fetch Active Payment Accounts and pick matching currency or fallback
+        java.util.List<PaymentAccount> activeAccounts = paymentAccountRepository.findByStatus("ACTIVE");
+        if (activeAccounts.isEmpty()) {
+            throw new BadRequestException("Cannot generate invoice: No active payment accounts are configured by Finance.");
+        }
+        PaymentAccount selectedAccount = activeAccounts.stream()
+                .filter(acc -> currency.equalsIgnoreCase(acc.getCurrency()))
+                .findFirst()
+                .orElse(activeAccounts.get(0)); // fallback to first active
+
         BigDecimal subtotal = order.getAmount();
         BigDecimal taxRate = new BigDecimal("0.16"); // 16% VAT
         BigDecimal tax = subtotal.multiply(taxRate).setScale(2, java.math.RoundingMode.HALF_UP);
         BigDecimal grandTotal = subtotal.add(tax).setScale(2, java.math.RoundingMode.HALF_UP);
 
+        LocalDateTime invoiceDate = LocalDateTime.now();
+        int validityDays = selectedAccount.getValidityDays() != null ? selectedAccount.getValidityDays() : 30;
+        LocalDateTime validityDate = invoiceDate.plusDays(validityDays);
+
         Invoice invoice = Invoice.builder()
                 .invoiceNumber("INV-" + order.getOrderNumber())
-                .invoiceDate(LocalDateTime.now())
+                .invoiceDate(invoiceDate)
                 .order(order)
                 .subtotal(subtotal)
                 .tax(tax)
                 .grandTotal(grandTotal)
                 .paymentStatus("PENDING_PAYMENT")
-                .termsAndConditions("1. Payment is due within 14 days of invoice date.\n2. Interest will be charged at 1.5% per month on late payments.\n3. Fuel deliveries are subject to standard terms of carriage.")
+                .termsAndConditions(selectedAccount.getPaymentInstructions())
+                
+                // Save payment account snapshot
+                .paymentAccountId(selectedAccount.getId())
+                .paymentMethod(selectedAccount.getPaymentMethod())
+                .beneficiaryName(selectedAccount.getBeneficiaryName())
+                .bankName(selectedAccount.getBankName())
+                .branchName(selectedAccount.getBranchName())
+                .accountNumber(selectedAccount.getAccountNumber())
+                .swiftCode(selectedAccount.getSwiftCode())
+                .paymentAccountCurrency(selectedAccount.getCurrency())
+                .paymentTerms(selectedAccount.getPaymentTerms())
+                .paymentInstructions(selectedAccount.getPaymentInstructions())
+                .validityDate(validityDate)
                 .build();
 
         invoice.setCreatedAt(LocalDateTime.now());
@@ -663,7 +718,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
                 "INVOICE",
                 savedInvoice.getId() != null ? savedInvoice.getId() : 0L,
                 order.getCustomer().getCustomerCode(),
-                "Invoice " + savedInvoice.getInvoiceNumber() + " automatically generated for order " + order.getOrderNumber()
+                "Invoice " + savedInvoice.getInvoiceNumber() + " automatically generated for order " + order.getOrderNumber() + " using payment account: " + selectedAccount.getBankName()
         );
     }
 }
