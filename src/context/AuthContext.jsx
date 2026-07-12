@@ -29,14 +29,13 @@ export function AuthProvider({ children }) {
       phone: data.phone,
       firstName: data.firstName,
       lastName: data.lastName,
-      driverId: data.driverId
+      driverId: data.driverId,
     };
     localStorage.setItem("feftms_user", JSON.stringify(userProfile));
     setToken(data.accessToken);
     setUser(userProfile);
     return userProfile;
   };
-
 
   const logout = async () => {
     try {
@@ -57,14 +56,10 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!token,
     loading,
     login,
-    logout
+    logout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

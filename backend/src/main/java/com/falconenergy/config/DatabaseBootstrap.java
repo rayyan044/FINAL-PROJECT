@@ -154,7 +154,7 @@ public class DatabaseBootstrap implements CommandLineRunner {
             log.info("Bootstrapping default EMERGENCY customer record...");
             Customer emergencyCust = Customer.builder()
                     .customerCode("EMERGENCY")
-                    .companyName("Stranded Drivers (Emergency Requests)")
+                    .companyName("Customer Fuel Requests")
                     .contactPerson("Emergency Operator")
                     .phone("+254700000000")
                     .email("emergency@falconenergy.com")
@@ -190,6 +190,10 @@ public class DatabaseBootstrap implements CommandLineRunner {
                     .density(new BigDecimal("0.840"))
                     .availableQuantity(new BigDecimal("100000.00"))
                     .status("ACTIVE")
+                    .fuelCategory("Gasoil")
+                    .specification("Automotive Gasoil - Diesel 50 ppm (According to East African Standards)")
+                    .description("High-quality low sulfur diesel designed for heavy commercial engines and logistics vehicles.")
+                    .unitOfMeasurement("Litres")
                     .build();
             fuelProductRepository.save(ago);
         }
@@ -203,6 +207,10 @@ public class DatabaseBootstrap implements CommandLineRunner {
                     .density(new BigDecimal("0.740"))
                     .availableQuantity(new BigDecimal("100000.00"))
                     .status("ACTIVE")
+                    .fuelCategory("Gasoline")
+                    .specification("Premium Motor Spirit - Automotive Gasoline 90 RON (According to East African Standards)")
+                    .description("Premium unleaded motor gasoline optimized for modern combustion engines.")
+                    .unitOfMeasurement("Litres")
                     .build();
             fuelProductRepository.save(pms);
         }
@@ -220,6 +228,7 @@ public class DatabaseBootstrap implements CommandLineRunner {
                     .signatoryName("AUTHORIZED SIGNATORY")
                     .signatoryTitle("FINANCE CONTROLLER")
                     .signatorySignature("assets/authorized-signature.png")
+                    .stamp("assets/falcon-stamp.png")
                     .build();
             companySettingsRepository.save(settings);
         }

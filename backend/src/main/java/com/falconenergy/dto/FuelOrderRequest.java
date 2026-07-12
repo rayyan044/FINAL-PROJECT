@@ -38,4 +38,15 @@ public class FuelOrderRequest {
     private String emergencyLevel;
     private String paymentMethod;
     private String notes;
+    private String currency;
+    private BigDecimal levies;
+    private BigDecimal discount;
+    private BigDecimal transportCharges;
+    private BigDecimal deliveryCharges;
+    private BigDecimal additionalCharges;
+    private String deliveryMethod;
+    private String incoterms;
+    private String port;
+    private String destination;
+    private String logisticsInfo;
 }

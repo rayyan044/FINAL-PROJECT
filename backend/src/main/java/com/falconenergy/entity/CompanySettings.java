@@ -46,4 +46,7 @@ public class CompanySettings extends BaseEntity {
 
     @Column(name = "signatory_signature", length = 255)
     private String signatorySignature;
+
+    @Column(name = "stamp", length = 255)
+    private String stamp;
 }

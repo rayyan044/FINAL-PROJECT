@@ -19,6 +19,7 @@ public class CompanySettingsResponse {
     private String signatoryName;
     private String signatoryTitle;
     private String signatorySignature;
+    private String stamp;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

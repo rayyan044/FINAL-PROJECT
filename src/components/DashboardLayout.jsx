@@ -20,9 +20,10 @@ export function DashboardLayout({
   const displayRole = user?.role || role;
   const displayEmail = user?.email || "";
 
-  const loggedInName = (user?.firstName && user?.lastName)
-    ? `${user.firstName} ${user.lastName}`
-    : (user?.firstName || user?.lastName || "");
+  const loggedInName =
+    user?.firstName && user?.lastName
+      ? `${user.firstName} ${user.lastName}`
+      : user?.firstName || user?.lastName || "";
 
   const displayName = loggedInName || userName || displayEmail.split("@")[0] || "User";
 
@@ -96,11 +97,7 @@ export function DashboardLayout({
                 <div className="fef-profile-role">{displayRole}</div>
               </div>
             </div>
-            <button
-              className="fef-icon-btn"
-              aria-label="Logout"
-              onClick={handleLogout}
-            >
+            <button className="fef-icon-btn" aria-label="Logout" onClick={handleLogout}>
               <FiLogOut />
             </button>
           </div>

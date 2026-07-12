@@ -18,12 +18,18 @@ export async function refreshToken(payload) {
 export async function logout() {
   const token = localStorage.getItem("feftms_token");
   if (token) {
-    return api.post("/auth/logout", {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).finally(() => {
-      localStorage.removeItem("feftms_token");
-      localStorage.removeItem("feftms_user");
-    });
+    return api
+      .post(
+        "/auth/logout",
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      )
+      .finally(() => {
+        localStorage.removeItem("feftms_token");
+        localStorage.removeItem("feftms_user");
+      });
   }
   return Promise.resolve();
 }

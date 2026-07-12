@@ -30,7 +30,7 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  
+
   // Login States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -75,7 +75,7 @@ function LoginPage() {
   const handleForceResetSubmit = async (e) => {
     e.preventDefault();
     setResetError("");
-    
+
     if (newPassword.length < 6) {
       setResetError("New password must be at least 6 characters long.");
       return;
@@ -90,7 +90,7 @@ function LoginPage() {
     try {
       await updateSelfProfile({
         password: newPassword,
-        confirmPassword: confirmNewPassword
+        confirmPassword: confirmNewPassword,
       });
 
       // Update passwordChanged flag in local session
@@ -120,9 +120,7 @@ function LoginPage() {
           </Link>
           <div>
             <h2>Secure Your Account</h2>
-            <p>
-              Please update your temporary password to a secure personal password to continue.
-            </p>
+            <p>Please update your temporary password to a secure personal password to continue.</p>
           </div>
           <div style={{ opacity: 0.65, fontSize: 13 }}>
             © {new Date().getFullYear()} Falcon Energy
@@ -189,8 +187,18 @@ function LoginPage() {
               </div>
             </div>
 
-            <button type="submit" className="fef-btn fef-btn-primary fef-btn-block" disabled={resetLoading}>
-              {resetLoading ? "Updating..." : <><FiLock /> Update Password & Login</>}
+            <button
+              type="submit"
+              className="fef-btn fef-btn-primary fef-btn-block"
+              disabled={resetLoading}
+            >
+              {resetLoading ? (
+                "Updating..."
+              ) : (
+                <>
+                  <FiLock /> Update Password & Login
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -210,7 +218,8 @@ function LoginPage() {
         <div>
           <h2>Run your fuel trading desk from one screen.</h2>
           <p>
-            Manage customer requests, loading, dispatch and invoicing — all in real time across your team.
+            Manage customer requests, loading, dispatch and invoicing — all in real time across your
+            team.
           </p>
         </div>
         <div style={{ opacity: 0.65, fontSize: 13 }}>
@@ -280,18 +289,38 @@ function LoginPage() {
             <a href="#">Forgot password?</a>
           </div>
 
-          <button type="submit" className="fef-btn fef-btn-primary fef-btn-block" disabled={loading}>
-            {loading ? "Signing in..." : <><FiLogIn /> Login</>}
+          <button
+            type="submit"
+            className="fef-btn fef-btn-primary fef-btn-block"
+            disabled={loading}
+          >
+            {loading ? (
+              "Signing in..."
+            ) : (
+              <>
+                <FiLogIn /> Login
+              </>
+            )}
           </button>
 
-          <div style={{ 
-            marginTop: 20, 
-            padding: 12, 
-            background: "rgba(255, 255, 255, 0.04)", 
-            border: "1px solid rgba(255, 255, 255, 0.08)", 
-            borderRadius: 8 
-          }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--feftms-text-muted)", display: "block", marginBottom: 8 }}>
+          <div
+            style={{
+              marginTop: 20,
+              padding: 12,
+              background: "rgba(255, 255, 255, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: 8,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--feftms-text-muted)",
+                display: "block",
+                marginBottom: 8,
+              }}
+            >
               Quick Demo Logins (Default Password: ChangeMe123!):
             </span>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -299,7 +328,10 @@ function LoginPage() {
                 type="button"
                 className="fef-btn fef-btn-outline"
                 style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => { setEmail("finance"); setPassword("ChangeMe123!"); }}
+                onClick={() => {
+                  setEmail("finance");
+                  setPassword("ChangeMe123!");
+                }}
               >
                 Finance
               </button>
@@ -307,7 +339,10 @@ function LoginPage() {
                 type="button"
                 className="fef-btn fef-btn-outline"
                 style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => { setEmail("operator"); setPassword("ChangeMe123!"); }}
+                onClick={() => {
+                  setEmail("operator");
+                  setPassword("ChangeMe123!");
+                }}
               >
                 Operator
               </button>
@@ -315,7 +350,10 @@ function LoginPage() {
                 type="button"
                 className="fef-btn fef-btn-outline"
                 style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => { setEmail("sales"); setPassword("ChangeMe123!"); }}
+                onClick={() => {
+                  setEmail("sales");
+                  setPassword("ChangeMe123!");
+                }}
               >
                 Sales
               </button>
@@ -323,7 +361,10 @@ function LoginPage() {
                 type="button"
                 className="fef-btn fef-btn-outline"
                 style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => { setEmail("admin"); setPassword("ChangeMe123!"); }}
+                onClick={() => {
+                  setEmail("admin");
+                  setPassword("ChangeMe123!");
+                }}
               >
                 Admin
               </button>
@@ -340,7 +381,7 @@ function LoginPage() {
           >
             Are you a customer?{" "}
             <Link to="/customer" style={{ color: "var(--feftms-secondary)", fontWeight: 600 }}>
-              Submit a request
+              Request Fuel
             </Link>
           </p>
         </form>

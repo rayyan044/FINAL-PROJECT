@@ -86,4 +86,51 @@ public class Invoice extends BaseEntity {
 
     @Column(name = "validity_date")
     private LocalDateTime validityDate;
+
+    @Column(name = "fuel_category", length = 100)
+    private String fuelCategory;
+
+    @Column(name = "product_specification", columnDefinition = "TEXT")
+    private String productSpecification;
+
+    @Column(name = "product_description", columnDefinition = "TEXT")
+    private String productDescription;
+
+    @Column(name = "unit_of_measurement", length = 50)
+    private String unitOfMeasurement;
+
+    @Column(name = "levies", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal levies = BigDecimal.ZERO;
+
+    @Column(name = "discount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal discount = BigDecimal.ZERO;
+
+    @Column(name = "transport_charges", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal transportCharges = BigDecimal.ZERO;
+
+    @Column(name = "delivery_charges", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal deliveryCharges = BigDecimal.ZERO;
+
+    @Column(name = "additional_charges", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal additionalCharges = BigDecimal.ZERO;
+
+    @Column(name = "delivery_method", length = 100)
+    private String deliveryMethod;
+
+    @Column(name = "incoterms", length = 100)
+    private String incoterms;
+
+    @Column(name = "port", length = 100)
+    private String port;
+
+    @Column(name = "destination", length = 150)
+    private String destination;
+
+    @Column(name = "logistics_info", columnDefinition = "TEXT")
+    private String logisticsInfo;
 }

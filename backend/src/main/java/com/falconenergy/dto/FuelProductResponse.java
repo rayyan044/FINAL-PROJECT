@@ -18,6 +18,10 @@ public class FuelProductResponse {
     private BigDecimal availableQuantity;
     private String status;
     private String currency;
+    private String fuelCategory;
+    private String specification;
+    private String description;
+    private String unitOfMeasurement;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

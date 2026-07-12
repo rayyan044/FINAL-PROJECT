@@ -232,7 +232,7 @@
 /* Visual Map Pin Simulator */
 .fef-map-simulator {
   height: 180px;
-  background: 
+  background:
     radial-gradient(circle at 40% 60%, rgba(21, 101, 192, 0.05), transparent 45%),
     linear-gradient(rgba(227, 231, 239, 0.5) 1.5px, transparent 1.5px),
     linear-gradient(90deg, rgba(227, 231, 239, 0.5) 1.5px, transparent 1.5px);
@@ -271,12 +271,12 @@
 .fef-map-landmark {
   position: absolute;
   padding: 4px 8px;
-  background: rgba(255,255,255,0.85);
+  background: rgba(255, 255, 255, 0.85);
   border-radius: 4px;
   font-size: 10px;
   font-weight: 700;
   color: var(--feftms-text-muted);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .fef-map-pin {
@@ -286,7 +286,7 @@
   margin-left: -12px;
   margin-top: -24px;
   color: var(--feftms-danger);
-  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.16));
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.16));
   animation: pin-drop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -382,7 +382,7 @@
     display: flex;
     gap: 10px;
   }
-  
+
   .fef-wizard-container {
     padding-bottom: 110px;
   }

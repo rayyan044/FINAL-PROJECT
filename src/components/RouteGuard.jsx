@@ -19,7 +19,18 @@ export function RouteGuard({ allowedRoles, children }) {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--feftms-bg)", color: "var(--feftms-text)", fontSize: "1.1rem", fontWeight: 500 }}>
+      <div
+        style={{
+          display: "flex",
+          height: "100vh",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--feftms-bg)",
+          color: "var(--feftms-text)",
+          fontSize: "1.1rem",
+          fontWeight: 500,
+        }}
+      >
         Loading workspace...
       </div>
     );
@@ -27,7 +38,18 @@ export function RouteGuard({ allowedRoles, children }) {
 
   if (!token || !user || (allowedRoles && !allowedRoles.includes(user.role))) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--feftms-bg)", color: "var(--feftms-text)", fontSize: "1.1rem", fontWeight: 500 }}>
+      <div
+        style={{
+          display: "flex",
+          height: "100vh",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--feftms-bg)",
+          color: "var(--feftms-text)",
+          fontSize: "1.1rem",
+          fontWeight: 500,
+        }}
+      >
         Access Denied. Redirecting...
       </div>
     );

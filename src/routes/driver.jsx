@@ -9,7 +9,7 @@ import {
   FiFlag,
   FiCheckCircle,
   FiHome,
-  FiAlertCircle
+  FiAlertCircle,
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { listDeliveries, updateDeliveryStatus } from "../services/deliveryService";
@@ -23,9 +23,7 @@ export const Route = createFileRoute("/driver")({
   component: DriverDash,
 });
 
-const SIDE = [
-  { key: "dash", label: "Driver Console", icon: FiHome },
-];
+const SIDE = [{ key: "dash", label: "Driver Console", icon: FiHome }];
 
 function DriverDash() {
   const { user: currentLoggedUser } = useAuth();
@@ -41,7 +39,7 @@ function DriverDash() {
       listDrivers({ size: 100 })
         .then((res) => {
           const list = res.content || [];
-          const profile = list.find(d => d.id === parseInt(driverId));
+          const profile = list.find((d) => d.id === parseInt(driverId));
           setDriverProfile(profile);
         })
         .catch((err) => console.error("Error loading driver profile:", err));
@@ -84,15 +82,19 @@ function DriverDash() {
   };
 
   const activeTrip = deliveries.find(
-    (d) => d.deliveryStatus === "PENDING" || d.deliveryStatus === "EN_ROUTE" || d.deliveryStatus === "ARRIVED"
+    (d) =>
+      d.deliveryStatus === "PENDING" ||
+      d.deliveryStatus === "EN_ROUTE" ||
+      d.deliveryStatus === "ARRIVED",
   );
   const upcomingTrips = deliveries.filter((d) => d.id !== activeTrip?.id);
 
-  const driverName = driverProfile 
-    ? `${driverProfile.firstName} ${driverProfile.lastName}` 
-    : (currentLoggedUser 
-        ? `${currentLoggedUser.firstName || ""} ${currentLoggedUser.lastName || ""}`.trim() || currentLoggedUser.username 
-        : "Driver");
+  const driverName = driverProfile
+    ? `${driverProfile.firstName} ${driverProfile.lastName}`
+    : currentLoggedUser
+      ? `${currentLoggedUser.firstName || ""} ${currentLoggedUser.lastName || ""}`.trim() ||
+        currentLoggedUser.username
+      : "Driver";
 
   return (
     <RouteGuard allowedRoles={["DRIVER"]}>
@@ -123,15 +125,33 @@ function DriverDash() {
           <div className="fef-panel" style={{ textAlign: "center", padding: "40px 20px" }}>
             <FiAlertCircle size={48} style={{ color: "var(--feftms-danger)", marginBottom: 15 }} />
             <h3>No Linked Driver Profile</h3>
-            <p className="fef-sub">Please contact your administrator to associate your user account with a driver profile.</p>
+            <p className="fef-sub">
+              Please contact your administrator to associate your user account with a driver
+              profile.
+            </p>
           </div>
         ) : (
           <>
             <div className="fef-stat-grid">
-              <StatCard label="Assigned Deliveries" value={deliveries.length} icon={FiTruck} tone="primary" />
-              <StatCard label="Current Status" value={activeTrip?.deliveryStatus || "Idle"} icon={FiNavigation} tone="accent" />
+              <StatCard
+                label="Assigned Deliveries"
+                value={deliveries.length}
+                icon={FiTruck}
+                tone="primary"
+              />
+              <StatCard
+                label="Current Status"
+                value={activeTrip?.deliveryStatus || "Idle"}
+                icon={FiNavigation}
+                tone="accent"
+              />
               <StatCard label="Driver Name" value={driverName} icon={FiMapPin} tone="secondary" />
-              <StatCard label="License Number" value={driverProfile?.licenseNumber || "—"} icon={FiFileText} tone="success" />
+              <StatCard
+                label="License Number"
+                value={driverProfile?.licenseNumber || "—"}
+                icon={FiFileText}
+                tone="success"
+              />
             </div>
 
             {/* ACTIVE TRIP */}
@@ -158,7 +178,9 @@ function DriverDash() {
                         <td>{activeTrip.order?.quantity?.toLocaleString()} L</td>
                         <td>{activeTrip.order?.orderStatus}</td>
                         <td>
-                          <span className={`fef-badge fef-badge-${activeTrip.deliveryStatus?.toLowerCase()}`}>
+                          <span
+                            className={`fef-badge fef-badge-${activeTrip.deliveryStatus?.toLowerCase()}`}
+                          >
                             {activeTrip.deliveryStatus}
                           </span>
                         </td>
@@ -167,7 +189,15 @@ function DriverDash() {
                   </table>
                 </div>
 
-                <div style={{ padding: "16px 20px", display: "flex", gap: 10, background: "var(--feftms-bg-alt)", borderTop: "1px solid var(--feftms-border)" }}>
+                <div
+                  style={{
+                    padding: "16px 20px",
+                    display: "flex",
+                    gap: 10,
+                    background: "var(--feftms-bg-alt)",
+                    borderTop: "1px solid var(--feftms-border)",
+                  }}
+                >
                   {activeTrip.deliveryStatus === "PENDING" && (
                     <button
                       className="fef-btn fef-btn-primary"
@@ -192,7 +222,9 @@ function DriverDash() {
                       <FiCheckCircle style={{ marginRight: 6 }} /> Complete Delivery (Delivered)
                     </button>
                   )}
-                  {(activeTrip.deliveryStatus === "PENDING" || activeTrip.deliveryStatus === "EN_ROUTE" || activeTrip.deliveryStatus === "ARRIVED") && (
+                  {(activeTrip.deliveryStatus === "PENDING" ||
+                    activeTrip.deliveryStatus === "EN_ROUTE" ||
+                    activeTrip.deliveryStatus === "ARRIVED") && (
                     <button
                       className="fef-btn fef-btn-danger"
                       onClick={() => handleUpdateStatus(activeTrip.id, "CANCELLED")}
@@ -203,10 +235,18 @@ function DriverDash() {
                 </div>
               </div>
             ) : (
-              <div className="fef-panel" style={{ marginTop: 24, padding: "30px 20px", textAlign: "center" }}>
-                <FiCheckCircle size={36} style={{ color: "var(--feftms-success)", marginBottom: 10 }} />
+              <div
+                className="fef-panel"
+                style={{ marginTop: 24, padding: "30px 20px", textAlign: "center" }}
+              >
+                <FiCheckCircle
+                  size={36}
+                  style={{ color: "var(--feftms-success)", marginBottom: 10 }}
+                />
                 <h4>No Active Deliveries</h4>
-                <p className="fef-sub">You are currently offline or have completed all assigned routes.</p>
+                <p className="fef-sub">
+                  You are currently offline or have completed all assigned routes.
+                </p>
               </div>
             )}
 
@@ -232,7 +272,9 @@ function DriverDash() {
                         <td>{t.order?.customerName}</td>
                         <td>{t.order?.quantity?.toLocaleString()} L</td>
                         <td>
-                          <span className={`fef-badge fef-badge-${t.deliveryStatus?.toLowerCase()}`}>
+                          <span
+                            className={`fef-badge fef-badge-${t.deliveryStatus?.toLowerCase()}`}
+                          >
                             {t.deliveryStatus}
                           </span>
                         </td>
@@ -240,7 +282,10 @@ function DriverDash() {
                     ))}
                     {upcomingTrips.length === 0 && (
                       <tr>
-                        <td colSpan="4" style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}>
+                        <td
+                          colSpan="4"
+                          style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}
+                        >
                           No upcoming assignments scheduled.
                         </td>
                       </tr>

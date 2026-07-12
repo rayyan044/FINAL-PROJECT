@@ -669,7 +669,21 @@ public class FuelOrderServiceImpl implements FuelOrderService {
                 .findFirst()
                 .orElse(activeAccounts.get(0)); // fallback to first active
 
-        BigDecimal subtotal = order.getAmount();
+        BigDecimal baseAmount = order.getAmount();
+        BigDecimal levies = order.getLevies() != null ? order.getLevies() : BigDecimal.ZERO;
+        BigDecimal discount = order.getDiscount() != null ? order.getDiscount() : BigDecimal.ZERO;
+        BigDecimal transportCharges = order.getTransportCharges() != null ? order.getTransportCharges() : BigDecimal.ZERO;
+        BigDecimal deliveryCharges = order.getDeliveryCharges() != null ? order.getDeliveryCharges() : BigDecimal.ZERO;
+        BigDecimal additionalCharges = order.getAdditionalCharges() != null ? order.getAdditionalCharges() : BigDecimal.ZERO;
+
+        BigDecimal subtotal = baseAmount
+                .add(transportCharges)
+                .add(deliveryCharges)
+                .add(additionalCharges)
+                .add(levies)
+                .subtract(discount)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+
         BigDecimal taxRate = new BigDecimal("0.16"); // 16% VAT
         BigDecimal tax = subtotal.multiply(taxRate).setScale(2, java.math.RoundingMode.HALF_UP);
         BigDecimal grandTotal = subtotal.add(tax).setScale(2, java.math.RoundingMode.HALF_UP);
@@ -700,6 +714,26 @@ public class FuelOrderServiceImpl implements FuelOrderService {
                 .paymentTerms(selectedAccount.getPaymentTerms())
                 .paymentInstructions(selectedAccount.getPaymentInstructions())
                 .validityDate(validityDate)
+
+                // Save product details snapshot
+                .fuelCategory(order.getProduct().getFuelCategory())
+                .productSpecification(order.getProduct().getSpecification())
+                .productDescription(order.getProduct().getDescription())
+                .unitOfMeasurement(order.getProduct().getUnitOfMeasurement())
+
+                // Save calculations snapshot
+                .levies(levies)
+                .discount(discount)
+                .transportCharges(transportCharges)
+                .deliveryCharges(deliveryCharges)
+                .additionalCharges(additionalCharges)
+
+                // Save delivery snapshot
+                .deliveryMethod(order.getDeliveryMethod())
+                .incoterms(order.getIncoterms())
+                .port(order.getPort())
+                .destination(order.getDestination())
+                .logisticsInfo(order.getLogisticsInfo())
                 .build();
 
         invoice.setCreatedAt(LocalDateTime.now());

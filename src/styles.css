@@ -200,7 +200,6 @@ button {
   transform: translateY(-2px);
 }
 
-
 /* Inputs */
 .fef-field {
   display: flex;
@@ -299,7 +298,8 @@ button {
     display: none !important;
   }
   /* Reset html/body heights and overflows to print multiple pages */
-  html, body {
+  html,
+  body {
     background: white !important;
     color: black !important;
     margin: 0 !important;

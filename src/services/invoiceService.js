@@ -36,3 +36,15 @@ export async function approveInvoicePayment(id) {
 export async function overrideInvoiceStatus(id, status) {
   return api.post(`/invoices/${id}/override`, null, { params: { status } }).then((r) => r.data);
 }
+
+/**
+ * Update payment account instructions snapshot for a pending invoice.
+ * @param {number|string} id
+ * @param {number|string} paymentAccountId
+ * @returns {Promise<Object>}
+ */
+export async function updateInvoicePaymentAccount(id, paymentAccountId) {
+  return api
+    .post(`/invoices/${id}/payment-account`, null, { params: { paymentAccountId } })
+    .then((r) => r.data);
+}

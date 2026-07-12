@@ -16,7 +16,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping({"/api/v1/payment-accounts", "/api/payment-accounts"})
-@PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
 public class PaymentAccountController {
 
     private final PaymentAccountService paymentAccountService;
@@ -26,6 +25,7 @@ public class PaymentAccountController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
     public ResponseEntity<ApiResponse<Page<PaymentAccountResponse>>> getAllPaymentAccounts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -46,30 +46,35 @@ public class PaymentAccountController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
     public ResponseEntity<ApiResponse<PaymentAccountResponse>> getPaymentAccountById(@PathVariable Long id) {
         PaymentAccountResponse account = paymentAccountService.getPaymentAccountById(id);
         return ResponseEntity.ok(ApiResponse.success("Payment account retrieved successfully", account));
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
     public ResponseEntity<ApiResponse<PaymentAccountResponse>> createPaymentAccount(@RequestBody PaymentAccountRequest request) {
         PaymentAccountResponse account = paymentAccountService.createPaymentAccount(request);
         return ResponseEntity.ok(ApiResponse.success("Payment account created successfully", account));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
     public ResponseEntity<ApiResponse<PaymentAccountResponse>> updatePaymentAccount(@PathVariable Long id, @RequestBody PaymentAccountRequest request) {
         PaymentAccountResponse account = paymentAccountService.updatePaymentAccount(id, request);
         return ResponseEntity.ok(ApiResponse.success("Payment account updated successfully", account));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
     public ResponseEntity<ApiResponse<Void>> deletePaymentAccount(@PathVariable Long id) {
         paymentAccountService.deletePaymentAccount(id);
         return ResponseEntity.ok(ApiResponse.success("Payment account deleted successfully", null));
     }
 
     @PostMapping("/{id}/toggle")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
     public ResponseEntity<ApiResponse<PaymentAccountResponse>> toggleStatus(@PathVariable Long id) {
         PaymentAccountResponse account = paymentAccountService.toggleStatus(id);
         return ResponseEntity.ok(ApiResponse.success("Payment account status toggled successfully", account));

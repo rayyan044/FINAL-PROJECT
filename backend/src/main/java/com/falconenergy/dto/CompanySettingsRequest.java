@@ -17,4 +17,5 @@ public class CompanySettingsRequest {
     private String signatoryName;
     private String signatoryTitle;
     private String signatorySignature;
+    private String stamp;
 }

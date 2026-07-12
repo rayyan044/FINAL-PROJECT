@@ -14,7 +14,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // Global response interceptor (handling token expiration/unauthorized errors)
@@ -27,5 +27,5 @@ api.interceptors.response.use(
       // Optionally redirect to login, but we will let components handle state transitions.
     }
     return Promise.reject(error.response?.data || error);
-  }
+  },
 );

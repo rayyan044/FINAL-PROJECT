@@ -44,4 +44,17 @@ public class FuelProduct extends BaseEntity {
     @Column(name = "currency", nullable = false, length = 10)
     @Builder.Default
     private String currency = "USD";
+
+    @Column(name = "fuel_category", length = 100)
+    private String fuelCategory;
+
+    @Column(name = "specification", columnDefinition = "TEXT")
+    private String specification;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "unit_of_measurement", length = 50)
+    @Builder.Default
+    private String unitOfMeasurement = "Litres";
 }

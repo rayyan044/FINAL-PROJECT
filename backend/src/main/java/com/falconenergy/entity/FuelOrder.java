@@ -94,6 +94,41 @@ public class FuelOrder extends BaseEntity {
     @Builder.Default
     private String currency = "USD";
 
+    @Column(name = "levies", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal levies = BigDecimal.ZERO;
+
+    @Column(name = "discount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal discount = BigDecimal.ZERO;
+
+    @Column(name = "transport_charges", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal transportCharges = BigDecimal.ZERO;
+
+    @Column(name = "delivery_charges", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal deliveryCharges = BigDecimal.ZERO;
+
+    @Column(name = "additional_charges", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal additionalCharges = BigDecimal.ZERO;
+
+    @Column(name = "delivery_method", length = 100)
+    private String deliveryMethod;
+
+    @Column(name = "incoterms", length = 100)
+    private String incoterms;
+
+    @Column(name = "port", length = 100)
+    private String port;
+
+    @Column(name = "destination", length = 150)
+    private String destination;
+
+    @Column(name = "logistics_info", columnDefinition = "TEXT")
+    private String logisticsInfo;
+
     @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
     private Invoice invoice;
 }

@@ -25,7 +25,9 @@ export async function updateStatus(id, status) {
 }
 
 export async function resetPassword(id, password, confirmPassword) {
-  return api.patch(`/users/${id}/reset-password`, { password, confirmPassword }).then((r) => r.data);
+  return api
+    .patch(`/users/${id}/reset-password`, { password, confirmPassword })
+    .then((r) => r.data);
 }
 
 export async function updateSelfProfile(payload) {

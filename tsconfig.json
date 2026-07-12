@@ -1,5 +1,4 @@
 {
-
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
@@ -11,6 +10,6 @@
       "@/*": ["./src/*"]
     }
   },
-  
+
   "exclude": ["node_modules", "dist", ".output", ".vinxi"]
 }

@@ -21,4 +21,7 @@ public interface FuelProductRepository extends JpaRepository<FuelProduct, Long>,
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("SELECT p FROM FuelProduct p WHERE p.id = :id")
     Optional<FuelProduct> findByIdWithLock(@org.springframework.data.repository.query.Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT * FROM fuel_products WHERE id = :id", nativeQuery = true)
+    Optional<FuelProduct> findByIdIncludingDeleted(@org.springframework.data.repository.query.Param("id") Long id);
 }

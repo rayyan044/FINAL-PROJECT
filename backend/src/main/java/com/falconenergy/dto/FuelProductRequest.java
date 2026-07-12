@@ -38,4 +38,14 @@ public class FuelProductRequest {
 
     @Builder.Default
     private String status = "ACTIVE";
+
+    @Builder.Default
+    private String currency = "USD";
+
+    private String fuelCategory;
+    private String specification;
+    private String description;
+
+    @Builder.Default
+    private String unitOfMeasurement = "Litres";
 }

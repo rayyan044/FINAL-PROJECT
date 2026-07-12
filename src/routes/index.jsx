@@ -40,7 +40,7 @@ function Landing() {
                 <FiUser size={28} />
               </div>
               <h3>Customer Portal</h3>
-              <p>Submit fuel requests online quickly and track your orders.</p>
+              <p>Submit customer fuel requests online.</p>
               <Link to="/customer" className="fef-btn fef-btn-accent fef-btn-block">
                 Continue as Customer <FiArrowRight />
               </Link>

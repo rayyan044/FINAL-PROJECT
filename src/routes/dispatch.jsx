@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { FiHome, FiTruck, FiMapPin, FiCheckCircle, FiAlertCircle, FiX, FiCheck } from "react-icons/fi";
+import {
+  FiHome,
+  FiTruck,
+  FiMapPin,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiX,
+  FiCheck,
+} from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
 import { listDeliveries, updateDeliveryStatus } from "../services/deliveryService";
@@ -32,9 +40,12 @@ function DispatchDash() {
     setError("");
     Promise.allSettled([listDeliveries(), listDrivers(), listVehicles()])
       .then((results) => {
-        if (results[0].status === "fulfilled") setDeliveries(results[0].value.content || results[0].value || []);
-        if (results[1].status === "fulfilled") setDrivers(results[1].value.content || results[1].value || []);
-        if (results[2].status === "fulfilled") setVehicles(results[2].value.content || results[2].value || []);
+        if (results[0].status === "fulfilled")
+          setDeliveries(results[0].value.content || results[0].value || []);
+        if (results[1].status === "fulfilled")
+          setDrivers(results[1].value.content || results[1].value || []);
+        if (results[2].status === "fulfilled")
+          setVehicles(results[2].value.content || results[2].value || []);
         const failures = results.filter((r) => r.status === "rejected");
         if (failures.length) console.warn("Dispatch partial load failures:", failures);
       })
@@ -87,9 +98,24 @@ function DispatchDash() {
         )}
 
         <div className="fef-stat-grid">
-          <StatCard label="Active Fleet" value={loading ? "…" : String(activeFleet)} icon={FiTruck} tone="primary" />
-          <StatCard label="Trips En Route" value={loading ? "…" : String(tripsEnRoute)} icon={FiMapPin} tone="secondary" />
-          <StatCard label="Completed Today" value={loading ? "…" : String(completedToday)} icon={FiCheckCircle} tone="success" />
+          <StatCard
+            label="Active Fleet"
+            value={loading ? "…" : String(activeFleet)}
+            icon={FiTruck}
+            tone="primary"
+          />
+          <StatCard
+            label="Trips En Route"
+            value={loading ? "…" : String(tripsEnRoute)}
+            icon={FiMapPin}
+            tone="secondary"
+          />
+          <StatCard
+            label="Completed Today"
+            value={loading ? "…" : String(completedToday)}
+            icon={FiCheckCircle}
+            tone="success"
+          />
         </div>
 
         {/* DASHBOARD SUMMARY VIEW */}
@@ -103,8 +129,14 @@ function DispatchDash() {
                 <p>Loading schedule…</p>
               ) : (
                 <div>
-                  <p>Showing overview of system operations: <strong>{deliveries.length}</strong> total deliveries, <strong>{drivers.length}</strong> registered drivers, and <strong>{vehicles.length}</strong> vehicles in fleet.</p>
-                  <p style={{ marginTop: 10 }}>Use the side navigation to manage active deliveries or inspect trucks.</p>
+                  <p>
+                    Showing overview of system operations: <strong>{deliveries.length}</strong>{" "}
+                    total deliveries, <strong>{drivers.length}</strong> registered drivers, and{" "}
+                    <strong>{vehicles.length}</strong> vehicles in fleet.
+                  </p>
+                  <p style={{ marginTop: 10 }}>
+                    Use the side navigation to manage active deliveries or inspect trucks.
+                  </p>
                 </div>
               )}
             </div>
@@ -132,10 +164,16 @@ function DispatchDash() {
                 <tbody>
                   {deliveries.map((d) => (
                     <tr key={d.id}>
-                      <td><strong>{d.deliveryNumber}</strong></td>
-                      <td>{d.driver?.firstName} {d.driver?.lastName}</td>
+                      <td>
+                        <strong>{d.deliveryNumber}</strong>
+                      </td>
+                      <td>
+                        {d.driver?.firstName} {d.driver?.lastName}
+                      </td>
                       <td>{d.vehicle?.plateNumber}</td>
-                      <td>{d.order?.productName || "—"} ({d.order?.quantity} L)</td>
+                      <td>
+                        {d.order?.productName || "—"} ({d.order?.quantity} L)
+                      </td>
                       <td>
                         <span className={`fef-badge fef-badge-${d.deliveryStatus?.toLowerCase()}`}>
                           {d.deliveryStatus}
@@ -170,17 +208,27 @@ function DispatchDash() {
                               Mark Delivered
                             </button>
                           )}
-                          {(d.deliveryStatus === "PENDING" || d.deliveryStatus === "EN_ROUTE" || d.deliveryStatus === "ARRIVED") && (
+                          {(d.deliveryStatus === "PENDING" ||
+                            d.deliveryStatus === "EN_ROUTE" ||
+                            d.deliveryStatus === "ARRIVED") && (
                             <button
                               className="fef-btn fef-btn-outline fef-btn-danger"
-                              style={{ padding: "4px 8px", fontSize: 11, border: "1px solid var(--feftms-danger)", color: "var(--feftms-danger)" }}
+                              style={{
+                                padding: "4px 8px",
+                                fontSize: 11,
+                                border: "1px solid var(--feftms-danger)",
+                                color: "var(--feftms-danger)",
+                              }}
                               onClick={() => handleUpdateTripStatus(d.id, "CANCELLED")}
                             >
                               Cancel
                             </button>
                           )}
-                          {(d.deliveryStatus === "DELIVERED" || d.deliveryStatus === "CANCELLED") && (
-                            <span style={{ fontSize: 12, color: "var(--feftms-text-muted)" }}>Closed</span>
+                          {(d.deliveryStatus === "DELIVERED" ||
+                            d.deliveryStatus === "CANCELLED") && (
+                            <span style={{ fontSize: 12, color: "var(--feftms-text-muted)" }}>
+                              Closed
+                            </span>
                           )}
                         </div>
                       </td>
@@ -188,7 +236,10 @@ function DispatchDash() {
                   ))}
                   {deliveries.length === 0 && !loading && (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}>
+                      <td
+                        colSpan="6"
+                        style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}
+                      >
                         No deliveries registered in database.
                       </td>
                     </tr>
@@ -218,11 +269,15 @@ function DispatchDash() {
                 <tbody>
                   {vehicles.map((v) => (
                     <tr key={v.id}>
-                      <td><strong>{v.plateNumber}</strong></td>
+                      <td>
+                        <strong>{v.plateNumber}</strong>
+                      </td>
                       <td>{v.capacity?.toLocaleString()} L</td>
                       <td>{v.driver ? `${v.driver.firstName} ${v.driver.lastName}` : "None"}</td>
                       <td>
-                        <span className={`fef-badge fef-badge-${v.currentStatus?.toLowerCase() === 'active' ? 'success' : v.currentStatus?.toLowerCase() === 'busy' ? 'warning' : 'danger'}`}>
+                        <span
+                          className={`fef-badge fef-badge-${v.currentStatus?.toLowerCase() === "active" ? "success" : v.currentStatus?.toLowerCase() === "busy" ? "warning" : "danger"}`}
+                        >
                           {v.currentStatus}
                         </span>
                       </td>
@@ -230,7 +285,10 @@ function DispatchDash() {
                   ))}
                   {vehicles.length === 0 && !loading && (
                     <tr>
-                      <td colSpan="4" style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}>
+                      <td
+                        colSpan="4"
+                        style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}
+                      >
                         No vehicles registered in fleet database.
                       </td>
                     </tr>
@@ -240,7 +298,6 @@ function DispatchDash() {
             </div>
           </div>
         )}
-
       </DashboardLayout>
     </RouteGuard>
   );

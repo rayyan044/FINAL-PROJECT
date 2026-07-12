@@ -25,7 +25,8 @@ function LoadingDash() {
           Operator / Operations workspace.
         </p>
         <p>
-          Go to the <Link to="/operations">Operations Dashboard</Link> to manage loading bays and operators.
+          Go to the <Link to="/operations">Operations Dashboard</Link> to manage loading bays and
+          operators.
         </p>
       </div>
     </DashboardLayout>

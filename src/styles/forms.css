@@ -274,7 +274,9 @@
   color: var(--feftms-text) !important;
   border-radius: 8px !important;
   font-size: 14px !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease !important;
 }
 
 .fef-order-edit-input::placeholder {

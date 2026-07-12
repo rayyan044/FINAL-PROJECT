@@ -1,16 +1,21 @@
 package com.falconenergy.service.impl;
 
 import com.falconenergy.dto.InvoiceResponse;
+import com.falconenergy.dto.FuelProductResponse;
 import com.falconenergy.entity.Invoice;
 import com.falconenergy.entity.CompanySettings;
 import com.falconenergy.entity.PaymentAccount;
+import com.falconenergy.entity.FuelProduct;
 import com.falconenergy.exception.ResourceNotFoundException;
 import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.mapper.InvoiceMapper;
 import com.falconenergy.mapper.CompanySettingsMapper;
+import com.falconenergy.mapper.FuelProductMapper;
 import com.falconenergy.repository.InvoiceRepository;
 import com.falconenergy.repository.CompanySettingsRepository;
 import com.falconenergy.repository.PaymentAccountRepository;
+import com.falconenergy.repository.FuelOrderRepository;
+import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.service.InvoiceService;
 import com.falconenergy.service.AuditLogService;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +37,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final CompanySettingsRepository companySettingsRepository;
     private final CompanySettingsMapper companySettingsMapper;
     private final PaymentAccountRepository paymentAccountRepository;
+    private final FuelOrderRepository fuelOrderRepository;
+    private final FuelProductRepository fuelProductRepository;
+    private final FuelProductMapper fuelProductMapper;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -39,7 +47,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             AuditLogService auditLogService,
             CompanySettingsRepository companySettingsRepository,
             CompanySettingsMapper companySettingsMapper,
-            PaymentAccountRepository paymentAccountRepository
+            PaymentAccountRepository paymentAccountRepository,
+            FuelOrderRepository fuelOrderRepository,
+            FuelProductRepository fuelProductRepository,
+            FuelProductMapper fuelProductMapper
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceMapper = invoiceMapper;
@@ -47,6 +58,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.companySettingsRepository = companySettingsRepository;
         this.companySettingsMapper = companySettingsMapper;
         this.paymentAccountRepository = paymentAccountRepository;
+        this.fuelOrderRepository = fuelOrderRepository;
+        this.fuelProductRepository = fuelProductRepository;
+        this.fuelProductMapper = fuelProductMapper;
     }
 
     private InvoiceResponse mapToResponse(Invoice invoice) {
@@ -57,6 +71,43 @@ public class InvoiceServiceImpl implements InvoiceService {
                 response.setInvoiceType("Invoice");
             } else {
                 response.setInvoiceType("Proforma Invoice");
+            }
+            
+            // Recover soft-deleted product details if reference is null due to soft delete filter
+            if (response.getOrder() != null && response.getOrder().getProduct() == null) {
+                Long productId = fuelOrderRepository.findProductIdByOrderId(invoice.getOrder().getId());
+                if (productId != null) {
+                    fuelProductRepository.findByIdIncludingDeleted(productId).ifPresent(prod -> {
+                        response.getOrder().setProduct(fuelProductMapper.toResponse(prod));
+                    });
+                }
+            }
+
+            // Fallback product details for pre-migration invoices
+            if (response.getFuelCategory() == null && response.getOrder() != null && response.getOrder().getProduct() != null) {
+                FuelProductResponse prod = response.getOrder().getProduct();
+                response.setFuelCategory(prod.getFuelCategory());
+                response.setProductSpecification(prod.getSpecification());
+                response.setProductDescription(prod.getDescription());
+                response.setUnitOfMeasurement(prod.getUnitOfMeasurement());
+            }
+
+            // Fallback bank details for pre-migration invoices
+            if (response.getAccountNumber() == null || response.getAccountNumber().isBlank()) {
+                java.util.List<PaymentAccount> activeAccounts = paymentAccountRepository.findByStatus("ACTIVE");
+                if (!activeAccounts.isEmpty()) {
+                    PaymentAccount fallbackAccount = activeAccounts.get(0);
+                    response.setPaymentAccountId(fallbackAccount.getId());
+                    response.setPaymentMethod(fallbackAccount.getPaymentMethod());
+                    response.setBeneficiaryName(fallbackAccount.getBeneficiaryName());
+                    response.setBankName(fallbackAccount.getBankName());
+                    response.setBranchName(fallbackAccount.getBranchName());
+                    response.setAccountNumber(fallbackAccount.getAccountNumber());
+                    response.setSwiftCode(fallbackAccount.getSwiftCode());
+                    response.setPaymentAccountCurrency(fallbackAccount.getCurrency());
+                    response.setPaymentTerms(fallbackAccount.getPaymentTerms());
+                    response.setPaymentInstructions(fallbackAccount.getPaymentInstructions());
+                }
             }
             
             // Retrieve company details

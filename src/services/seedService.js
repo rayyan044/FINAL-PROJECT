@@ -11,17 +11,17 @@ export async function checkAndSeedDatabase() {
         productName: "AGO (Diesel)",
         fuelType: "AGO",
         unitPrice: 1.45,
-        density: 0.840,
-        availableQuantity: 100000.00,
-        status: "ACTIVE"
+        density: 0.84,
+        availableQuantity: 100000.0,
+        status: "ACTIVE",
       });
       await createProduct({
         productName: "PMS (Petrol)",
         fuelType: "PMS",
         unitPrice: 1.55,
-        density: 0.740,
-        availableQuantity: 100000.00,
-        status: "ACTIVE"
+        density: 0.74,
+        availableQuantity: 100000.0,
+        status: "ACTIVE",
       });
     }
 
@@ -37,7 +37,7 @@ export async function checkAndSeedDatabase() {
         email: "john@acmelogistics.com",
         address: "Nairobi Industrial Area",
         tinNumber: "TIN-ACME-001",
-        status: "ACTIVE"
+        status: "ACTIVE",
       });
     }
   } catch (e) {
