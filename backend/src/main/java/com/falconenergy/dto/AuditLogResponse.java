@@ -19,4 +19,6 @@ public class AuditLogResponse {
     private String ipAddress;
     private LocalDateTime timestamp;
     private String details;
+    private String previousValue;
+    private String newValue;
 }

@@ -17,7 +17,6 @@ export function DashboardLayout({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const displayRole = user?.role || role;
   const displayEmail = user?.email || "";
 
   const loggedInName =
@@ -25,7 +24,40 @@ export function DashboardLayout({
       ? `${user.firstName} ${user.lastName}`
       : user?.firstName || user?.lastName || "";
 
-  const displayName = loggedInName || userName || displayEmail.split("@")[0] || "User";
+  const displayName =
+    loggedInName || user?.username || displayEmail.split("@")[0] || userName || "User";
+
+  const formatRole = (rawRole) => {
+    if (!rawRole) return "";
+    const normalized = String(rawRole).toUpperCase();
+    switch (normalized) {
+      case "ADMIN":
+        return "Administrator";
+      case "MANAGER":
+        return "Manager";
+      case "OPERATIONS":
+      case "OPERATOR":
+        return "Operations";
+      case "SALES_OFFICER":
+        return "Sales Officer";
+      case "FINANCE":
+        return "Finance";
+      case "DISPATCHER":
+        return "Dispatcher";
+      case "DRIVER":
+        return "Driver";
+      case "CUSTOMER_SERVICE":
+        return "Customer Service";
+      case "VIEWER":
+        return "Viewer";
+      case "CUSTOMER":
+        return "Customer";
+      default:
+        return rawRole;
+    }
+  };
+
+  const displayRoleText = formatRole(user?.role) || formatRole(role);
 
   const initials = displayName
     .split(" ")
@@ -82,7 +114,7 @@ export function DashboardLayout({
             </button>
             <div className="fef-topbar-title">
               {pageTitle}
-              <small>{displayRole} workspace</small>
+              <small>{displayRoleText} workspace</small>
             </div>
           </div>
           <div className="fef-topbar-actions">
@@ -94,7 +126,7 @@ export function DashboardLayout({
               <div className="fef-avatar">{initials}</div>
               <div className="fef-profile-text">
                 <div className="fef-profile-name">{displayName}</div>
-                <div className="fef-profile-role">{displayRole}</div>
+                <div className="fef-profile-role">{displayRoleText}</div>
               </div>
             </div>
             <button className="fef-icon-btn" aria-label="Logout" onClick={handleLogout}>

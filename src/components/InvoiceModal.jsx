@@ -175,11 +175,13 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
   const [success, setSuccess] = useState("");
   const [overrideStatus, setOverrideStatus] = useState(invoice?.paymentStatus || "PENDING_PAYMENT");
   const [activeAccounts, setActiveAccounts] = useState([]);
+  const [hasConfirmed, setHasConfirmed] = useState(false);
 
+  const currentInvoice = fullInvoice || invoice;
   const isPending =
-    invoice?.paymentStatus?.toUpperCase() === "PENDING" ||
-    invoice?.paymentStatus?.toUpperCase() === "PENDING_PAYMENT";
-  const isPaid = invoice?.paymentStatus?.toUpperCase() === "PAID";
+    currentInvoice?.paymentStatus?.toUpperCase() === "PENDING" ||
+    currentInvoice?.paymentStatus?.toUpperCase() === "PENDING_PAYMENT";
+  const isPaid = currentInvoice?.paymentStatus?.toUpperCase() === "PAID";
 
   useEffect(() => {
     if (invoice?.id) {
@@ -213,16 +215,24 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
   if (!invoice) return null;
 
   const handleApprovePayment = async () => {
+    if (hasConfirmed || isPaid) return;
+    setHasConfirmed(true);
     setLoading(true);
     setError("");
     setSuccess("");
     try {
-      await approveInvoicePayment(invoice.id);
+      const res = await approveInvoicePayment(invoice.id);
+      const updatedInvoice = res.data || res;
+      setFullInvoice(updatedInvoice);
       setSuccess("Invoice payment confirmed and marked as Paid successfully.");
       if (onRefresh) onRefresh();
+      setTimeout(() => {
+        onClose();
+      }, 800);
     } catch (err) {
       console.error(err);
       setError(err?.message || "Failed to confirm payment.");
+      setHasConfirmed(false);
     } finally {
       setLoading(false);
     }
@@ -303,7 +313,6 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
     }
   };
 
-  const currentInvoice = fullInvoice || invoice;
   const order = currentInvoice.order || {};
   const customer = order.customer || {};
   const product = order.product || {};
@@ -338,7 +347,30 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
   const grandTotal = currentInvoice.grandTotal || subtotal + tax;
   const totalAmountWords = numberToWords(grandTotal, currency);
 
-  const parsedAddress = parseCustomerAddress(customer.address || order.locationAddress);
+  const isEmergency =
+    customer.customerCode === "EMERGENCY" ||
+    customer.companyName === "Stranded Drivers (Emergency Requests)" ||
+    customer.companyName === "Customer Fuel Requests" ||
+    order.customerName === "Stranded Drivers (Emergency Requests)" ||
+    order.customerName === "Customer Fuel Requests";
+
+  const buyerName = isEmergency && order.driverName
+    ? order.driverName
+    : (customer.companyName || customer.contactPerson || "Customer");
+
+  const buyerPhone = isEmergency && order.driverPhone
+    ? order.driverPhone
+    : customer.phone;
+
+  const buyerEmail = isEmergency && order.driverEmail
+    ? order.driverEmail
+    : customer.email;
+
+  const buyerAddress = isEmergency && order.locationAddress
+    ? order.locationAddress
+    : customer.address;
+
+  const parsedAddress = parseCustomerAddress(buyerAddress);
 
   // Delivery & Incoterms details
   const deliveryMethod = currentInvoice.deliveryMethod || order.deliveryMethod || "";
@@ -352,13 +384,30 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
     deliveryMethod || incoterms || port || destination || logisticsInfo || physicalLocation;
 
   // Signatures and logos
-  const logoUrl = companyDetails.logo || logoImg;
-  const signatureUrl = companyDetails.signatorySignature || signatureImg;
-  const stampUrl = companyDetails.stamp || stampImg;
+  const logoUrl =
+    !companyDetails.logo ||
+    companyDetails.logo === "assets/falcon-logo.png" ||
+    companyDetails.logo === "/assets/falcon-logo.png"
+      ? logoImg
+      : companyDetails.logo;
+
+  const signatureUrl =
+    !companyDetails.signatorySignature ||
+    companyDetails.signatorySignature === "assets/authorized-signature.png" ||
+    companyDetails.signatorySignature === "/assets/authorized-signature.png"
+      ? signatureImg
+      : companyDetails.signatorySignature;
+
+  const stampUrl =
+    !companyDetails.stamp ||
+    companyDetails.stamp === "assets/falcon-stamp.png" ||
+    companyDetails.stamp === "/assets/falcon-stamp.png"
+      ? stampImg
+      : companyDetails.stamp;
 
   // UI Validation: check if required database records are missing
   const validationErrors = [];
-  if (!customer.companyName && !customer.contactPerson) {
+  if (!buyerName || buyerName === "Customer") {
     validationErrors.push("Customer details (name or company name) are missing in the system.");
   }
   if (!product.productName) {
@@ -767,7 +816,7 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
                           }}
                         >
                           <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-                            {customer.companyName || customer.contactPerson}
+                            {buyerName}
                           </div>
                           {parsedAddress.postal !== "N/A" && (
                             <div style={{ marginBottom: "2px" }}>{parsedAddress.postal}</div>
@@ -775,17 +824,17 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
                           {parsedAddress.physical !== "N/A" && (
                             <div style={{ marginBottom: "4px" }}>{parsedAddress.physical}</div>
                           )}
-                          {customer.phone && (
+                          {buyerPhone && (
                             <div style={{ fontSize: "12px", color: "#475569" }}>
-                              <strong>Phone:</strong> {customer.phone}
+                              <strong>Phone:</strong> {buyerPhone}
                             </div>
                           )}
-                          {customer.email && (
+                          {buyerEmail && (
                             <div style={{ fontSize: "12px", color: "#475569" }}>
-                              <strong>Email:</strong> {customer.email}
+                              <strong>Email:</strong> {buyerEmail}
                             </div>
                           )}
-                          {customer.tinNumber && (
+                          {customer.tinNumber && !isEmergency && (
                             <div style={{ fontSize: "12px", color: "#475569" }}>
                               <strong>TIN:</strong> {customer.tinNumber}
                             </div>
@@ -1509,14 +1558,14 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
             Close
           </button>
 
-          {isPending && userRole === "FINANCE" && validationErrors.length === 0 && (
+          {isPending && !isPaid && !hasConfirmed && userRole === "FINANCE" && validationErrors.length === 0 && (
             <button
               className="fef-btn fef-btn-success"
               onClick={handleApprovePayment}
-              disabled={loading}
+              disabled={loading || hasConfirmed}
               style={{ display: "flex", alignItems: "center", gap: "6px" }}
             >
-              <FiCheck /> {loading ? "Processing..." : "Confirm Payment"}
+              <FiCheck /> {loading || hasConfirmed ? "Processing..." : "Confirm Payment"}
             </button>
           )}
 

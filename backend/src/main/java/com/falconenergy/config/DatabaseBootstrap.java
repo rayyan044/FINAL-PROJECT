@@ -89,65 +89,7 @@ public class DatabaseBootstrap implements CommandLineRunner {
             log.info("System already has {} registered administrator(s). Bootstrapping skipped.", adminCount);
         }
 
-        // Bootstrap default FINANCE user
-        User finance = userRepository.findByUsername("finance")
-                .or(() -> userRepository.findByEmail("finance@falconenergy.com"))
-                .orElse(null);
-        if (finance == null) {
-            finance = User.builder()
-                    .firstName("Sarah")
-                    .lastName("Finance")
-                    .email("finance@falconenergy.com")
-                    .username("finance")
-                    .phone("+254711111111")
-                    .password(passwordEncoder.encode("ChangeMe123!"))
-                    .role(UserRole.FINANCE)
-                    .status(UserStatus.ACTIVE)
-                    .passwordChanged(true)
-                    .build();
-            userRepository.save(finance);
-            log.info("Successfully bootstrapped Finance account: finance@falconenergy.com / username: finance");
-        }
 
-        // Bootstrap default OPERATIONS user
-        User operations = userRepository.findByUsername("operator")
-                .or(() -> userRepository.findByEmail("operator@falconenergy.com"))
-                .orElse(null);
-        if (operations == null) {
-            operations = User.builder()
-                    .firstName("James")
-                    .lastName("Operator")
-                    .email("operator@falconenergy.com")
-                    .username("operator")
-                    .phone("+254722222222")
-                    .password(passwordEncoder.encode("ChangeMe123!"))
-                    .role(UserRole.OPERATIONS)
-                    .status(UserStatus.ACTIVE)
-                    .passwordChanged(true)
-                    .build();
-            userRepository.save(operations);
-            log.info("Successfully bootstrapped Operations account: operator@falconenergy.com / username: operator");
-        }
-
-        // Bootstrap default SALES_OFFICER user
-        User sales = userRepository.findByUsername("sales")
-                .or(() -> userRepository.findByEmail("sales@falconenergy.com"))
-                .orElse(null);
-        if (sales == null) {
-            sales = User.builder()
-                    .firstName("Jane")
-                    .lastName("Sales")
-                    .email("sales@falconenergy.com")
-                    .username("sales")
-                    .phone("+254733333333")
-                    .password(passwordEncoder.encode("ChangeMe123!"))
-                    .role(UserRole.SALES_OFFICER)
-                    .status(UserStatus.ACTIVE)
-                    .passwordChanged(true)
-                    .build();
-            userRepository.save(sales);
-            log.info("Successfully bootstrapped Sales account: sales@falconenergy.com / username: sales");
-        }
 
         // Bootstrap default customer for emergency guest orders
         if (!customerRepository.existsByCustomerCode("EMERGENCY")) {

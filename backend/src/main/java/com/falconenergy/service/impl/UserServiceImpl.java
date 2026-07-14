@@ -64,7 +64,7 @@ public class UserServiceImpl implements UserService {
         // Load user first to authenticate against email or username
         User user = userRepository.findByEmail(request.getEmail())
                 .or(() -> userRepository.findByUsername(request.getEmail()))
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email or username: " + request.getEmail()));
+                .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Invalid email/username or password"));
 
         // Authenticate with security manager using the loaded UserDetails username (email)
         authenticationManager.authenticate(

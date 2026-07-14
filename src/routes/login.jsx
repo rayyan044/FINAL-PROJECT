@@ -18,6 +18,9 @@ const ROLE_ROUTES = {
 };
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search) => ({
+    expired: search.expired === "true" || search.expired === true || undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Staff Login — FEFTMS" },
@@ -29,7 +32,8 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const search = Route.useSearch();
+  const { login, updateUser } = useAuth();
 
   // Login States
   const [email, setEmail] = useState("");
@@ -65,8 +69,20 @@ function LoginPage() {
         navigate({ to: path });
       }
     } catch (err) {
-      console.error(err);
-      setError(err?.message || "Invalid email/username or password. Please try again.");
+      console.error("Login error object:", err);
+      let errMsg = "Invalid email/username or password. Please try again.";
+      if (err) {
+        if (typeof err === "string") {
+          errMsg = err;
+        } else if (err.message) {
+          errMsg = err.message;
+        } else if (err.response?.data?.message) {
+          errMsg = err.response.data.message;
+        } else if (err.response?.data) {
+          errMsg = typeof err.response.data === "string" ? err.response.data : JSON.stringify(err.response.data);
+        }
+      }
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -95,7 +111,7 @@ function LoginPage() {
 
       // Update passwordChanged flag in local session
       const updatedProfile = { ...tempProfile, passwordChanged: true };
-      localStorage.setItem("feftms_user", JSON.stringify(updatedProfile));
+      updateUser(updatedProfile);
 
       // Redirect to correct dashboard
       const path = ROLE_ROUTES[updatedProfile.role] ?? "/admin";
@@ -239,6 +255,13 @@ function LoginPage() {
             </div>
           )}
 
+          {search.expired && !error && (
+            <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 14 }}>
+              <FiAlertCircle style={{ verticalAlign: "-2px", marginRight: 6 }} />
+              Your session has expired. Please log in again.
+            </div>
+          )}
+
           <div className="fef-field" style={{ marginBottom: 14 }}>
             <label className="fef-label">Email Address or Username</label>
             <input
@@ -303,73 +326,7 @@ function LoginPage() {
             )}
           </button>
 
-          <div
-            style={{
-              marginTop: 20,
-              padding: 12,
-              background: "rgba(255, 255, 255, 0.04)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              borderRadius: 8,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--feftms-text-muted)",
-                display: "block",
-                marginBottom: 8,
-              }}
-            >
-              Quick Demo Logins (Default Password: ChangeMe123!):
-            </span>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <button
-                type="button"
-                className="fef-btn fef-btn-outline"
-                style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => {
-                  setEmail("finance");
-                  setPassword("ChangeMe123!");
-                }}
-              >
-                Finance
-              </button>
-              <button
-                type="button"
-                className="fef-btn fef-btn-outline"
-                style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => {
-                  setEmail("operator");
-                  setPassword("ChangeMe123!");
-                }}
-              >
-                Operator
-              </button>
-              <button
-                type="button"
-                className="fef-btn fef-btn-outline"
-                style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => {
-                  setEmail("sales");
-                  setPassword("ChangeMe123!");
-                }}
-              >
-                Sales
-              </button>
-              <button
-                type="button"
-                className="fef-btn fef-btn-outline"
-                style={{ padding: "6px", fontSize: 11, display: "block", width: "100%" }}
-                onClick={() => {
-                  setEmail("admin");
-                  setPassword("ChangeMe123!");
-                }}
-              >
-                Admin
-              </button>
-            </div>
-          </div>
+
 
           <p
             style={{

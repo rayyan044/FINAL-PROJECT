@@ -6,6 +6,7 @@ import com.falconenergy.entity.Invoice;
 import com.falconenergy.entity.CompanySettings;
 import com.falconenergy.entity.PaymentAccount;
 import com.falconenergy.entity.FuelProduct;
+import com.falconenergy.entity.FuelOrder;
 import com.falconenergy.exception.ResourceNotFoundException;
 import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.mapper.InvoiceMapper;
@@ -147,12 +148,30 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public InvoiceResponse approveInvoicePayment(Long id, String approvedBy) {
         log.info("Approving payment for invoice: {} by {}", id, approvedBy);
-        Invoice invoice = invoiceRepository.findById(id)
+        Invoice invoice = invoiceRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with id: " + id));
+
+        if ("PAID".equalsIgnoreCase(invoice.getPaymentStatus())) {
+            throw new BadRequestException("Payment has already been confirmed for this invoice.");
+        }
 
         invoice.setPaymentStatus("PAID");
         invoice.setFinanceApprovedBy(approvedBy != null && !approvedBy.isBlank() ? approvedBy : "finance_officer");
         invoice.setFinanceApprovedAt(LocalDateTime.now());
+
+        FuelOrder order = invoice.getOrder();
+        if (order != null) {
+            String prevStatus = order.getOrderStatus();
+            order.setOrderStatus("PAYMENT_CONFIRMED");
+            fuelOrderRepository.save(order);
+            auditLogService.log(
+                    "ORDER_STATUS_CHANGED",
+                    "FUEL_ORDER",
+                    order.getId(),
+                    order.getCustomer().getCustomerCode(),
+                    "Order status changed from " + prevStatus + " to PAYMENT_CONFIRMED after payment confirmation"
+            );
+        }
 
         Invoice updated = invoiceRepository.save(invoice);
 
@@ -178,6 +197,20 @@ public class InvoiceServiceImpl implements InvoiceService {
         if ("PAID".equalsIgnoreCase(status)) {
             invoice.setFinanceApprovedBy(updatedBy != null && !updatedBy.isBlank() ? updatedBy : "admin");
             invoice.setFinanceApprovedAt(LocalDateTime.now());
+
+            FuelOrder order = invoice.getOrder();
+            if (order != null) {
+                String prevStatus = order.getOrderStatus();
+                order.setOrderStatus("PAYMENT_CONFIRMED");
+                fuelOrderRepository.save(order);
+                auditLogService.log(
+                        "ORDER_STATUS_CHANGED",
+                        "FUEL_ORDER",
+                        order.getId(),
+                        order.getCustomer().getCustomerCode(),
+                        "Order status changed from " + prevStatus + " to PAYMENT_CONFIRMED after status override to PAID"
+                );
+            }
         } else {
             invoice.setFinanceApprovedBy(null);
             invoice.setFinanceApprovedAt(null);

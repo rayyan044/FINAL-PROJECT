@@ -61,6 +61,7 @@ export function RouteGuard({ allowedRoles, children }) {
 function getDashboardForRole(role) {
   switch (role) {
     case "ADMIN":
+    case "MANAGER":
       return "/admin";
     case "OPERATIONS":
     case "OPERATOR":
@@ -73,8 +74,12 @@ function getDashboardForRole(role) {
       return "/dispatch";
     case "DRIVER":
       return "/driver";
+    case "CUSTOMER_SERVICE":
+      return "/customer-service";
     case "VIEWER":
       return "/viewer";
+    case "CUSTOMER":
+      return "/customer";
     default:
       return "/";
   }

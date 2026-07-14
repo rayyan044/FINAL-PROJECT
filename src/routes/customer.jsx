@@ -226,7 +226,7 @@ function CustomerPortal() {
   const validateStep = (currentStep) => {
     const errs = {};
     if (currentStep === 0) {
-      if (!form.driverName.trim()) errs.driverName = "Full Name is required";
+      if (!form.driverName.trim()) errs.driverName = "Company Name is required";
       if (!form.driverPhone.trim()) {
         errs.driverPhone = "Phone Number is required";
       } else if (!/^\+?[0-9\s\-()]{7,20}$/.test(form.driverPhone.trim())) {
@@ -403,14 +403,14 @@ function CustomerPortal() {
                   <h3 style={{ marginBottom: 18, fontWeight: 700 }}>Customer Details</h3>
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <div className="fef-field">
-                      <label className="fef-label">Full Name</label>
+                      <label className="fef-label">Company Name</label>
                       <input
                         required
                         type="text"
                         className={`fef-input ${errors.driverName ? "fef-input-invalid" : ""}`}
                         value={form.driverName}
                         onChange={update("driverName")}
-                        placeholder="Enter your name"
+                        placeholder="Enter company name"
                       />
                       {errors.driverName && (
                         <span className="fef-field-error">
@@ -825,7 +825,7 @@ function CustomerPortal() {
                           style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}
                         >
                           <div>
-                            <strong>Customer Name:</strong> {form.driverName}
+                            <strong>Company Name:</strong> {form.driverName}
                           </div>
                           <div>
                             <strong>Customer Phone:</strong> {form.driverPhone}

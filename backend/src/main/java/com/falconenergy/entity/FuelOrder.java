@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 @Table(name = "fuel_orders")
 @SQLDelete(sql = "UPDATE fuel_orders SET deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
 @SQLRestriction("deleted = false")
+@org.hibernate.annotations.DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor
@@ -131,4 +132,10 @@ public class FuelOrder extends BaseEntity {
 
     @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
     private Invoice invoice;
+
+    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private TruckNomination truckNomination;
+
+    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private LoadingOrder loadingOrder;
 }

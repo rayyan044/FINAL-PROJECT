@@ -17,14 +17,26 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+let logoutCallback = null;
+
+export const registerLogoutCallback = (cb) => {
+  logoutCallback = cb;
+};
+
 // Global response interceptor (handling token expiration/unauthorized errors)
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("feftms_token");
-      localStorage.removeItem("feftms_user");
-      // Optionally redirect to login, but we will let components handle state transitions.
+      const requestToken = error.config?.headers?.Authorization?.replace("Bearer ", "");
+      const currentToken = localStorage.getItem("feftms_token");
+      if (requestToken && requestToken === currentToken) {
+        localStorage.removeItem("feftms_token");
+        localStorage.removeItem("feftms_user");
+        if (logoutCallback) {
+          logoutCallback();
+        }
+      }
     }
     return Promise.reject(error.response?.data || error);
   },

@@ -15,8 +15,8 @@ export async function refreshToken(payload) {
   return api.post("/auth/refresh", payload).then((r) => r.data);
 }
 
-export async function logout() {
-  const token = localStorage.getItem("feftms_token");
+export async function logout(passedToken) {
+  const token = passedToken || localStorage.getItem("feftms_token");
   if (token) {
     return api
       .post(
@@ -26,6 +26,7 @@ export async function logout() {
           headers: { Authorization: `Bearer ${token}` },
         },
       )
+      .then((r) => r.data)
       .finally(() => {
         localStorage.removeItem("feftms_token");
         localStorage.removeItem("feftms_user");

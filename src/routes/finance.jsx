@@ -158,6 +158,16 @@ function FinanceDash() {
     loadInvoices();
     loadPaymentAccountsData();
     loadCompanySettings();
+
+    const endDate = new Date().toISOString();
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    listOrders({ startDate, endDate, size: 200 })
+      .then((res) => {
+        setOrders(res.content || []);
+      })
+      .catch((err) => {
+        console.warn("Failed to load orders for finance dashboard", err);
+      });
   };
 
   useEffect(() => {
@@ -489,7 +499,7 @@ function FinanceDash() {
                 <thead>
                   <tr>
                     <th>Invoice #</th>
-                    <th>Customer Name</th>
+                    <th>Company Name</th>
                     <th>Fuel Product</th>
                     <th>Quantity (L)</th>
                     <th>Grand Total</th>

@@ -1349,7 +1349,7 @@ function AdminDash() {
                 <thead>
                   <tr>
                     <th>Invoice #</th>
-                    <th>Customer Name</th>
+                    <th>Company Name</th>
                     <th>Fuel Product</th>
                     <th>Quantity (L)</th>
                     <th>Grand Total</th>
@@ -1928,6 +1928,7 @@ function AdminDash() {
             onClose={() => setSelectedInvoice(null)}
             onRefresh={() => {
               loadInvoices();
+              loadData();
             }}
             userRole="ADMIN"
           />

@@ -44,4 +44,10 @@ public class AuditLog {
 
     @Column(name = "details", columnDefinition = "TEXT")
     private String details;
+
+    @Column(name = "previous_value", columnDefinition = "TEXT")
+    private String previousValue;
+
+    @Column(name = "new_value", columnDefinition = "TEXT")
+    private String newValue;
 }

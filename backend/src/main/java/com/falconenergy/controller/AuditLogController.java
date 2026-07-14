@@ -42,6 +42,8 @@ public class AuditLogController {
                         .ipAddress(log.getIpAddress())
                         .timestamp(log.getTimestamp())
                         .details(log.getDetails())
+                        .previousValue(log.getPreviousValue())
+                        .newValue(log.getNewValue())
                         .build()
                 );
 

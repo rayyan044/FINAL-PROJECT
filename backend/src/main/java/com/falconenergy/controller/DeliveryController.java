@@ -27,7 +27,7 @@ public class DeliveryController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS', 'DISPATCHER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OPERATOR', 'ROLE_OPERATIONS', 'ROLE_DISPATCHER')")
     public ResponseEntity<ApiResponse<DeliveryResponse>> createDelivery(@Valid @RequestBody DeliveryRequest request) {
         DeliveryResponse response = deliveryService.createDelivery(request);
         return ResponseEntity.ok(ApiResponse.success("Delivery created successfully", response));
@@ -40,7 +40,7 @@ public class DeliveryController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS', 'DISPATCHER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OPERATOR', 'ROLE_OPERATIONS', 'ROLE_DISPATCHER')")
     public ResponseEntity<ApiResponse<DeliveryResponse>> updateDelivery(
             @PathVariable Long id,
             @Valid @RequestBody DeliveryRequest request
@@ -50,7 +50,7 @@ public class DeliveryController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS', 'DRIVER', 'DISPATCHER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OPERATOR', 'ROLE_OPERATIONS', 'ROLE_DRIVER', 'ROLE_DISPATCHER')")
     public ResponseEntity<ApiResponse<DeliveryResponse>> updateDeliveryStatus(
             @PathVariable Long id,
             @RequestParam String status
@@ -60,7 +60,7 @@ public class DeliveryController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteDelivery(@PathVariable Long id) {
         deliveryService.deleteDelivery(id);
         return ResponseEntity.ok(ApiResponse.success("Delivery deleted successfully"));

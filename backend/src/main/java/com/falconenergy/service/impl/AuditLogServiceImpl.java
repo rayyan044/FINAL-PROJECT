@@ -31,6 +31,11 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     public void log(String action, String entityType, Long entityId, String affectedUsername, String details) {
+        log(action, entityType, entityId, affectedUsername, details, null, null);
+    }
+
+    @Override
+    public void log(String action, String entityType, Long entityId, String affectedUsername, String details, String previousValue, String newValue) {
         String adminUsername = "SYSTEM";
         Long adminId = null;
 
@@ -65,6 +70,8 @@ public class AuditLogServiceImpl implements AuditLogService {
                 .affectedUsername(affectedUsername)
                 .ipAddress(ipAddress)
                 .details(details)
+                .previousValue(previousValue)
+                .newValue(newValue)
                 .build();
 
         auditLogRepository.save(log);

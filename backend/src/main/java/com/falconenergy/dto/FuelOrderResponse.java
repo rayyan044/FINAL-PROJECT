@@ -58,6 +58,7 @@ public class FuelOrderResponse {
     private Long invoiceId;
     private String invoiceNumber;
     private String paymentStatus;
+    private String truckNominationStatus;
 
     public String getCustomerName() {
         return customer != null ? customer.getCompanyName() : null;
