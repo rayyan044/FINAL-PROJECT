@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
@@ -29,6 +30,9 @@ public class User extends BaseEntity {
     @Column(name = "last_name", nullable = false, length = 50)
     private String lastName;
 
+    @Column(name = "full_name", length = 150)
+    private String fullName;
+
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
@@ -38,9 +42,9 @@ public class User extends BaseEntity {
     @Column(name = "password", nullable = false, length = 255)
     private String password;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 30)
-    private UserRole role;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "role_id")
+    private Role roleEntity;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -51,7 +55,28 @@ public class User extends BaseEntity {
     @Builder.Default
     private boolean passwordChanged = false;
 
+    @Column(name = "last_login")
+    private LocalDateTime lastLogin;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id", unique = true)
     private Driver driver;
+
+    // Legacy getter helper to return the UserRole enum for backwards compatibility
+    public UserRole getRole() {
+        if (roleEntity == null) {
+            return null;
+        }
+        try {
+            return UserRole.valueOf(roleEntity.getRoleName());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // Helper to assign a legacy role name
+    public void setRole(UserRole userRole) {
+        // Handled in service layer when mapped to Role entity,
+        // but kept here for builder compatibility.
+    }
 }

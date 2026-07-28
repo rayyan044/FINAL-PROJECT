@@ -36,14 +36,14 @@ public class FuelTransactionController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS', 'FINANCE', 'SALES_OFFICER', 'VIEWER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS', 'FINANCE', 'SALES_OFFICER', 'VIEWER', 'CUSTOMER_SERVICE')")
     public ResponseEntity<ApiResponse<FuelTransactionResponse>> getTransactionById(@PathVariable Long id) {
         FuelTransactionResponse response = fuelTransactionService.getTransactionById(id);
         return ResponseEntity.ok(ApiResponse.success("Fuel transaction retrieved successfully", response));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS', 'FINANCE', 'SALES_OFFICER', 'VIEWER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS', 'FINANCE', 'SALES_OFFICER', 'VIEWER', 'CUSTOMER_SERVICE')")
     public ResponseEntity<ApiResponse<Page<FuelTransactionResponse>>> getAllTransactions(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String type,

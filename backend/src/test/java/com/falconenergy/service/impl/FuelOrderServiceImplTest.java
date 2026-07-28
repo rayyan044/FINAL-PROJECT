@@ -65,6 +65,9 @@ class FuelOrderServiceImplTest {
     @Mock
     private com.falconenergy.repository.UserRepository userRepository;
 
+    @Mock
+    private com.falconenergy.service.SystemSettingService systemSettingService;
+
     @InjectMocks
     private FuelOrderServiceImpl fuelOrderService;
 
@@ -112,6 +115,7 @@ class FuelOrderServiceImplTest {
                 .build();
         when(paymentAccountRepository.findByStatus("ACTIVE")).thenReturn(java.util.List.of(paymentAccount));
         when(invoiceRepository.save(any(com.falconenergy.entity.Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(systemSettingService.getSetting("INVOICE_PREFIX", "INV-")).thenReturn("INV-");
 
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("sales-agent", "password", java.util.List.of())

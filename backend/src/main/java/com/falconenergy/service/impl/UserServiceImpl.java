@@ -10,7 +10,11 @@ import com.falconenergy.exception.DuplicateResourceException;
 import com.falconenergy.exception.ResourceNotFoundException;
 import com.falconenergy.mapper.UserMapper;
 import com.falconenergy.repository.DriverRepository;
+import com.falconenergy.entity.Role;
+import com.falconenergy.repository.RoleRepository;
 import com.falconenergy.repository.UserRepository;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import com.falconenergy.security.CustomUserDetails;
 import com.falconenergy.security.JwtTokenProvider;
 import com.falconenergy.service.AuditLogService;
@@ -20,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -41,6 +47,7 @@ public class UserServiceImpl implements UserService {
 
     public UserServiceImpl(
             UserRepository userRepository,
+            RoleRepository roleRepository,
             UserMapper userMapper,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
@@ -49,6 +56,7 @@ public class UserServiceImpl implements UserService {
             DriverRepository driverRepository
     ) {
         this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
@@ -66,14 +74,17 @@ public class UserServiceImpl implements UserService {
                 .or(() -> userRepository.findByUsername(request.getEmail()))
                 .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Invalid email/username or password"));
 
+        // Return an explicit authentication error before generating any token.
+        // CustomUserDetails performs the same enabled check inside Spring Security;
+        // keeping it here makes the status rule clear for email and username login.
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new DisabledException("Account is inactive");
+        }
+
         // Authenticate with security manager using the loaded UserDetails username (email)
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
         );
-
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new BadRequestException("User account is inactive");
-        }
 
         UserDetails userDetails = new CustomUserDetails(user);
         String accessToken = jwtTokenProvider.generateToken(userDetails);
@@ -112,11 +123,9 @@ public class UserServiceImpl implements UserService {
         user.setStatus(UserStatus.ACTIVE);
         user.setPasswordChanged(true); // Self registration defaults to true
 
-        try {
-            user.setRole(UserRole.valueOf(request.getRole().toUpperCase()));
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid role specified: " + request.getRole());
-        }
+        Role role = roleRepository.findByRoleName(request.getRole().toUpperCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + request.getRole()));
+        user.setRoleEntity(role);
 
         // Validate and link Driver profile
         if (request.getDriverId() != null) {
@@ -192,11 +201,9 @@ public class UserServiceImpl implements UserService {
         user.setStatus(UserStatus.ACTIVE);
         user.setPasswordChanged(false); // Created by admin, require change on first login!
 
-        try {
-            user.setRole(UserRole.valueOf(request.getRole().toUpperCase()));
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid role specified: " + request.getRole());
-        }
+        Role role = roleRepository.findByRoleName(request.getRole().toUpperCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + request.getRole()));
+        user.setRoleEntity(role);
 
         // Validate and link Driver profile
         if (request.getDriverId() != null) {
@@ -284,11 +291,9 @@ public class UserServiceImpl implements UserService {
 
         userMapper.updateEntityFromRequest(request, user);
 
-        try {
-            user.setRole(UserRole.valueOf(request.getRole().toUpperCase()));
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid role specified: " + request.getRole());
-        }
+        Role role = roleRepository.findByRoleName(request.getRole().toUpperCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + request.getRole()));
+        user.setRoleEntity(role);
 
         try {
             user.setStatus(UserStatus.valueOf(request.getStatus().toUpperCase()));
@@ -490,6 +495,8 @@ public class UserServiceImpl implements UserService {
             // Exclude DELETED users by default
             predicate = cb.and(predicate, cb.notEqual(root.get("status"), UserStatus.DELETED));
 
+            Join<User, Role> roleJoin = root.join("roleEntity", JoinType.LEFT);
+
             if (search != null && !search.trim().isEmpty()) {
                 String wildcard = "%" + search.toLowerCase() + "%";
                 predicate = cb.and(predicate, cb.or(
@@ -497,17 +504,12 @@ public class UserServiceImpl implements UserService {
                         cb.like(cb.lower(root.get("lastName")), wildcard),
                         cb.like(cb.lower(root.get("email")), wildcard),
                         cb.like(cb.lower(root.get("username")), wildcard),
-                        cb.like(cb.lower(root.get("role").as(String.class)), wildcard)
+                        cb.like(cb.lower(roleJoin.get("roleName")), wildcard)
                 ));
             }
 
             if (role != null && !role.trim().isEmpty() && !"ALL".equalsIgnoreCase(role)) {
-                try {
-                    UserRole roleEnum = UserRole.valueOf(role.toUpperCase());
-                    predicate = cb.and(predicate, cb.equal(root.get("role"), roleEnum));
-                } catch (IllegalArgumentException e) {
-                    // Ignore invalid roles
-                }
+                predicate = cb.and(predicate, cb.equal(roleJoin.get("roleName"), role.toUpperCase()));
             }
 
             if (status != null && !status.trim().isEmpty() && !"ALL".equalsIgnoreCase(status)) {

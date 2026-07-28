@@ -263,6 +263,17 @@ button {
   color: var(--feftms-secondary);
   border: 1px solid #bbdefb;
 }
+.fef-alert-danger {
+  background: #ffebee;
+  color: var(--feftms-danger);
+  border: 1px solid #ffcdd2;
+}
+.fef-alert-warning {
+  background: #fff8e1;
+  color: #f57f17;
+  border: 1px solid #ffe082;
+}
+
 
 /* Password visibility toggle */
 .fef-password-wrapper {
@@ -360,5 +371,32 @@ button {
     width: 100% !important;
     background: white !important;
     color: black !important;
+  }
+}
+/* Global application notifications */
+.fef-toast {
+  width: min(360px, calc(100vw - 32px));
+  border: 1px solid transparent;
+  border-radius: 10px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
+}
+
+.fef-toast-success {
+  background: #ecfdf5 !important;
+  border-color: #86efac !important;
+  color: #166534 !important;
+}
+
+.fef-toast-error {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+}
+
+@media (max-width: 480px) {
+  [data-sonner-toaster][data-x-position="right"] {
+    left: 16px;
+    right: 16px;
+    width: auto;
   }
 }

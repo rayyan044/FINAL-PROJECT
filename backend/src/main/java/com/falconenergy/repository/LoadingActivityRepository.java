@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface LoadingActivityRepository extends JpaRepository<LoadingActivity, Long> {
+    java.util.List<LoadingActivity> findByLoadingOrderId(Long loadingOrderId);
 }

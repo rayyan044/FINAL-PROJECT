@@ -1,23 +1,39 @@
 package com.falconenergy.mapper;
 
-import com.falconenergy.dto.DeliveryRequest;
 import com.falconenergy.dto.DeliveryResponse;
 import com.falconenergy.entity.Delivery;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
+import org.springframework.stereotype.Component;
 
-@Mapper(componentModel = "spring", uses = {DriverMapper.class, VehicleMapper.class, FuelOrderMapper.class})
-public interface DeliveryMapper {
-    DeliveryResponse toResponse(Delivery delivery);
-
-    @Mapping(target = "driver", ignore = true)
-    @Mapping(target = "vehicle", ignore = true)
-    @Mapping(target = "order", ignore = true)
-    Delivery toEntity(DeliveryRequest request);
-
-    @Mapping(target = "driver", ignore = true)
-    @Mapping(target = "vehicle", ignore = true)
-    @Mapping(target = "order", ignore = true)
-    void updateEntityFromRequest(DeliveryRequest request, @MappingTarget Delivery delivery);
+@Component
+public class DeliveryMapper {
+    
+    public DeliveryResponse toResponse(Delivery d) {
+        if (d == null) return null;
+        return DeliveryResponse.builder()
+                .id(d.getId())
+                .deliveryNumber(d.getDeliveryNumber())
+                .dispatchId(d.getDispatch() != null ? d.getDispatch().getId() : null)
+                .dispatchNumber(d.getDispatch() != null ? d.getDispatch().getDispatchNumber() : null)
+                .loadingOrderId(d.getLoadingOrder() != null ? d.getLoadingOrder().getId() : null)
+                .loadingOrderNumber(d.getLoadingOrder() != null ? d.getLoadingOrder().getLoadingOrderNumber() : null)
+                .loadingActivityId(d.getLoadingActivity() != null ? d.getLoadingActivity().getId() : null)
+                .deliveryNoteId(d.getDeliveryNote() != null ? d.getDeliveryNote().getId() : null)
+                .deliveryNoteNumber(d.getDeliveryNote() != null ? d.getDeliveryNote().getDeliveryNoteNumber() : null)
+                .truckInvoiceId(d.getTruckInvoice() != null ? d.getTruckInvoice().getId() : null)
+                .truckInvoiceNumber(d.getTruckInvoice() != null ? d.getTruckInvoice().getInvoiceNumber() : null)
+                .truckNumber(d.getTruckNumber())
+                .driverName(d.getDriverName())
+                .transportCompany(d.getTransportCompany())
+                .destination(d.getDestination())
+                .deliveryStatus(d.getDeliveryStatus() != null ? d.getDeliveryStatus().name() : null)
+                .dispatchedAt(d.getDispatchedAt())
+                .arrivalTime(d.getArrivalTime())
+                .deliveredAt(d.getDeliveredAt())
+                .receivedBy(d.getReceivedBy())
+                .completedBy(d.getCompletedBy())
+                .remarks(d.getRemarks())
+                .createdAt(d.getCreatedAt())
+                .updatedAt(d.getUpdatedAt())
+                .build();
+    }
 }

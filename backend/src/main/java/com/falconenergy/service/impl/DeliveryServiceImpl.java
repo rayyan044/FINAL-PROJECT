@@ -1,104 +1,87 @@
 package com.falconenergy.service.impl;
 
-import com.falconenergy.dto.DeliveryRequest;
 import com.falconenergy.dto.DeliveryResponse;
-import com.falconenergy.entity.Delivery;
-import com.falconenergy.entity.Driver;
-import com.falconenergy.entity.FuelOrder;
-import com.falconenergy.entity.Vehicle;
+import com.falconenergy.dto.DeliveryArrivalRequest;
+import com.falconenergy.dto.DeliveryCompleteRequest;
+import com.falconenergy.entity.*;
 import com.falconenergy.exception.BadRequestException;
-import com.falconenergy.exception.DuplicateResourceException;
 import com.falconenergy.exception.ResourceNotFoundException;
 import com.falconenergy.mapper.DeliveryMapper;
-import com.falconenergy.repository.DeliveryRepository;
-import com.falconenergy.repository.DriverRepository;
-import com.falconenergy.repository.FuelOrderRepository;
-import com.falconenergy.repository.VehicleRepository;
+import com.falconenergy.repository.*;
 import com.falconenergy.service.DeliveryService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 @Transactional
 public class DeliveryServiceImpl implements DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
-    private final DriverRepository driverRepository;
-    private final VehicleRepository vehicleRepository;
-    private final FuelOrderRepository fuelOrderRepository;
+    private final DispatchRepository dispatchRepository;
+    private final LoadingActivityRepository loadingActivityRepository;
+    private final LoadingOrderRepository loadingOrderRepository;
     private final DeliveryMapper deliveryMapper;
 
-    public DeliveryServiceImpl(
-            DeliveryRepository deliveryRepository,
-            DriverRepository driverRepository,
-            VehicleRepository vehicleRepository,
-            FuelOrderRepository fuelOrderRepository,
-            DeliveryMapper deliveryMapper
-    ) {
-        this.deliveryRepository = deliveryRepository;
-        this.driverRepository = driverRepository;
-        this.vehicleRepository = vehicleRepository;
-        this.fuelOrderRepository = fuelOrderRepository;
-        this.deliveryMapper = deliveryMapper;
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeliveryResponse> getActiveDeliveries() {
+        log.info("Fetching active deliveries (IN_TRANSIT or ARRIVED_AT_DESTINATION)");
+        return deliveryRepository.findAll().stream()
+                .filter(d -> d.getDeliveryStatus() == DeliveryStatus.IN_TRANSIT 
+                        || d.getDeliveryStatus() == DeliveryStatus.ARRIVED_AT_DESTINATION)
+                .map(deliveryMapper::toResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public DeliveryResponse createDelivery(DeliveryRequest request) {
-        log.info("Creating delivery: {}", request.getDeliveryNumber());
-        if (deliveryRepository.existsByDeliveryNumber(request.getDeliveryNumber())) {
-            throw new DuplicateResourceException("Delivery number already exists: " + request.getDeliveryNumber());
+    public DeliveryResponse createDelivery(Long dispatchId) {
+        log.info("Creating delivery record for dispatch: {}", dispatchId);
+
+        // Check if delivery already exists for this dispatchId to prevent duplicates
+        var existingOpt = deliveryRepository.findByDispatchId(dispatchId);
+        if (existingOpt.isPresent()) {
+            log.info("Delivery already exists for dispatch {}, returning existing record", dispatchId);
+            return deliveryMapper.toResponse(existingOpt.get());
         }
 
-        Driver driver = driverRepository.findById(request.getDriverId())
-                .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + request.getDriverId()));
+        Dispatch dispatch = dispatchRepository.findById(dispatchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dispatch record not found with id: " + dispatchId));
 
-        if ("BUSY".equalsIgnoreCase(driver.getStatus())) {
-            throw new BadRequestException("Driver is currently busy with another active delivery");
-        }
-        if ("INACTIVE".equalsIgnoreCase(driver.getStatus())) {
-            throw new BadRequestException("Driver profile is inactive");
+        if (dispatch.getDispatchStatus() != DispatchStatus.IN_TRANSIT) {
+            throw new BadRequestException("Dispatch status must be IN_TRANSIT before starting a delivery. Current status: " + dispatch.getDispatchStatus());
         }
 
-        Vehicle vehicle = vehicleRepository.findById(request.getVehicleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + request.getVehicleId()));
+        String username = resolveCurrentUser();
+        String deliveryNumber = generateDeliveryNumber();
 
-        if ("BUSY".equalsIgnoreCase(vehicle.getCurrentStatus())) {
-            throw new BadRequestException("Vehicle is currently assigned to another active delivery");
-        }
-        if ("INACTIVE".equalsIgnoreCase(vehicle.getCurrentStatus())) {
-            throw new BadRequestException("Vehicle profile is inactive");
-        }
+        Delivery delivery = Delivery.builder()
+                .deliveryNumber(deliveryNumber)
+                .dispatch(dispatch)
+                .loadingOrder(dispatch.getLoadingOrder())
+                .loadingActivity(dispatch.getLoadingActivity())
+                .deliveryNote(dispatch.getDeliveryNote())
+                .truckInvoice(dispatch.getTruckInvoice())
+                .truckNumber(dispatch.getTruckNumber())
+                .driverName(dispatch.getDriverName())
+                .transportCompany(dispatch.getTransportCompany())
+                .destination(dispatch.getDestination())
+                .deliveryStatus(DeliveryStatus.IN_TRANSIT)
+                .dispatchedAt(LocalDateTime.now())
+                .build();
 
-        FuelOrder order = fuelOrderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Fuel order not found with id: " + request.getOrderId()));
-
-        Delivery delivery = deliveryMapper.toEntity(request);
-        delivery.setDriver(driver);
-        delivery.setVehicle(vehicle);
-        delivery.setOrder(order);
-        delivery.setDeliveryStatus("PENDING");
+        delivery.setCreatedBy(username);
+        delivery.setUpdatedBy(username);
 
         Delivery saved = deliveryRepository.save(delivery);
-
-        // Mark driver as BUSY
-        driver.setStatus("BUSY");
-        driverRepository.save(driver);
-
-        // Mark vehicle as BUSY
-        vehicle.setCurrentStatus("BUSY");
-        vehicleRepository.save(vehicle);
-
-        // Update fuel order status to IN_TRANSIT
-        order.setOrderStatus("IN_TRANSIT");
-        fuelOrderRepository.save(order);
-
         return deliveryMapper.toResponse(saved);
     }
 
@@ -106,178 +89,110 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Transactional(readOnly = true)
     public DeliveryResponse getDeliveryById(Long id) {
         Delivery delivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + id));
         return deliveryMapper.toResponse(delivery);
     }
 
     @Override
-    public DeliveryResponse updateDelivery(Long id, DeliveryRequest request) {
-        log.info("Updating delivery with id: {}", id);
-        Delivery delivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found with id: " + id));
+    public DeliveryResponse markArrived(Long deliveryId, DeliveryArrivalRequest request) {
+        log.info("Recording arrival for delivery: {}", deliveryId);
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
 
-        if (!delivery.getDeliveryNumber().equals(request.getDeliveryNumber()) &&
-                deliveryRepository.existsByDeliveryNumber(request.getDeliveryNumber())) {
-            throw new DuplicateResourceException("Delivery number already exists: " + request.getDeliveryNumber());
+        if (delivery.getDeliveryStatus() != DeliveryStatus.IN_TRANSIT) {
+            throw new BadRequestException("Arrival can only be recorded if the delivery status is IN_TRANSIT. Current status: " + delivery.getDeliveryStatus());
         }
 
-        Driver driver = driverRepository.findById(request.getDriverId())
-                .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + request.getDriverId()));
-
-        Vehicle vehicle = vehicleRepository.findById(request.getVehicleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + request.getVehicleId()));
-
-        FuelOrder order = fuelOrderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Fuel order not found with id: " + request.getOrderId()));
-
-        // Check driver status if changed
-        if (!delivery.getDriver().getId().equals(driver.getId())) {
-            if ("BUSY".equalsIgnoreCase(driver.getStatus())) {
-                throw new BadRequestException("New driver is currently busy with another active delivery");
-            }
-            Driver oldDriver = delivery.getDriver();
-            oldDriver.setStatus("AVAILABLE");
-            driverRepository.save(oldDriver);
-
-            driver.setStatus("BUSY");
-            driverRepository.save(driver);
+        String username = resolveCurrentUser();
+        delivery.setDeliveryStatus(DeliveryStatus.ARRIVED_AT_DESTINATION);
+        delivery.setArrivalTime(LocalDateTime.now());
+        delivery.setReceivedBy(request != null ? request.getReceivedBy() : "operations");
+        if (request != null && request.getRemarks() != null) {
+            delivery.setRemarks(request.getRemarks());
         }
+        delivery.setUpdatedBy(username);
 
-        // Check vehicle status if changed
-        if (!delivery.getVehicle().getId().equals(vehicle.getId())) {
-            if ("BUSY".equalsIgnoreCase(vehicle.getCurrentStatus())) {
-                throw new BadRequestException("New vehicle is currently assigned to another active delivery");
-            }
-            Vehicle oldVehicle = delivery.getVehicle();
-            oldVehicle.setCurrentStatus("ACTIVE");
-            vehicleRepository.save(oldVehicle);
-
-            vehicle.setCurrentStatus("BUSY");
-            vehicleRepository.save(vehicle);
-        }
-
-        deliveryMapper.updateEntityFromRequest(request, delivery);
-        delivery.setDriver(driver);
-        delivery.setVehicle(vehicle);
-        delivery.setOrder(order);
-
-        Delivery updated = deliveryRepository.save(delivery);
-        return deliveryMapper.toResponse(updated);
+        Delivery saved = deliveryRepository.save(delivery);
+        return deliveryMapper.toResponse(saved);
     }
 
     @Override
-    public DeliveryResponse updateDeliveryStatus(Long id, String status) {
-        log.info("Updating status for delivery {} to {}", id, status);
-        Delivery delivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found with id: " + id));
+    public DeliveryResponse completeDelivery(Long deliveryId, DeliveryCompleteRequest request) {
+        log.info("Completing delivery: {}", deliveryId);
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
 
-        String upperStatus = status.toUpperCase();
-        delivery.setDeliveryStatus(upperStatus);
-
-        if ("EN_ROUTE".equals(upperStatus)) {
-            delivery.setDepartureTime(LocalDateTime.now());
-        } else if ("DELIVERED".equals(upperStatus)) {
-            delivery.setArrivalTime(LocalDateTime.now());
-
-            // Release driver
-            Driver driver = delivery.getDriver();
-            driver.setStatus("AVAILABLE");
-            driverRepository.save(driver);
-
-            // Release vehicle
-            Vehicle vehicle = delivery.getVehicle();
-            if (vehicle != null) {
-                vehicle.setCurrentStatus("ACTIVE");
-                vehicleRepository.save(vehicle);
-            }
-
-            // Update order status to DELIVERED
-            FuelOrder order = delivery.getOrder();
-            order.setOrderStatus("DELIVERED");
-            order.setDeliveryDate(LocalDateTime.now());
-            fuelOrderRepository.save(order);
-        } else if ("CANCELLED".equals(upperStatus)) {
-            // Release driver
-            Driver driver = delivery.getDriver();
-            driver.setStatus("AVAILABLE");
-            driverRepository.save(driver);
-
-            // Release vehicle
-            Vehicle vehicle = delivery.getVehicle();
-            if (vehicle != null) {
-                vehicle.setCurrentStatus("ACTIVE");
-                vehicleRepository.save(vehicle);
-            }
-
-            // Update order back to CANCELLED
-            FuelOrder order = delivery.getOrder();
-            order.setOrderStatus("CANCELLED");
-            fuelOrderRepository.save(order);
+        if (delivery.getDeliveryStatus() != DeliveryStatus.ARRIVED_AT_DESTINATION) {
+            throw new BadRequestException("Delivery can only be completed if the status is ARRIVED_AT_DESTINATION. Current status: " + delivery.getDeliveryStatus());
         }
 
-        Delivery updated = deliveryRepository.save(delivery);
-        return deliveryMapper.toResponse(updated);
-    }
+        String username = resolveCurrentUser();
+        delivery.setDeliveryStatus(DeliveryStatus.DELIVERED);
+        delivery.setDeliveredAt(LocalDateTime.now());
+        delivery.setCompletedBy(request != null ? request.getCompletedBy() : "operations");
+        if (request != null && request.getRemarks() != null) {
+            delivery.setRemarks(request.getRemarks());
+        }
+        delivery.setUpdatedBy(username);
 
-    @Override
-    public void deleteDelivery(Long id) {
-        log.info("Deleting delivery with id: {}", id);
-        Delivery delivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found with id: " + id));
+        // Update LoadingActivity Status
+        LoadingActivity activity = delivery.getLoadingActivity();
+        if (activity != null) {
+            activity.setStatus(LoadingActivityStatus.DELIVERED);
+            loadingActivityRepository.save(activity);
 
-        // Restore driver status
-        Driver driver = delivery.getDriver();
-        driver.setStatus("AVAILABLE");
-        driverRepository.save(driver);
-
-        // Restore vehicle status
-        Vehicle vehicle = delivery.getVehicle();
-        if (vehicle != null) {
-            vehicle.setCurrentStatus("ACTIVE");
-            vehicleRepository.save(vehicle);
+            // Check & Update LoadingOrder Status if ALL activities under it are now DELIVERED
+            checkAndUpdateOrderStatus(activity.getLoadingOrder());
         }
 
-        deliveryRepository.delete(delivery);
+        Delivery saved = deliveryRepository.save(delivery);
+        return deliveryMapper.toResponse(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<DeliveryResponse> getAllDeliveries(
-            String search,
-            String status,
-            Long driverId,
-            Long vehicleId,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            Pageable pageable
-    ) {
-        Specification<Delivery> spec = Specification.where(null);
+    public List<DeliveryResponse> getDeliveryHistory() {
+        log.info("Fetching delivery history");
+        return deliveryRepository.findAll().stream()
+                .filter(d -> d.getDeliveryStatus() == DeliveryStatus.DELIVERED 
+                        || d.getDeliveryStatus() == DeliveryStatus.CANCELLED)
+                .map(deliveryMapper::toResponse)
+                .collect(Collectors.toList());
+    }
 
-        if (search != null && !search.trim().isEmpty()) {
-            String wildcard = "%" + search.toLowerCase() + "%";
-            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("deliveryNumber")), wildcard));
+    private void checkAndUpdateOrderStatus(LoadingOrder loadingOrder) {
+        if (loadingOrder == null) return;
+
+        List<LoadingActivity> activities = loadingActivityRepository.findByLoadingOrderId(loadingOrder.getId());
+        boolean allDelivered = activities.stream()
+                .filter(act -> act.getStatus() != LoadingActivityStatus.CANCELLED)
+                .allMatch(act -> act.getStatus() == LoadingActivityStatus.DELIVERED);
+
+        if (allDelivered && !activities.isEmpty()) {
+            loadingOrder.setStatus(LoadingOrderStatus.DELIVERED);
+            loadingOrderRepository.save(loadingOrder);
         }
+    }
 
-        if (status != null && !status.trim().isEmpty()) {
-            spec = spec.and((root, query, cb) -> cb.equal(cb.lower(root.get("deliveryStatus")), status.toLowerCase()));
+    private synchronized String generateDeliveryNumber() {
+        String dateStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String prefix = "DEL-" + dateStr + "-";
+        String maxNumber = deliveryRepository.findMaxDeliveryNumberWithPrefix(prefix);
+        if (maxNumber == null) {
+            return prefix + "0001";
         }
-
-        if (driverId != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("driver").get("id"), driverId));
+        try {
+            String seqStr = maxNumber.substring(prefix.length());
+            int seq = Integer.parseInt(seqStr);
+            return prefix + String.format("%04d", seq + 1);
+        } catch (Exception e) {
+            log.error("Error parsing max delivery number sequence: {}", maxNumber, e);
+            return prefix + "0001";
         }
+    }
 
-        if (vehicleId != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("vehicle").get("id"), vehicleId));
-        }
-
-        if (startDate != null) {
-            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("departureTime"), startDate));
-        }
-
-        if (endDate != null) {
-            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("departureTime"), endDate));
-        }
-
-        return deliveryRepository.findAll(spec, pageable).map(deliveryMapper::toResponse);
+    private String resolveCurrentUser() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null && auth.isAuthenticated()) ? auth.getName() : "system";
     }
 }

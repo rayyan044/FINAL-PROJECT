@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -21,6 +21,7 @@ import {
   FiCreditCard,
   FiCheck,
   FiSettings,
+  FiTrendingUp,
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { useAuth } from "../context/AuthContext";
@@ -61,10 +62,13 @@ const SIDE = [
   { key: "invoices", label: "Invoices", icon: FiFileText },
   { key: "paymentAccounts", label: "Payment Accounts", icon: FiCreditCard },
   { key: "companySettings", label: "Company Settings", icon: FiSettings },
+  { key: "reports", label: "Reports & Analytics", icon: FiTrendingUp },
   { key: "audit", label: "Audit Logs", icon: FiFileText },
+  { key: "admin-management", label: "System Administration", icon: FiUserCheck },
 ];
 
 function AdminDash() {
+  const navigate = useNavigate();
   const { user: currentLoggedUser } = useAuth();
   const [activeTab, setActiveTab] = useState("dash");
   const [stats, setStats] = useState({
@@ -545,8 +549,14 @@ function AdminDash() {
         sideItems={SIDE}
         activeKey={activeTab}
         onSelect={(tab) => {
-          setActiveTab(tab);
-          setPage(0); // reset page
+          if (tab === "reports") {
+            navigate({ to: "/reports" });
+          } else if (tab === "admin-management") {
+            navigate({ to: "/admin-management" });
+          } else {
+            setActiveTab(tab);
+            setPage(0); // reset page
+          }
         }}
       >
         <PageHeader

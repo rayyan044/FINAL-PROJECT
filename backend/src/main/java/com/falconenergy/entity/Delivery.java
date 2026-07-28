@@ -25,27 +25,56 @@ public class Delivery extends BaseEntity {
     private String deliveryNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "driver_id", nullable = false)
-    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
-    private Driver driver;
+    @JoinColumn(name = "dispatch_id")
+    private Dispatch dispatch;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_id", nullable = false)
-    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
-    private Vehicle vehicle;
+    @JoinColumn(name = "loading_order_id")
+    private LoadingOrder loadingOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id", nullable = false)
-    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
-    private FuelOrder order;
+    @JoinColumn(name = "loading_activity_id")
+    private LoadingActivity loadingActivity;
 
-    @Column(name = "delivery_status", nullable = false, length = 30)
-    @Builder.Default
-    private String deliveryStatus = "PENDING"; // PENDING, EN_ROUTE, ARRIVED, DELIVERED, CANCELLED
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_note_id")
+    private DeliveryNote deliveryNote;
 
-    @Column(name = "departure_time")
-    private LocalDateTime departureTime;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "truck_invoice_id")
+    private TruckInvoice truckInvoice;
+
+    @Column(name = "truck_number", length = 50)
+    private String truckNumber;
+
+    @Column(name = "driver_name", length = 150)
+    private String driverName;
+
+    @Column(name = "transport_company", length = 150)
+    private String transportCompany;
+
+    @Column(name = "destination", length = 255)
+    private String destination;
+
+    @Column(name = "delivery_status", nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
+    private DeliveryStatus deliveryStatus;
+
+    @Column(name = "dispatched_at")
+    private LocalDateTime dispatchedAt;
 
     @Column(name = "arrival_time")
     private LocalDateTime arrivalTime;
+
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
+
+    @Column(name = "received_by", length = 150)
+    private String receivedBy;
+
+    @Column(name = "completed_by", length = 150)
+    private String completedBy;
+
+    @Column(name = "remarks", columnDefinition = "TEXT")
+    private String remarks;
 }

@@ -1,6 +1,7 @@
 package com.falconenergy.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.falconenergy.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
@@ -9,9 +10,6 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
@@ -25,12 +23,10 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
-        final Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", "Unauthorized: " + authException.getMessage());
-        body.put("timestamp", LocalDateTime.now().toString());
-
         final ObjectMapper mapper = new ObjectMapper();
-        mapper.writeValue(response.getOutputStream(), body);
+        mapper.writeValue(
+                response.getOutputStream(),
+                ApiResponse.error("Unauthorized access. Please sign in again.")
+        );
     }
 }

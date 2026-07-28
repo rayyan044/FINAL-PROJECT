@@ -40,8 +40,9 @@ public class LoadingOrder extends BaseEntity {
     private String consignee;
 
     @Column(name = "status", nullable = false, length = 30)
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    private String status = "DRAFT"; // DRAFT, APPROVED, LOADING_IN_PROGRESS, COMPLETED, CANCELLED
+    private LoadingOrderStatus status = LoadingOrderStatus.DRAFT;
 
     @Column(name = "prepared_by", length = 100)
     private String preparedBy;

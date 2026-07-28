@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
 import {
   FiHome,
@@ -13,6 +13,7 @@ import {
   FiActivity,
   FiCreditCard,
   FiSettings,
+  FiTrendingUp,
 } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { RouteGuard } from "../components/RouteGuard";
@@ -41,9 +42,11 @@ const SIDE = [
   { key: "invoices", label: "Invoices", icon: FiFileText },
   { key: "paymentAccounts", label: "Payment Accounts", icon: FiCreditCard },
   { key: "companySettings", label: "Company Settings", icon: FiSettings },
+  { key: "reports", label: "Reports & Analytics", icon: FiTrendingUp },
 ];
 
 function FinanceDash() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dash");
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -336,7 +339,13 @@ function FinanceDash() {
         pageTitle="Finance Desk"
         sideItems={SIDE}
         activeKey={activeTab}
-        onSelect={setActiveTab}
+        onSelect={(tab) => {
+          if (tab === "reports") {
+            navigate({ to: "/reports" });
+          } else {
+            setActiveTab(tab);
+          }
+        }}
       >
         <PageHeader
           title={

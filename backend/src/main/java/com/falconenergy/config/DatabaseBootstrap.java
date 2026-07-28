@@ -12,6 +12,8 @@ import com.falconenergy.repository.PaymentAccountRepository;
 import com.falconenergy.repository.CompanySettingsRepository;
 import com.falconenergy.entity.PaymentAccount;
 import com.falconenergy.entity.CompanySettings;
+import com.falconenergy.entity.Role;
+import com.falconenergy.repository.RoleRepository;
 import com.falconenergy.service.AuditLogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -31,6 +33,7 @@ public class DatabaseBootstrap implements CommandLineRunner {
     private final AuditLogService auditLogService;
     private final PaymentAccountRepository paymentAccountRepository;
     private final CompanySettingsRepository companySettingsRepository;
+    private final RoleRepository roleRepository;
 
     public DatabaseBootstrap(
             UserRepository userRepository,
@@ -39,7 +42,8 @@ public class DatabaseBootstrap implements CommandLineRunner {
             PasswordEncoder passwordEncoder,
             AuditLogService auditLogService,
             PaymentAccountRepository paymentAccountRepository,
-            CompanySettingsRepository companySettingsRepository
+            CompanySettingsRepository companySettingsRepository,
+            RoleRepository roleRepository
     ) {
         this.userRepository = userRepository;
         this.customerRepository = customerRepository;
@@ -48,10 +52,23 @@ public class DatabaseBootstrap implements CommandLineRunner {
         this.auditLogService = auditLogService;
         this.paymentAccountRepository = paymentAccountRepository;
         this.companySettingsRepository = companySettingsRepository;
+        this.roleRepository = roleRepository;
     }
 
     @Override
     public void run(String... args) throws Exception {
+        log.info("Ensuring all default roles exist in the database...");
+        for (UserRole enumRole : UserRole.values()) {
+            String roleName = enumRole.name();
+            if (!roleRepository.existsByRoleName(roleName)) {
+                log.info("Seeding missing role: {}", roleName);
+                roleRepository.save(Role.builder()
+                        .roleName(roleName)
+                        .description("Default system role for " + roleName)
+                        .build());
+            }
+        }
+
         log.info("Checking if system requires initial administrator bootstrapping...");
         
         // Count users with ADMIN role
@@ -62,6 +79,9 @@ public class DatabaseBootstrap implements CommandLineRunner {
         if (adminCount == 0) {
             log.info("No administrator found. Bootstrapping initial admin account...");
 
+            Role adminRole = roleRepository.findByRoleName("ADMIN")
+                    .orElseGet(() -> roleRepository.save(Role.builder().roleName("ADMIN").description("Admin").build()));
+
             User admin = User.builder()
                     .firstName("System")
                     .lastName("Admin")
@@ -69,7 +89,7 @@ public class DatabaseBootstrap implements CommandLineRunner {
                     .username("admin")
                     .phone("+254700000000")
                     .password(passwordEncoder.encode("ChangeMe123!"))
-                    .role(UserRole.ADMIN)
+                    .roleEntity(adminRole)
                     .status(UserStatus.ACTIVE)
                     .passwordChanged(false)
                     .build();

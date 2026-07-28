@@ -2,6 +2,8 @@ package com.falconenergy.service;
 
 import com.falconenergy.dto.LoadingOrderRequest;
 import com.falconenergy.dto.LoadingOrderResponse;
+import com.falconenergy.dto.LoadingActivityCompletionRequest;
+import com.falconenergy.dto.LoadingReportResponse;
 import java.util.List;
 
 public interface LoadingOrderService {
@@ -13,5 +15,6 @@ public interface LoadingOrderService {
     LoadingOrderResponse approveLoadingOrder(Long id);
     LoadingOrderResponse cancelLoadingOrder(Long id);
     LoadingOrderResponse startLoadingActivity(Long id, Long activityId, String bayNumber, String pumpNumber);
-    LoadingOrderResponse completeLoadingActivity(Long id, Long activityId);
+    LoadingOrderResponse completeLoadingActivity(Long id, Long activityId, LoadingActivityCompletionRequest request);
+    LoadingReportResponse getLoadingReportByActivityId(Long activityId);
 }

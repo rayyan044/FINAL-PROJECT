@@ -44,7 +44,7 @@ function ViewerDash() {
   const totalHandled = transactions.reduce((acc, t) => acc + (t.quantity || 0), 0);
 
   return (
-    <RouteGuard allowedRoles={["VIEWER"]}>
+    <RouteGuard allowedRoles={["VIEWER", "CUSTOMER_SERVICE"]}>
       <DashboardLayout role="VIEWER" sideItems={SIDE} activeKey={activeTab} onSelect={setActiveTab}>
         <PageHeader title="Viewer Workspace" crumbs={["Viewer", activeTab]} />
         <div className="fef-stat-grid">

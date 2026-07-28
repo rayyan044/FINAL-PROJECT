@@ -18,6 +18,7 @@ import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.FuelTransactionRepository;
 import com.falconenergy.service.FuelOrderService;
 import com.falconenergy.service.AuditLogService;
+import com.falconenergy.service.SystemSettingService;
 import com.falconenergy.service.StorageTankService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -57,6 +58,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
     private final UserRepository userRepository;
     private final InvoiceRepository invoiceRepository;
     private final PaymentAccountRepository paymentAccountRepository;
+    private final SystemSettingService systemSettingService;
 
     public FuelOrderServiceImpl(
             FuelOrderRepository fuelOrderRepository,
@@ -70,7 +72,8 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             com.falconenergy.service.FuelTransactionService fuelTransactionService,
             UserRepository userRepository,
             InvoiceRepository invoiceRepository,
-            PaymentAccountRepository paymentAccountRepository
+            PaymentAccountRepository paymentAccountRepository,
+            SystemSettingService systemSettingService
     ) {
         this.fuelOrderRepository = fuelOrderRepository;
         this.customerRepository = customerRepository;
@@ -84,6 +87,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         this.userRepository = userRepository;
         this.invoiceRepository = invoiceRepository;
         this.paymentAccountRepository = paymentAccountRepository;
+        this.systemSettingService = systemSettingService;
     }
 
     @Override
@@ -693,7 +697,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         LocalDateTime validityDate = invoiceDate.plusDays(validityDays);
 
         Invoice invoice = Invoice.builder()
-                .invoiceNumber("INV-" + order.getOrderNumber())
+                .invoiceNumber(systemSettingService.getSetting("INVOICE_PREFIX", "INV-") + order.getOrderNumber())
                 .invoiceDate(invoiceDate)
                 .order(order)
                 .subtotal(subtotal)

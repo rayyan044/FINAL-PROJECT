@@ -3,19 +3,9 @@ import { useState } from "react";
 import { FiLogIn, FiAlertCircle, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { updateSelfProfile } from "../services/userService";
+import { getDashboardForRole } from "../services/roleRoutes";
+import { toast } from "sonner";
 import "../styles/forms.css";
-
-const ROLE_ROUTES = {
-  ADMIN: "/admin",
-  SALES_OFFICER: "/sales",
-  FINANCE: "/finance",
-  OPERATIONS: "/operations",
-  DISPATCHER: "/dispatch",
-  DRIVER: "/driver",
-  CUSTOMER_SERVICE: "/customer-service",
-  VIEWER: "/viewer",
-  CUSTOMER: "/customer",
-};
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search) => ({
@@ -62,27 +52,25 @@ function LoginPage() {
     try {
       const userProfile = await login(email, password);
       if (userProfile.passwordChanged === false) {
+        toast.success("Login successful. Please update your password to continue.");
         setTempProfile(userProfile);
         setForceReset(true);
       } else {
-        const path = ROLE_ROUTES[userProfile.role] ?? "/admin";
-        navigate({ to: path });
+        const path = getDashboardForRole(userProfile.role);
+        toast.success("Login successful. Redirecting...");
+        // Keep the global toast visible as the dashboard loads.
+        window.setTimeout(() => navigate({ to: path }), 250);
       }
     } catch (err) {
       console.error("Login error object:", err);
-      let errMsg = "Invalid email/username or password. Please try again.";
-      if (err) {
-        if (typeof err === "string") {
-          errMsg = err;
-        } else if (err.message) {
-          errMsg = err.message;
-        } else if (err.response?.data?.message) {
-          errMsg = err.response.data.message;
-        } else if (err.response?.data) {
-          errMsg = typeof err.response.data === "string" ? err.response.data : JSON.stringify(err.response.data);
-        }
-      }
-      setError(errMsg);
+      // api.js supplies safe, normalized UI messages. Preserve raw diagnostics
+      // only in the browser console rather than rendering backend payloads.
+      const message =
+        err?.status === 401
+          ? "Invalid username/email or password."
+          : err?.message || "Unable to sign in. Please try again.";
+      setError(message);
+      toast.error(`Login failed. ${message}`);
     } finally {
       setLoading(false);
     }
@@ -114,7 +102,7 @@ function LoginPage() {
       updateUser(updatedProfile);
 
       // Redirect to correct dashboard
-      const path = ROLE_ROUTES[updatedProfile.role] ?? "/admin";
+      const path = getDashboardForRole(updatedProfile.role);
       navigate({ to: path });
     } catch (err) {
       console.error(err);
@@ -249,14 +237,22 @@ function LoginPage() {
           <p className="fef-sub">Sign in to your FEFTMS workspace.</p>
 
           {error && (
-            <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 14 }}>
+            <div
+              className="fef-alert fef-alert-danger"
+              role="alert"
+              aria-live="assertive"
+              style={{ marginBottom: 14, display: "block", color: "var(--feftms-danger)" }}
+            >
               <FiAlertCircle style={{ verticalAlign: "-2px", marginRight: 6 }} />
               {error}
             </div>
           )}
 
           {search.expired && !error && (
-            <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 14 }}>
+            <div
+              className="fef-alert fef-alert-danger"
+              style={{ marginBottom: 14, display: "block", color: "var(--feftms-danger)" }}
+            >
               <FiAlertCircle style={{ verticalAlign: "-2px", marginRight: 6 }} />
               Your session has expired. Please log in again.
             </div>
@@ -325,9 +321,6 @@ function LoginPage() {
               </>
             )}
           </button>
-
-
-
           <p
             style={{
               textAlign: "center",

@@ -19,6 +19,7 @@ import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.service.InvoiceService;
 import com.falconenergy.service.AuditLogService;
+import com.falconenergy.service.SystemSettingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,6 +42,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final FuelOrderRepository fuelOrderRepository;
     private final FuelProductRepository fuelProductRepository;
     private final FuelProductMapper fuelProductMapper;
+    private final SystemSettingService systemSettingService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -51,7 +53,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             PaymentAccountRepository paymentAccountRepository,
             FuelOrderRepository fuelOrderRepository,
             FuelProductRepository fuelProductRepository,
-            FuelProductMapper fuelProductMapper
+            FuelProductMapper fuelProductMapper,
+            SystemSettingService systemSettingService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceMapper = invoiceMapper;
@@ -62,6 +65,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.fuelOrderRepository = fuelOrderRepository;
         this.fuelProductRepository = fuelProductRepository;
         this.fuelProductMapper = fuelProductMapper;
+        this.systemSettingService = systemSettingService;
     }
 
     private InvoiceResponse mapToResponse(Invoice invoice) {
@@ -124,7 +128,19 @@ public class InvoiceServiceImpl implements InvoiceService {
                             .signatoryTitle("FINANCE CONTROLLER")
                             .signatorySignature("assets/authorized-signature.png")
                             .build());
+
+            // Override company details with database dynamic settings
+            companySettings.setCompanyName(systemSettingService.getSetting("COMPANY_NAME", companySettings.getCompanyName()));
+            companySettings.setOfficeAddress(systemSettingService.getSetting("COMPANY_ADDRESS", companySettings.getOfficeAddress()));
+            companySettings.setPhoneNumber(systemSettingService.getSetting("COMPANY_PHONE", companySettings.getPhoneNumber()));
+
             response.setCompanyDetails(companySettingsMapper.toResponse(companySettings));
+
+            // Override payment instructions if dynamic setting is configured
+            String dynamicInstructions = systemSettingService.getSetting("PAYMENT_INSTRUCTIONS");
+            if (dynamicInstructions != null && !dynamicInstructions.isBlank()) {
+                response.setPaymentInstructions(dynamicInstructions);
+            }
         }
         return response;
     }

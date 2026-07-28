@@ -11,14 +11,18 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ViewerRouteImport } from './routes/viewer'
 import { Route as SalesRouteImport } from './routes/sales'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoadingRouteImport } from './routes/loading'
 import { Route as FinanceRouteImport } from './routes/finance'
 import { Route as DriverRouteImport } from './routes/driver'
 import { Route as DispatchRouteImport } from './routes/dispatch'
+import { Route as DeliveryDocumentsRouteImport } from './routes/delivery-documents'
+import { Route as DeliveriesRouteImport } from './routes/deliveries'
 import { Route as CustomerServiceRouteImport } from './routes/customer-service'
 import { Route as CustomerRouteImport } from './routes/customer'
+import { Route as AdminManagementRouteImport } from './routes/admin-management'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -30,6 +34,11 @@ const ViewerRoute = ViewerRouteImport.update({
 const SalesRoute = SalesRouteImport.update({
   id: '/sales',
   path: '/sales',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperationsRoute = OperationsRouteImport.update({
@@ -62,6 +71,16 @@ const DispatchRoute = DispatchRouteImport.update({
   path: '/dispatch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeliveryDocumentsRoute = DeliveryDocumentsRouteImport.update({
+  id: '/delivery-documents',
+  path: '/delivery-documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeliveriesRoute = DeliveriesRouteImport.update({
+  id: '/deliveries',
+  path: '/deliveries',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CustomerServiceRoute = CustomerServiceRouteImport.update({
   id: '/customer-service',
   path: '/customer-service',
@@ -70,6 +89,11 @@ const CustomerServiceRoute = CustomerServiceRouteImport.update({
 const CustomerRoute = CustomerRouteImport.update({
   id: '/customer',
   path: '/customer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminManagementRoute = AdminManagementRouteImport.update({
+  id: '/admin-management',
+  path: '/admin-management',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -86,28 +110,36 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-management': typeof AdminManagementRoute
   '/customer': typeof CustomerRoute
   '/customer-service': typeof CustomerServiceRoute
+  '/deliveries': typeof DeliveriesRoute
+  '/delivery-documents': typeof DeliveryDocumentsRoute
   '/dispatch': typeof DispatchRoute
   '/driver': typeof DriverRoute
   '/finance': typeof FinanceRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/operations': typeof OperationsRoute
+  '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/viewer': typeof ViewerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-management': typeof AdminManagementRoute
   '/customer': typeof CustomerRoute
   '/customer-service': typeof CustomerServiceRoute
+  '/deliveries': typeof DeliveriesRoute
+  '/delivery-documents': typeof DeliveryDocumentsRoute
   '/dispatch': typeof DispatchRoute
   '/driver': typeof DriverRoute
   '/finance': typeof FinanceRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/operations': typeof OperationsRoute
+  '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/viewer': typeof ViewerRoute
 }
@@ -115,14 +147,18 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-management': typeof AdminManagementRoute
   '/customer': typeof CustomerRoute
   '/customer-service': typeof CustomerServiceRoute
+  '/deliveries': typeof DeliveriesRoute
+  '/delivery-documents': typeof DeliveryDocumentsRoute
   '/dispatch': typeof DispatchRoute
   '/driver': typeof DriverRoute
   '/finance': typeof FinanceRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/operations': typeof OperationsRoute
+  '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/viewer': typeof ViewerRoute
 }
@@ -131,42 +167,54 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin-management'
     | '/customer'
     | '/customer-service'
+    | '/deliveries'
+    | '/delivery-documents'
     | '/dispatch'
     | '/driver'
     | '/finance'
     | '/loading'
     | '/login'
     | '/operations'
+    | '/reports'
     | '/sales'
     | '/viewer'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
+    | '/admin-management'
     | '/customer'
     | '/customer-service'
+    | '/deliveries'
+    | '/delivery-documents'
     | '/dispatch'
     | '/driver'
     | '/finance'
     | '/loading'
     | '/login'
     | '/operations'
+    | '/reports'
     | '/sales'
     | '/viewer'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin-management'
     | '/customer'
     | '/customer-service'
+    | '/deliveries'
+    | '/delivery-documents'
     | '/dispatch'
     | '/driver'
     | '/finance'
     | '/loading'
     | '/login'
     | '/operations'
+    | '/reports'
     | '/sales'
     | '/viewer'
   fileRoutesById: FileRoutesById
@@ -174,14 +222,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AdminManagementRoute: typeof AdminManagementRoute
   CustomerRoute: typeof CustomerRoute
   CustomerServiceRoute: typeof CustomerServiceRoute
+  DeliveriesRoute: typeof DeliveriesRoute
+  DeliveryDocumentsRoute: typeof DeliveryDocumentsRoute
   DispatchRoute: typeof DispatchRoute
   DriverRoute: typeof DriverRoute
   FinanceRoute: typeof FinanceRoute
   LoadingRoute: typeof LoadingRoute
   LoginRoute: typeof LoginRoute
   OperationsRoute: typeof OperationsRoute
+  ReportsRoute: typeof ReportsRoute
   SalesRoute: typeof SalesRoute
   ViewerRoute: typeof ViewerRoute
 }
@@ -200,6 +252,13 @@ declare module '@tanstack/react-router' {
       path: '/sales'
       fullPath: '/sales'
       preLoaderRoute: typeof SalesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operations': {
@@ -244,6 +303,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DispatchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/delivery-documents': {
+      id: '/delivery-documents'
+      path: '/delivery-documents'
+      fullPath: '/delivery-documents'
+      preLoaderRoute: typeof DeliveryDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deliveries': {
+      id: '/deliveries'
+      path: '/deliveries'
+      fullPath: '/deliveries'
+      preLoaderRoute: typeof DeliveriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/customer-service': {
       id: '/customer-service'
       path: '/customer-service'
@@ -256,6 +329,13 @@ declare module '@tanstack/react-router' {
       path: '/customer'
       fullPath: '/customer'
       preLoaderRoute: typeof CustomerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-management': {
+      id: '/admin-management'
+      path: '/admin-management'
+      fullPath: '/admin-management'
+      preLoaderRoute: typeof AdminManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -278,14 +358,18 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AdminManagementRoute: AdminManagementRoute,
   CustomerRoute: CustomerRoute,
   CustomerServiceRoute: CustomerServiceRoute,
+  DeliveriesRoute: DeliveriesRoute,
+  DeliveryDocumentsRoute: DeliveryDocumentsRoute,
   DispatchRoute: DispatchRoute,
   DriverRoute: DriverRoute,
   FinanceRoute: FinanceRoute,
   LoadingRoute: LoadingRoute,
   LoginRoute: LoginRoute,
   OperationsRoute: OperationsRoute,
+  ReportsRoute: ReportsRoute,
   SalesRoute: SalesRoute,
   ViewerRoute: ViewerRoute,
 }

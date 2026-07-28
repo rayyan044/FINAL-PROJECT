@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -15,6 +15,9 @@ import {
   FiActivity,
   FiPrinter,
   FiInfo,
+  FiFileText,
+  FiTrendingUp,
+  FiClipboard,
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
@@ -53,12 +56,16 @@ const SIDE = [
   { key: "dash", label: "Dashboard", icon: FiHome },
   { key: "inventory", label: "Inventory Control", icon: FiPackage },
   { key: "loading", label: "Loading Orders", icon: FiCheckCircle },
-  { key: "deliveries", label: "Deliveries", icon: FiNavigation },
+  { key: "documents", label: "Delivery Documents", icon: FiFileText },
+  { key: "dispatch", label: "Dispatch Management", icon: FiClipboard },
+  { key: "deliveries", label: "Delivery Management", icon: FiNavigation },
   { key: "drivers", label: "Drivers", icon: FiUserPlus },
   { key: "vehicles", label: "Vehicles", icon: FiTruck },
+  { key: "reports", label: "Reports & Analytics", icon: FiTrendingUp },
 ];
 
 function OpsDash() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dash");
   const [stats, setStats] = useState({
     loadingOrders: 0,
@@ -770,7 +777,19 @@ function OpsDash() {
         pageTitle="Operations Control"
         sideItems={SIDE}
         activeKey={activeTab}
-        onSelect={setActiveTab}
+        onSelect={(key) => {
+          if (key === "documents") {
+            navigate({ to: "/delivery-documents" });
+          } else if (key === "dispatch") {
+            navigate({ to: "/dispatch" });
+          } else if (key === "deliveries") {
+            navigate({ to: "/deliveries" });
+          } else if (key === "reports") {
+            navigate({ to: "/reports" });
+          } else {
+            setActiveTab(key);
+          }
+        }}
       >
         <PageHeader
           title={

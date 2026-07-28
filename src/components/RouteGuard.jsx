@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "../context/AuthContext";
+import { getDashboardForRole } from "../services/roleRoutes";
 
 export function RouteGuard({ allowedRoles, children }) {
   const { user, token, loading } = useAuth();
@@ -15,7 +16,7 @@ export function RouteGuard({ allowedRoles, children }) {
         navigate({ to: target });
       }
     }
-  }, [user, token, loading, navigate]);
+  }, [user, token, loading, navigate, allowedRoles]);
 
   if (loading) {
     return (
@@ -56,31 +57,4 @@ export function RouteGuard({ allowedRoles, children }) {
   }
 
   return children;
-}
-
-function getDashboardForRole(role) {
-  switch (role) {
-    case "ADMIN":
-    case "MANAGER":
-      return "/admin";
-    case "OPERATIONS":
-    case "OPERATOR":
-      return "/operations";
-    case "SALES_OFFICER":
-      return "/sales";
-    case "FINANCE":
-      return "/finance";
-    case "DISPATCHER":
-      return "/dispatch";
-    case "DRIVER":
-      return "/driver";
-    case "CUSTOMER_SERVICE":
-      return "/customer-service";
-    case "VIEWER":
-      return "/viewer";
-    case "CUSTOMER":
-      return "/customer";
-    default:
-      return "/";
-  }
 }

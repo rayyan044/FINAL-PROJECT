@@ -1,8 +1,19 @@
-import { api } from "./api";
+import { api, ApiRequestError } from "./api";
 
 export async function login(payload) {
   // payload contains { email, password }
-  return api.post("/auth/login", payload).then((r) => r.data);
+  const response = await api.post("/auth/login", payload);
+  if (
+    !response ||
+    response.success !== true ||
+    !response.data ||
+    typeof response.data !== "object"
+  ) {
+    throw new ApiRequestError(
+      "The authentication service returned an invalid response. Please try again.",
+    );
+  }
+  return response.data;
 }
 
 export async function register(payload) {
@@ -16,7 +27,7 @@ export async function refreshToken(payload) {
 }
 
 export async function logout(passedToken) {
-  const token = passedToken || localStorage.getItem("feftms_token");
+  const token = passedToken || sessionStorage.getItem("feftms_token");
   if (token) {
     return api
       .post(
@@ -28,8 +39,8 @@ export async function logout(passedToken) {
       )
       .then((r) => r.data)
       .finally(() => {
-        localStorage.removeItem("feftms_token");
-        localStorage.removeItem("feftms_user");
+        sessionStorage.removeItem("feftms_token");
+        sessionStorage.removeItem("feftms_user");
       });
   }
   return Promise.resolve();

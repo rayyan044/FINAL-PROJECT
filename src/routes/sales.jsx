@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -20,6 +20,7 @@ import {
   FiDollarSign,
   FiEdit,
   FiTruck,
+  FiTrendingUp,
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
@@ -55,9 +56,11 @@ const SIDE = [
   { key: "revisions", label: "Revisions Requested", icon: FiAlertCircle },
   { key: "inventory", label: "Fuel Products", icon: FiFileText },
   { key: "customers", label: "Customers Directory", icon: FiUsers },
+  { key: "reports", label: "Reports & Analytics", icon: FiTrendingUp },
 ];
 
 function SalesDash() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dash");
   const [stats, setStats] = useState({ pending: 0, approved: 0, customers: 0 });
   const [ordersList, setOrdersList] = useState([]);
@@ -527,7 +530,13 @@ function SalesDash() {
         pageTitle="Sales Desk"
         sideItems={SIDE}
         activeKey={activeTab}
-        onSelect={setActiveTab}
+        onSelect={(tab) => {
+          if (tab === "reports") {
+            navigate({ to: "/reports" });
+          } else {
+            setActiveTab(tab);
+          }
+        }}
       >
         <PageHeader
           title={

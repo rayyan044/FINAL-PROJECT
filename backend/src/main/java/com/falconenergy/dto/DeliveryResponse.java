@@ -2,6 +2,7 @@ package com.falconenergy.dto;
 
 import lombok.*;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Getter
 @Setter
@@ -11,32 +12,52 @@ import java.time.LocalDateTime;
 public class DeliveryResponse {
     private Long id;
     private String deliveryNumber;
-    private DriverResponse driver;
-    private VehicleResponse vehicle;
-    private FuelOrderResponse order;
+    private Long dispatchId;
+    private String dispatchNumber;
+    
+    private Long loadingOrderId;
+    private String loadingOrderNumber;
+    private Long loadingActivityId;
+    private Long deliveryNoteId;
+    private String deliveryNoteNumber;
+    private Long truckInvoiceId;
+    private String truckInvoiceNumber;
+    
+    private String truckNumber;
+    private String driverName;
+    private String transportCompany;
+    private String destination;
     private String deliveryStatus;
-    private LocalDateTime departureTime;
+    
+    private LocalDateTime dispatchedAt;
     private LocalDateTime arrivalTime;
+    private LocalDateTime deliveredAt;
+    
+    private String receivedBy;
+    private String completedBy;
+    private String remarks;
+    
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // Helper methods for backward compatibility
     public String getCustomerName() {
-        return order != null && order.getCustomer() != null ? order.getCustomer().getCompanyName() : null;
+        return destination;
     }
 
     public String getOrderNumber() {
-        return order != null ? order.getOrderNumber() : null;
+        return loadingOrderNumber;
     }
 
     public String getDriverName() {
-        return driver != null ? driver.getFirstName() + " " + driver.getLastName() : null;
+        return driverName;
     }
 
     public String getVehiclePlateNumber() {
-        return vehicle != null ? vehicle.getPlateNumber() : null;
+        return truckNumber;
     }
 
-    public java.math.BigDecimal getQuantity() {
-        return order != null ? order.getQuantity() : null;
+    public BigDecimal getQuantity() {
+        return null;
     }
 }

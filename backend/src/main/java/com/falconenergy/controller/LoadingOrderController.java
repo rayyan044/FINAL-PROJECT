@@ -87,9 +87,17 @@ public class LoadingOrderController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
     public ResponseEntity<ApiResponse<LoadingOrderResponse>> completeLoadingActivity(
             @PathVariable Long id,
-            @PathVariable Long activityId
+            @PathVariable Long activityId,
+            @Valid @RequestBody com.falconenergy.dto.LoadingActivityCompletionRequest request
     ) {
-        LoadingOrderResponse response = loadingOrderService.completeLoadingActivity(id, activityId);
+        LoadingOrderResponse response = loadingOrderService.completeLoadingActivity(id, activityId, request);
         return ResponseEntity.ok(ApiResponse.success("Loading activity completed successfully", response));
+    }
+
+    @GetMapping("/reports/{activityId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_FINANCE', 'ROLE_SALES_OFFICER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
+    public ResponseEntity<ApiResponse<com.falconenergy.dto.LoadingReportResponse>> getLoadingReportByActivityId(@PathVariable Long activityId) {
+        com.falconenergy.dto.LoadingReportResponse response = loadingOrderService.getLoadingReportByActivityId(activityId);
+        return ResponseEntity.ok(ApiResponse.success("Loading report retrieved successfully", response));
     }
 }

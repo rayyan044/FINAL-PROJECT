@@ -4,6 +4,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { registerLogoutCallback } from "../services/api";
 
+const SUPPORTED_ROLES = new Set([
+  "ADMIN",
+  "MANAGER",
+  "SALES_OFFICER",
+  "FINANCE",
+  "OPERATIONS",
+  "OPERATOR",
+  "DISPATCHER",
+  "DRIVER",
+  "CUSTOMER_SERVICE",
+  "VIEWER",
+  "CUSTOMER",
+]);
+
 const AuthContext = createContext(null);
 
 function parseStoredUser(json) {
@@ -11,7 +25,7 @@ function parseStoredUser(json) {
     return JSON.parse(json);
   } catch (err) {
     console.warn("Failed to parse stored user profile", err);
-    localStorage.removeItem("feftms_user");
+    sessionStorage.removeItem("feftms_user");
     return null;
   }
 }
@@ -25,8 +39,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const restoreSession = () => {
-      const storedToken = localStorage.getItem("feftms_token");
-      const storedUser = localStorage.getItem("feftms_user");
+      const storedToken = sessionStorage.getItem("feftms_token");
+      const storedUser = sessionStorage.getItem("feftms_user");
       const parsedUser = storedUser ? parseStoredUser(storedUser) : null;
 
       if (storedToken && parsedUser) {
@@ -35,20 +49,13 @@ export function AuthProvider({ children }) {
       } else {
         setToken(null);
         setUser(null);
-        localStorage.removeItem("feftms_token");
-        localStorage.removeItem("feftms_user");
+        sessionStorage.removeItem("feftms_token");
+        sessionStorage.removeItem("feftms_user");
       }
       setLoading(false);
     };
 
-    const handleStorageChange = (event) => {
-      if (event.key === "feftms_token" || event.key === "feftms_user") {
-        restoreSession();
-      }
-    };
-
     restoreSession();
-    window.addEventListener("storage", handleStorageChange);
 
     // Register callback for 401 response interceptor
     registerLogoutCallback(() => {
@@ -58,14 +65,10 @@ export function AuthProvider({ children }) {
       router.invalidate();
       router.navigate({ to: "/login", search: { expired: true } });
     });
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
   }, [queryClient, router]);
 
   const updateUser = (updatedProfile) => {
-    localStorage.setItem("feftms_user", JSON.stringify(updatedProfile));
+    sessionStorage.setItem("feftms_user", JSON.stringify(updatedProfile));
     setUser(updatedProfile);
   };
 
@@ -73,12 +76,27 @@ export function AuthProvider({ children }) {
     setLoading(true);
     // Clear any previous session and cache data before logging in
     queryClient.clear();
-    localStorage.removeItem("feftms_token");
-    localStorage.removeItem("feftms_user");
+    sessionStorage.removeItem("feftms_token");
+    sessionStorage.removeItem("feftms_user");
 
     try {
       const data = await apiLogin({ email, password });
-      localStorage.setItem("feftms_token", data.accessToken);
+      if (
+        !data ||
+        typeof data.accessToken !== "string" ||
+        !data.accessToken.trim() ||
+        typeof data.email !== "string" ||
+        !data.email.trim() ||
+        typeof data.username !== "string" ||
+        !data.username.trim() ||
+        typeof data.role !== "string" ||
+        !SUPPORTED_ROLES.has(data.role)
+      ) {
+        throw new Error(
+          "The authentication service returned incomplete account information. Please try again.",
+        );
+      }
+      sessionStorage.setItem("feftms_token", data.accessToken);
       const userProfile = {
         email: data.email,
         username: data.username,
@@ -89,7 +107,7 @@ export function AuthProvider({ children }) {
         lastName: data.lastName,
         driverId: data.driverId,
       };
-      localStorage.setItem("feftms_user", JSON.stringify(userProfile));
+      sessionStorage.setItem("feftms_user", JSON.stringify(userProfile));
       setToken(data.accessToken);
       setUser(userProfile);
       setLoading(false);
@@ -104,11 +122,11 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     setLoading(true);
-    const currentToken = token || localStorage.getItem("feftms_token");
+    const currentToken = token || sessionStorage.getItem("feftms_token");
 
     // Instantly clear the storage, state, and query cache for immediate UI transition
-    localStorage.removeItem("feftms_token");
-    localStorage.removeItem("feftms_user");
+    sessionStorage.removeItem("feftms_token");
+    sessionStorage.removeItem("feftms_user");
     setToken(null);
     setUser(null);
     queryClient.clear();

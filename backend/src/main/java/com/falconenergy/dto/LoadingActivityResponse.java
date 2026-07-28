@@ -3,6 +3,7 @@ package com.falconenergy.dto;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -27,4 +28,19 @@ public class LoadingActivityResponse {
     private LocalDateTime loadingCompletionTime;
     private String loadingOfficer;
     private String status;
+
+    private BigDecimal ambientVolume;
+    private BigDecimal temperature;
+    private BigDecimal density;
+    private BigDecimal standardVolume;
+    private BigDecimal meterStart;
+    private BigDecimal meterEnd;
+    private BigDecimal meterDifference;
+    private String remarks;
+    private Long completedById;
+    private String completedByName;
+    private LocalDateTime completedAt;
+
+    private List<LoadingCompartmentResponse> compartments;
+    private List<LoadingReportResponse> reports;
 }

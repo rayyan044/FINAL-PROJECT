@@ -6,6 +6,8 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "loading_activities")
@@ -72,6 +74,46 @@ public class LoadingActivity extends BaseEntity {
     private String loadingOfficer;
 
     @Column(name = "status", nullable = false, length = 30)
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    private String status = "WAITING"; // WAITING, LOADING, LOADED
+    private LoadingActivityStatus status = LoadingActivityStatus.PENDING;
+
+    @Column(name = "ambient_volume", precision = 12, scale = 2)
+    private BigDecimal ambientVolume;
+
+    @Column(name = "temperature", precision = 5, scale = 2)
+    private BigDecimal temperature;
+
+    @Column(name = "density", precision = 6, scale = 4)
+    private BigDecimal density;
+
+    @Column(name = "standard_volume", precision = 12, scale = 2)
+    private BigDecimal standardVolume;
+
+    @Column(name = "meter_start", precision = 12, scale = 2)
+    private BigDecimal meterStart;
+
+    @Column(name = "meter_end", precision = 12, scale = 2)
+    private BigDecimal meterEnd;
+
+    @Column(name = "meter_difference", precision = 12, scale = 2)
+    private BigDecimal meterDifference;
+
+    @Column(name = "remarks", columnDefinition = "TEXT")
+    private String remarks;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "completed_by")
+    private User completedBy;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @OneToMany(mappedBy = "loadingActivity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<LoadingCompartment> compartments = new ArrayList<>();
+
+    @OneToMany(mappedBy = "loadingActivity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<LoadingReport> reports = new ArrayList<>();
 }

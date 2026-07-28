@@ -2,10 +2,21 @@ package com.falconenergy.service.impl;
 
 import com.falconenergy.dto.LoadingOrderRequest;
 import com.falconenergy.dto.LoadingOrderResponse;
+import com.falconenergy.dto.LoadingActivityCompletionRequest;
+import com.falconenergy.dto.LoadingReportResponse;
 import com.falconenergy.entity.FuelOrder;
 import com.falconenergy.entity.Invoice;
 import com.falconenergy.entity.LoadingOrder;
 import com.falconenergy.entity.LoadingActivity;
+import com.falconenergy.entity.LoadingActivityStatus;
+import com.falconenergy.entity.LoadingOrderStatus;
+import com.falconenergy.entity.InventoryMovementType;
+import com.falconenergy.entity.LoadingReportStatus;
+import com.falconenergy.entity.LoadingCompartment;
+import com.falconenergy.entity.InventoryTransaction;
+import com.falconenergy.entity.LoadingReport;
+import com.falconenergy.entity.User;
+import com.falconenergy.entity.FuelProduct;
 import com.falconenergy.entity.TruckNomination;
 import com.falconenergy.entity.TruckNominationItem;
 import com.falconenergy.exception.BadRequestException;
@@ -15,6 +26,11 @@ import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.LoadingOrderRepository;
 import com.falconenergy.repository.LoadingActivityRepository;
 import com.falconenergy.repository.TruckNominationRepository;
+import com.falconenergy.repository.UserRepository;
+import com.falconenergy.repository.FuelProductRepository;
+import com.falconenergy.repository.LoadingCompartmentRepository;
+import com.falconenergy.repository.InventoryTransactionRepository;
+import com.falconenergy.repository.LoadingReportRepository;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.LoadingOrderService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +59,11 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
     private final TruckNominationRepository truckNominationRepository;
     private final LoadingOrderMapper loadingOrderMapper;
     private final AuditLogService auditLogService;
+    private final UserRepository userRepository;
+    private final FuelProductRepository fuelProductRepository;
+    private final LoadingCompartmentRepository loadingCompartmentRepository;
+    private final InventoryTransactionRepository inventoryTransactionRepository;
+    private final LoadingReportRepository loadingReportRepository;
 
     @Override
     public LoadingOrderResponse createLoadingOrder(LoadingOrderRequest request) {
@@ -81,7 +102,7 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
                 .loadingDate(request.getLoadingDate() != null ? request.getLoadingDate() : LocalDate.now())
                 .loadingTerminal(request.getLoadingTerminal())
                 .consignee(request.getConsignee())
-                .status("DRAFT")
+                .status(LoadingOrderStatus.DRAFT)
                 .preparedBy(resolveCurrentUser())
                 .loadingRemarks(request.getLoadingRemarks())
                 .vesselName(request.getVesselName())
@@ -103,7 +124,7 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
                     .destination(item.getDestination())
                     .product(order.getProduct().getProductName())
                     .allocatedQuantity(item.getAllocatedQuantity())
-                    .status("WAITING")
+                    .status(LoadingActivityStatus.PENDING)
                     .queueNumber("Q-" + String.format("%03d", index++))
                     .bayNumber("BAY-1") // default bay
                     .build();
@@ -132,7 +153,7 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
         LoadingOrder loadingOrder = loadingOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Loading Order not found with id: " + id));
 
-        if (!"DRAFT".equalsIgnoreCase(loadingOrder.getStatus())) {
+        if (loadingOrder.getStatus() != LoadingOrderStatus.DRAFT) {
             throw new BadRequestException("Loading Order can only be modified in DRAFT status.");
         }
 
@@ -193,7 +214,7 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
                             .destination(actReq.getDestination())
                             .product(product)
                             .allocatedQuantity(actReq.getAllocatedQuantity())
-                            .status("WAITING")
+                            .status(LoadingActivityStatus.PENDING)
                             .queueNumber("Q-" + String.format("%03d", index))
                             .bayNumber("BAY-1")
                             .build();
@@ -257,11 +278,11 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
         LoadingOrder loadingOrder = loadingOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Loading Order not found with id: " + id));
 
-        if (!"DRAFT".equalsIgnoreCase(loadingOrder.getStatus())) {
+        if (loadingOrder.getStatus() != LoadingOrderStatus.DRAFT) {
             throw new BadRequestException("Only DRAFT Loading Orders can be approved.");
         }
 
-        loadingOrder.setStatus("APPROVED");
+        loadingOrder.setStatus(LoadingOrderStatus.APPROVED);
         loadingOrder.setApprovedBy(resolveCurrentUser());
 
         FuelOrder order = loadingOrder.getOrder();
@@ -285,12 +306,12 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
         LoadingOrder loadingOrder = loadingOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Loading Order not found with id: " + id));
 
-        if ("COMPLETED".equalsIgnoreCase(loadingOrder.getStatus()) || "CANCELLED".equalsIgnoreCase(loadingOrder.getStatus())) {
+        if (loadingOrder.getStatus() == LoadingOrderStatus.COMPLETED || loadingOrder.getStatus() == LoadingOrderStatus.CANCELLED) {
             throw new BadRequestException("Cannot cancel a completed or already cancelled Loading Order.");
         }
 
-        String oldStatus = loadingOrder.getStatus();
-        loadingOrder.setStatus("CANCELLED");
+        LoadingOrderStatus oldStatus = loadingOrder.getStatus();
+        loadingOrder.setStatus(LoadingOrderStatus.CANCELLED);
 
         FuelOrder order = loadingOrder.getOrder();
         String prevStatus = order.getOrderStatus();
@@ -301,109 +322,11 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
 
         String username = resolveCurrentUser();
         auditLogService.log("LOADING_ORDER_CANCELLED", "LOADING_ORDER", saved.getId(), order.getCustomer().getCustomerCode(),
-                "Loading Order " + saved.getLoadingOrderNumber() + " cancelled by " + username + " (previous status: " + oldStatus + ")");
+                "Loading Order " + saved.getLoadingOrderNumber() + " cancelled by " + username + " (previous status: " + oldStatus.name() + ")");
         auditLogService.log("ORDER_STATUS_CHANGED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
                 "Order status reset from " + prevStatus + " to READY_FOR_LOADING for order " + order.getOrderNumber());
 
         return loadingOrderMapper.toResponse(saved);
-    }
-
-    @Override
-    public LoadingOrderResponse startLoadingActivity(Long id, Long activityId, String bayNumber, String pumpNumber) {
-        LoadingOrder loadingOrder = loadingOrderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Loading Order not found with id: " + id));
-
-        if (!"APPROVED".equalsIgnoreCase(loadingOrder.getStatus()) && !"LOADING_IN_PROGRESS".equalsIgnoreCase(loadingOrder.getStatus())) {
-            throw new BadRequestException("Loading cannot begin until the Loading Order has been approved.");
-        }
-
-        LoadingActivity activity = loadingActivityRepository.findById(activityId)
-                .orElseThrow(() -> new ResourceNotFoundException("Loading Activity not found with id: " + activityId));
-
-        if (!activity.getLoadingOrder().getId().equals(loadingOrder.getId())) {
-            throw new BadRequestException("Activity does not belong to this loading order.");
-        }
-
-        if (!"WAITING".equalsIgnoreCase(activity.getStatus())) {
-            throw new BadRequestException("Truck loading has already started or completed.");
-        }
-
-        if (bayNumber != null && !bayNumber.trim().isEmpty()) {
-            activity.setBayNumber(bayNumber);
-        }
-        if (pumpNumber != null && !pumpNumber.trim().isEmpty()) {
-            activity.setPumpNumber(pumpNumber);
-        }
-
-        String username = resolveCurrentUser();
-        activity.setStatus("LOADING");
-        activity.setLoadingStartTime(LocalDateTime.now());
-        activity.setLoadingOfficer(username);
-        loadingActivityRepository.save(activity);
-
-        // Update Loading Order status to LOADING_IN_PROGRESS if it was APPROVED
-        if ("APPROVED".equalsIgnoreCase(loadingOrder.getStatus())) {
-            loadingOrder.setStatus("LOADING_IN_PROGRESS");
-            FuelOrder order = loadingOrder.getOrder();
-            String prevStatus = order.getOrderStatus();
-            order.setOrderStatus("LOADING_IN_PROGRESS");
-            fuelOrderRepository.save(order);
-            loadingOrderRepository.save(loadingOrder);
-
-            auditLogService.log("LOADING_ORDER_IN_PROGRESS", "LOADING_ORDER", loadingOrder.getId(), order.getCustomer().getCustomerCode(),
-                    "Loading Order " + loadingOrder.getLoadingOrderNumber() + " status set to LOADING_IN_PROGRESS");
-            auditLogService.log("ORDER_STATUS_CHANGED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
-                    "Order status changed from " + prevStatus + " to LOADING_IN_PROGRESS for order " + order.getOrderNumber());
-        }
-
-        auditLogService.log("LOADING_STARTED", "LOADING_ACTIVITY", activity.getId(), loadingOrder.getOrder().getCustomer().getCustomerCode(),
-                "Loading started for truck " + activity.getTruckNumber() + " in Loading Order " + loadingOrder.getLoadingOrderNumber() + " by officer " + username);
-
-        return loadingOrderMapper.toResponse(loadingOrder);
-    }
-
-    @Override
-    public LoadingOrderResponse completeLoadingActivity(Long id, Long activityId) {
-        LoadingOrder loadingOrder = loadingOrderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Loading Order not found with id: " + id));
-
-        LoadingActivity activity = loadingActivityRepository.findById(activityId)
-                .orElseThrow(() -> new ResourceNotFoundException("Loading Activity not found with id: " + activityId));
-
-        if (!activity.getLoadingOrder().getId().equals(loadingOrder.getId())) {
-            throw new BadRequestException("Activity does not belong to this loading order.");
-        }
-
-        if (!"LOADING".equalsIgnoreCase(activity.getStatus())) {
-            throw new BadRequestException("Truck must be in LOADING status to complete loading.");
-        }
-
-        activity.setStatus("LOADED");
-        activity.setLoadingCompletionTime(LocalDateTime.now());
-        loadingActivityRepository.save(activity);
-
-        auditLogService.log("LOADING_COMPLETED", "LOADING_ACTIVITY", activity.getId(), loadingOrder.getOrder().getCustomer().getCustomerCode(),
-                "Loading completed for truck " + activity.getTruckNumber() + " in Loading Order " + loadingOrder.getLoadingOrderNumber());
-
-        // Check if all trucks are loaded
-        boolean allLoaded = loadingOrder.getActivities().stream()
-                .allMatch(act -> "LOADED".equalsIgnoreCase(act.getStatus()));
-
-        if (allLoaded) {
-            loadingOrder.setStatus("COMPLETED");
-            FuelOrder order = loadingOrder.getOrder();
-            String prevStatus = order.getOrderStatus();
-            order.setOrderStatus("LOADING_COMPLETED");
-            fuelOrderRepository.save(order);
-            loadingOrderRepository.save(loadingOrder);
-
-            auditLogService.log("LOADING_ORDER_COMPLETED", "LOADING_ORDER", loadingOrder.getId(), order.getCustomer().getCustomerCode(),
-                    "Loading Order " + loadingOrder.getLoadingOrderNumber() + " completed as all trucks are loaded.");
-            auditLogService.log("ORDER_STATUS_CHANGED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
-                    "Order status changed from " + prevStatus + " to LOADING_COMPLETED for order " + order.getOrderNumber());
-        }
-
-        return loadingOrderMapper.toResponse(loadingOrder);
     }
 
     private synchronized String generateLoadingOrderNumber() {
@@ -425,8 +348,281 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
         }
     }
 
+    @Override
+    public LoadingOrderResponse startLoadingActivity(Long id, Long activityId, String bayNumber, String pumpNumber) {
+        LoadingOrder loadingOrder = loadingOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Loading Order not found with id: " + id));
+
+        if (loadingOrder.getStatus() != LoadingOrderStatus.APPROVED && loadingOrder.getStatus() != LoadingOrderStatus.LOADING_IN_PROGRESS) {
+            throw new BadRequestException("Loading cannot begin until the Loading Order has been approved.");
+        }
+
+        LoadingActivity activity = loadingActivityRepository.findById(activityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Loading Activity not found with id: " + activityId));
+
+        if (!activity.getLoadingOrder().getId().equals(loadingOrder.getId())) {
+            throw new BadRequestException("Activity does not belong to this loading order.");
+        }
+
+        if (activity.getStatus() != LoadingActivityStatus.PENDING) {
+            throw new BadRequestException("Truck loading has already started or completed.");
+        }
+
+        if (bayNumber != null && !bayNumber.trim().isEmpty()) {
+            activity.setBayNumber(bayNumber);
+        }
+        if (pumpNumber != null && !pumpNumber.trim().isEmpty()) {
+            activity.setPumpNumber(pumpNumber);
+        }
+
+        String username = resolveCurrentUser();
+        activity.setStatus(LoadingActivityStatus.STARTED);
+        activity.setLoadingStartTime(LocalDateTime.now());
+        activity.setLoadingOfficer(username);
+        loadingActivityRepository.save(activity);
+
+        // Update Loading Order status to LOADING_IN_PROGRESS if it was APPROVED
+        if (loadingOrder.getStatus() == LoadingOrderStatus.APPROVED) {
+            loadingOrder.setStatus(LoadingOrderStatus.LOADING_IN_PROGRESS);
+            FuelOrder order = loadingOrder.getOrder();
+            String prevStatus = order.getOrderStatus();
+            order.setOrderStatus("LOADING_IN_PROGRESS");
+            fuelOrderRepository.save(order);
+            loadingOrderRepository.save(loadingOrder);
+
+            auditLogService.log("LOADING_ORDER_IN_PROGRESS", "LOADING_ORDER", loadingOrder.getId(), order.getCustomer().getCustomerCode(),
+                    "Loading Order " + loadingOrder.getLoadingOrderNumber() + " status set to LOADING_IN_PROGRESS");
+            auditLogService.log("ORDER_STATUS_CHANGED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
+                    "Order status changed from " + prevStatus + " to LOADING_IN_PROGRESS for order " + order.getOrderNumber());
+        }
+
+        auditLogService.log("LOADING_STARTED", "LOADING_ACTIVITY", activity.getId(), loadingOrder.getOrder().getCustomer().getCustomerCode(),
+                "Loading started for truck " + activity.getTruckNumber() + " in Loading Order " + loadingOrder.getLoadingOrderNumber() + " by officer " + username);
+
+        return loadingOrderMapper.toResponse(loadingOrder);
+    }
+
+    @Override
+    public LoadingOrderResponse completeLoadingActivity(Long id, Long activityId, LoadingActivityCompletionRequest request) {
+        LoadingOrder loadingOrder = loadingOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Loading Order not found with id: " + id));
+
+        LoadingActivity activity = loadingActivityRepository.findById(activityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Loading Activity not found with id: " + activityId));
+
+        if (!activity.getLoadingOrder().getId().equals(loadingOrder.getId())) {
+            throw new BadRequestException("Activity does not belong to this loading order.");
+        }
+
+        if (activity.getStatus() == LoadingActivityStatus.COMPLETED) {
+            throw new BadRequestException("Loading activity is already completed and locked.");
+        }
+
+        if (request.getCompartments() == null || request.getCompartments().isEmpty()) {
+            throw new BadRequestException("At least one compartment entry is required.");
+        }
+
+        BigDecimal meterStart = request.getMeterStart() != null ? request.getMeterStart() : BigDecimal.ZERO;
+        BigDecimal meterEnd = request.getMeterEnd() != null ? request.getMeterEnd() : BigDecimal.ZERO;
+        if (meterEnd.compareTo(meterStart) < 0) {
+            throw new BadRequestException("Meter end reading cannot be less than meter start reading.");
+        }
+        BigDecimal meterDifference = meterEnd.subtract(meterStart);
+
+        if (request.getBayNumber() != null && !request.getBayNumber().trim().isEmpty()) {
+            activity.setBayNumber(request.getBayNumber());
+        }
+        if (request.getPumpNumber() != null && !request.getPumpNumber().trim().isEmpty()) {
+            activity.setPumpNumber(request.getPumpNumber());
+        }
+
+        User currentUser = resolveCurrentUserUser();
+        String username = currentUser != null ? currentUser.getUsername() : "system";
+
+        BigDecimal totalAmbient = BigDecimal.ZERO;
+        BigDecimal totalStandard = BigDecimal.ZERO;
+        BigDecimal sumTemp = BigDecimal.ZERO;
+        BigDecimal sumDensity = BigDecimal.ZERO;
+
+        List<LoadingCompartment> compartmentsToSave = new ArrayList<>();
+
+        for (com.falconenergy.dto.LoadingCompartmentRequest req : request.getCompartments()) {
+            if (req.getTemperature().compareTo(BigDecimal.ZERO) < 0 || req.getTemperature().compareTo(new BigDecimal("60")) > 0) {
+                throw new BadRequestException("Observed temperature " + req.getTemperature() + "°C is outside valid range (0°C to 60°C).");
+            }
+            if (req.getAmbientVolume().compareTo(req.getCapacity()) > 0) {
+                throw new BadRequestException("Ambient volume " + req.getAmbientVolume() + " exceeds compartment capacity " + req.getCapacity() + ".");
+            }
+
+            FuelProduct product = fuelProductRepository.findById(req.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Fuel product not found with id: " + req.getProductId()));
+
+            // Formula: V_std = V_amb * [1 - alpha * (T_obs - 20)]
+            BigDecimal alpha = product.getThermalExpansionCoefficient();
+            BigDecimal tempDiff = req.getTemperature().subtract(new BigDecimal("20"));
+            BigDecimal correction = BigDecimal.ONE.subtract(alpha.multiply(tempDiff));
+            BigDecimal standardVolume = req.getAmbientVolume().multiply(correction).setScale(2, java.math.RoundingMode.HALF_UP);
+
+            LoadingCompartment compartment = LoadingCompartment.builder()
+                    .loadingActivity(activity)
+                    .compartmentNumber(req.getCompartmentNumber())
+                    .capacity(req.getCapacity())
+                    .product(product)
+                    .productNameSnapshot(product.getProductName())
+                    .productCodeSnapshot(product.getFuelCategory()) // using category as a fallback code if code doesn't exist
+                    .ambientVolume(req.getAmbientVolume())
+                    .temperature(req.getTemperature())
+                    .density(req.getDensity())
+                    .standardVolume(standardVolume)
+                    .sealNumber(req.getSealNumber() != null ? req.getSealNumber() : "N/A")
+                    .build();
+
+            compartmentsToSave.add(compartment);
+
+            totalAmbient = totalAmbient.add(req.getAmbientVolume());
+            totalStandard = totalStandard.add(standardVolume);
+            sumTemp = sumTemp.add(req.getTemperature());
+            sumDensity = sumDensity.add(req.getDensity());
+        }
+
+        // Validations
+        if (totalStandard.compareTo(activity.getAllocatedQuantity()) > 0) {
+            throw new BadRequestException("Loaded standard volume (" + totalStandard + ") exceeds allocated quantity (" + activity.getAllocatedQuantity() + ").");
+        }
+
+        // Meter difference vs ambient volume validation (within 0.5% tolerance)
+        BigDecimal difference = totalAmbient.subtract(meterDifference).abs();
+        BigDecimal tolerance = meterDifference.multiply(new BigDecimal("0.005"));
+        if (difference.compareTo(tolerance) > 0) {
+            throw new BadRequestException("Meter difference (" + meterDifference + ") does not match sum of compartment ambient volumes (" + totalAmbient + ") within 0.5% tolerance.");
+        }
+
+        // Concurrency-locked stock updates and inventory logging
+        for (LoadingCompartment compartment : compartmentsToSave) {
+            FuelProduct lockedProduct = fuelProductRepository.findByIdWithLock(compartment.getProduct().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Fuel product not found with id: " + compartment.getProduct().getId()));
+
+            BigDecimal stockBefore = lockedProduct.getAvailableQuantity();
+            BigDecimal stockAfter = stockBefore.subtract(compartment.getStandardVolume());
+            if (stockAfter.compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestException("Insufficient inventory in stock for product: " + lockedProduct.getProductName() + ". Available: " + stockBefore);
+            }
+
+            lockedProduct.setAvailableQuantity(stockAfter);
+            fuelProductRepository.save(lockedProduct);
+
+            InventoryTransaction transaction = InventoryTransaction.builder()
+                    .product(lockedProduct)
+                    .quantity(compartment.getStandardVolume())
+                    .stockBefore(stockBefore)
+                    .stockAfter(stockAfter)
+                    .movementType(InventoryMovementType.LOADING)
+                    .movementReason("Loaded onto truck " + activity.getTruckNumber() + ", Loading Order " + loadingOrder.getLoadingOrderNumber())
+                    .performedBy(currentUser)
+                    .referenceId(activity.getId())
+                    .referenceType("LOADING_ACTIVITY")
+                    .build();
+            inventoryTransactionRepository.save(transaction);
+        }
+
+        // Persist compartments
+        loadingCompartmentRepository.saveAll(compartmentsToSave);
+        activity.getCompartments().clear();
+        activity.getCompartments().addAll(compartmentsToSave);
+
+        BigDecimal countComp = new BigDecimal(compartmentsToSave.size());
+        BigDecimal avgTemp = sumTemp.divide(countComp, 2, java.math.RoundingMode.HALF_UP);
+        BigDecimal avgDensity = sumDensity.divide(countComp, 4, java.math.RoundingMode.HALF_UP);
+
+        // Update Loading Activity status and metadata
+        activity.setStatus(LoadingActivityStatus.COMPLETED);
+        activity.setAmbientVolume(totalAmbient);
+        activity.setStandardVolume(totalStandard);
+        activity.setTemperature(avgTemp);
+        activity.setDensity(avgDensity);
+        activity.setMeterStart(meterStart);
+        activity.setMeterEnd(meterEnd);
+        activity.setMeterDifference(meterDifference);
+        activity.setRemarks(request.getRemarks());
+        activity.setCompletedBy(currentUser);
+        activity.setCompletedAt(LocalDateTime.now());
+        activity.setLoadingCompletionTime(LocalDateTime.now());
+        loadingActivityRepository.save(activity);
+
+        // Generate Loading Report automatically
+        String reportNumber = generateReportNumber();
+        LoadingReport report = LoadingReport.builder()
+                .loadingActivity(activity)
+                .loadingOrder(loadingOrder)
+                .reportNumber(reportNumber)
+                .loadingOfficer(username)
+                .terminal(loadingOrder.getLoadingTerminal())
+                .loadingBay(activity.getBayNumber())
+                .reportStatus(LoadingReportStatus.GENERATED)
+                .build();
+        loadingReportRepository.save(report);
+        activity.getReports().add(report);
+
+        // Check if all activities for this loading order are COMPLETED
+        boolean allCompleted = loadingOrder.getActivities().stream()
+                .allMatch(act -> act.getStatus() == LoadingActivityStatus.COMPLETED);
+
+        if (allCompleted) {
+            loadingOrder.setStatus(LoadingOrderStatus.DOCUMENTATION_PENDING);
+            FuelOrder order = loadingOrder.getOrder();
+            String prevStatus = order.getOrderStatus();
+            order.setOrderStatus("DOCUMENTATION_PENDING");
+            fuelOrderRepository.save(order);
+            loadingOrderRepository.save(loadingOrder);
+
+            auditLogService.log("LOADING_ORDER_COMPLETED", "LOADING_ORDER", loadingOrder.getId(), order.getCustomer().getCustomerCode(),
+                    "Loading Order " + loadingOrder.getLoadingOrderNumber() + " status set to DOCUMENTATION_PENDING as all trucks are completed.");
+            auditLogService.log("ORDER_STATUS_CHANGED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
+                    "Order status changed from " + prevStatus + " to DOCUMENTATION_PENDING for order " + order.getOrderNumber());
+        }
+
+        auditLogService.log("LOADING_COMPLETED", "LOADING_ACTIVITY", activity.getId(), loadingOrder.getOrder().getCustomer().getCustomerCode(),
+                "Loading completed for truck " + activity.getTruckNumber() + " in Loading Order " + loadingOrder.getLoadingOrderNumber() + " by officer " + username);
+
+        return loadingOrderMapper.toResponse(loadingOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public LoadingReportResponse getLoadingReportByActivityId(Long activityId) {
+        LoadingReport report = loadingReportRepository.findByLoadingActivityId(activityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Loading Report not found for activity id: " + activityId));
+        return loadingOrderMapper.toReportResponse(report);
+    }
+
+    private synchronized String generateReportNumber() {
+        String dateStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String prefix = "LR-" + dateStr + "-";
+
+        String maxNumber = loadingReportRepository.findMaxReportNumberWithPrefix(prefix);
+        if (maxNumber == null) {
+            return prefix + "0001";
+        }
+
+        try {
+            String seqStr = maxNumber.substring(prefix.length());
+            int seq = Integer.parseInt(seqStr);
+            return prefix + String.format("%04d", seq + 1);
+        } catch (Exception e) {
+            log.error("Error parsing max report number sequence: {}", maxNumber, e);
+            return prefix + "0001";
+        }
+    }
+
     private String resolveCurrentUser() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         return (auth != null && auth.isAuthenticated()) ? auth.getName() : "system";
+    }
+
+    private User resolveCurrentUserUser() {
+        String username = resolveCurrentUser();
+        return userRepository.findByEmail(username)
+                .or(() -> userRepository.findByUsername(username))
+                .orElse(null);
     }
 }

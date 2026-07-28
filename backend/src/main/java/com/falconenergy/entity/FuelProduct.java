@@ -57,4 +57,8 @@ public class FuelProduct extends BaseEntity {
     @Column(name = "unit_of_measurement", length = 50)
     @Builder.Default
     private String unitOfMeasurement = "Litres";
+
+    @Column(name = "thermal_expansion_coefficient", nullable = false, precision = 6, scale = 5)
+    @Builder.Default
+    private BigDecimal thermalExpansionCoefficient = new BigDecimal("0.00084");
 }

@@ -32,6 +32,10 @@ export async function startLoadingActivity(id, activityId, params = {}) {
   return api.post(`/loading-orders/${id}/activities/${activityId}/start`, null, { params }).then((r) => r.data);
 }
 
-export async function completeLoadingActivity(id, activityId) {
-  return api.post(`/loading-orders/${id}/activities/${activityId}/complete`).then((r) => r.data);
+export async function completeLoadingActivity(id, activityId, payload) {
+  return api.post(`/loading-orders/${id}/activities/${activityId}/complete`, payload).then((r) => r.data);
+}
+
+export async function getLoadingReport(activityId) {
+  return api.get(`/loading-orders/reports/${activityId}`).then((r) => r.data);
 }
