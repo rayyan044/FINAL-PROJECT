@@ -71,6 +71,8 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .driverName(activity.getDriverName())
                 .driverLicenseNumber(activity.getDriverLicenceNumber())
                 .transportCompany(activity.getTransportCompany())
+                .truckCapacity(activity.getVehicle() != null ? activity.getVehicle().getCapacity() : null)
+                .transportCharge(activity.getTransportCharge())
                 .ambientVolume(activity.getAmbientVolume())
                 .standardVolume(activity.getStandardVolume())
                 .destination(activity.getDestination())
@@ -134,10 +136,12 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .truckNumber(activity.getTruckNumber())
                 .driverName(activity.getDriverName())
                 .transportCompany(activity.getTransportCompany())
+                .truckCapacity(activity.getVehicle() != null ? activity.getVehicle().getCapacity() : null)
+                .transportCharge(activity.getTransportCharge())
                 .quantity(quantity)
                 .unitPrice(unitPrice)
                 .totalAmount(totalAmount)
-                .paymentStatus("PAID")
+                .paymentStatus("PENDING_PAYMENT")
                 .invoiceStatus("GENERATED")
                 .build();
 
@@ -174,6 +178,14 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
         DeliveryNote note = deliveryNoteRepository.findById(noteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery Note not found with id: " + noteId));
 
+        if ("HANDED_TO_DRIVER".equals(note.getStatus())) {
+            // A reprint must never regress a document that has been handed over.
+            return toDeliveryNoteResponse(note);
+        }
+        if (!"PREPARED".equals(note.getStatus()) && !"PRINTED".equals(note.getStatus())) {
+            throw new BadRequestException("Delivery Note cannot be printed from status " + note.getStatus() + ".");
+        }
+
         String username = resolveCurrentUser();
         note.setStatus("PRINTED");
         note.setPrintedBy(username);
@@ -189,6 +201,10 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
         log.info("Printing truck invoice with id: {}", invoiceId);
         TruckInvoice invoice = truckInvoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Truck Invoice not found with id: " + invoiceId));
+
+        if (!"GENERATED".equals(invoice.getInvoiceStatus()) && !"PRINTED".equals(invoice.getInvoiceStatus())) {
+            throw new BadRequestException("Truck Invoice cannot be printed from status " + invoice.getInvoiceStatus() + ".");
+        }
 
         String username = resolveCurrentUser();
         invoice.setInvoiceStatus("PRINTED");
@@ -267,12 +283,16 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
     private void checkAndUpdateToDocumentsReady(LoadingOrder loadingOrder) {
         if (loadingOrder == null) return;
         List<LoadingActivity> activities = loadingActivityRepository.findByLoadingOrderId(loadingOrder.getId());
-        boolean allHaveDocs = activities.stream()
-                .filter(act -> act.getStatus() == LoadingActivityStatus.COMPLETED)
-                .allMatch(act -> deliveryNoteRepository.existsByLoadingActivityId(act.getId()) &&
-                                 truckInvoiceRepository.existsByLoadingActivityId(act.getId()));
+        List<LoadingActivity> requiredActivities = activities.stream()
+                .filter(act -> act.getStatus() != LoadingActivityStatus.CANCELLED)
+                .collect(Collectors.toList());
+        boolean allHaveDocs = !requiredActivities.isEmpty()
+                && requiredActivities.stream().allMatch(act ->
+                        act.getStatus() == LoadingActivityStatus.COMPLETED
+                                && deliveryNoteRepository.existsByLoadingActivityId(act.getId())
+                                && truckInvoiceRepository.existsByLoadingActivityId(act.getId()));
 
-        if (allHaveDocs && !activities.isEmpty()) {
+        if (allHaveDocs) {
             loadingOrder.setStatus(LoadingOrderStatus.DOCUMENTS_READY);
             FuelOrder order = loadingOrder.getOrder();
             if (order != null) {
@@ -287,14 +307,17 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
         if (loadingOrder == null) return;
 
         List<LoadingActivity> activities = loadingActivityRepository.findByLoadingOrderId(loadingOrder.getId());
-        boolean allHandedToDriver = activities.stream()
-                .filter(act -> act.getStatus() == LoadingActivityStatus.COMPLETED)
-                .allMatch(act -> {
+        List<LoadingActivity> requiredActivities = activities.stream()
+                .filter(act -> act.getStatus() != LoadingActivityStatus.CANCELLED)
+                .collect(Collectors.toList());
+        boolean allHandedToDriver = !requiredActivities.isEmpty()
+                && requiredActivities.stream().allMatch(act -> {
+                    if (act.getStatus() != LoadingActivityStatus.COMPLETED) return false;
                     var noteOpt = deliveryNoteRepository.findByLoadingActivityId(act.getId());
                     return noteOpt.isPresent() && "HANDED_TO_DRIVER".equals(noteOpt.get().getStatus());
                 });
 
-        if (allHandedToDriver && !activities.isEmpty()) {
+        if (allHandedToDriver) {
             loadingOrder.setStatus(LoadingOrderStatus.READY_FOR_DISPATCH);
             FuelOrder order = loadingOrder.getOrder();
             if (order != null) {
@@ -325,6 +348,8 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .driverName(dn.getDriverName())
                 .driverLicenseNumber(dn.getDriverLicenseNumber())
                 .transportCompany(dn.getTransportCompany())
+                .truckCapacity(dn.getTruckCapacity())
+                .transportCharge(dn.getTransportCharge())
                 .ambientVolume(dn.getAmbientVolume())
                 .standardVolume(dn.getStandardVolume())
                 .destination(dn.getDestination())
@@ -352,6 +377,8 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .truckNumber(ti.getTruckNumber())
                 .driverName(ti.getDriverName())
                 .transportCompany(ti.getTransportCompany())
+                .truckCapacity(ti.getTruckCapacity())
+                .transportCharge(ti.getTransportCharge())
                 .quantity(ti.getQuantity())
                 .unitPrice(ti.getUnitPrice())
                 .totalAmount(ti.getTotalAmount())

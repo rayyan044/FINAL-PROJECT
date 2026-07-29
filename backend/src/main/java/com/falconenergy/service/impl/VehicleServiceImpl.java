@@ -6,6 +6,7 @@ import com.falconenergy.entity.Driver;
 import com.falconenergy.entity.Vehicle;
 import com.falconenergy.exception.DuplicateResourceException;
 import com.falconenergy.exception.ResourceNotFoundException;
+import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.mapper.VehicleMapper;
 import com.falconenergy.repository.DriverRepository;
 import com.falconenergy.repository.VehicleRepository;
@@ -42,6 +43,10 @@ public class VehicleServiceImpl implements VehicleService {
         if (vehicleRepository.existsByPlateNumber(request.getPlateNumber())) {
             throw new DuplicateResourceException("Plate number already exists: " + request.getPlateNumber());
         }
+        if (vehicleRepository.existsByTruckNumber(request.getTruckNumber())) {
+            throw new DuplicateResourceException("Truck number already exists: " + request.getTruckNumber());
+        }
+        validateFleetFields(request);
 
         Driver driver = null;
         if (request.getDriverId() != null) {
@@ -73,6 +78,10 @@ public class VehicleServiceImpl implements VehicleService {
                 vehicleRepository.existsByPlateNumber(request.getPlateNumber())) {
             throw new DuplicateResourceException("Plate number already exists: " + request.getPlateNumber());
         }
+        if (!vehicle.getTruckNumber().equals(request.getTruckNumber()) && vehicleRepository.existsByTruckNumber(request.getTruckNumber())) {
+            throw new DuplicateResourceException("Truck number already exists: " + request.getTruckNumber());
+        }
+        validateFleetFields(request);
 
         Driver driver = null;
         if (request.getDriverId() != null) {
@@ -91,7 +100,9 @@ public class VehicleServiceImpl implements VehicleService {
         log.info("Deleting vehicle with id: {}", id);
         Vehicle vehicle = vehicleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
-        vehicleRepository.delete(vehicle);
+        vehicle.setActive(false);
+        vehicle.setCurrentStatus("OUT_OF_SERVICE");
+        vehicleRepository.save(vehicle);
     }
 
     @Override
@@ -109,5 +120,16 @@ public class VehicleServiceImpl implements VehicleService {
         }
 
         return vehicleRepository.findAll(spec, pageable).map(vehicleMapper::toResponse);
+    }
+
+    private void validateFleetFields(VehicleRequest request) {
+        if (request.getAssignedFuelTypes() == null || request.getAssignedFuelTypes().isEmpty()) {
+            throw new BadRequestException("At least one fuel type must be assigned to a truck.");
+        }
+        String status = request.getCurrentStatus() == null ? "AVAILABLE" : request.getCurrentStatus().toUpperCase();
+        if (!java.util.Set.of("AVAILABLE", "ASSIGNED", "DISPATCHED", "IN_TRANSIT", "DELIVERED", "MAINTENANCE", "OUT_OF_SERVICE").contains(status)) {
+            throw new BadRequestException("Invalid truck status.");
+        }
+        request.setCurrentStatus(status);
     }
 }

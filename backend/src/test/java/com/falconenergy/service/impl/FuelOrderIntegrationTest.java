@@ -6,6 +6,8 @@ import com.falconenergy.entity.StorageTank;
 import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.StorageTankRepository;
+import com.falconenergy.repository.VehicleRepository;
+import com.falconenergy.repository.TruckPricingRepository;
 import com.falconenergy.service.FuelOrderService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,8 @@ public class FuelOrderIntegrationTest {
 
     @Autowired
     private FuelOrderRepository orderRepository;
+    @Autowired private VehicleRepository vehicleRepository;
+    @Autowired private TruckPricingRepository truckPricingRepository;
 
     @Test
     @Transactional
@@ -50,6 +54,15 @@ public class FuelOrderIntegrationTest {
         tank.setCurrentVolume(new BigDecimal("500"));
         tank.setFuelProduct(product);
         tank = tankRepository.save(tank);
+
+        com.falconenergy.entity.Vehicle vehicle = com.falconenergy.entity.Vehicle.builder()
+                .truckNumber("TST-TRUCK-001").plateNumber("TST-001")
+                .capacity(new BigDecimal("100")).currentStatus("AVAILABLE").active(true)
+                .assignedFuelTypes(new java.util.HashSet<>(java.util.Set.of("TestType"))).build();
+        vehicleRepository.save(vehicle);
+        truckPricingRepository.save(com.falconenergy.entity.TruckPricing.builder()
+                .capacity(new BigDecimal("100")).fuelType("TestType")
+                .transportPrice(new BigDecimal("25")).active(true).build());
 
         // Create order DTO via repository for brevity then approve via service
         com.falconenergy.dto.FuelOrderRequest req = new com.falconenergy.dto.FuelOrderRequest();

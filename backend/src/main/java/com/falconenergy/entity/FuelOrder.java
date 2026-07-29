@@ -134,8 +134,5 @@ public class FuelOrder extends BaseEntity {
     private Invoice invoice;
 
     @OneToOne(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    private TruckNomination truckNomination;
-
-    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private LoadingOrder loadingOrder;
 }

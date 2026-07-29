@@ -8,6 +8,7 @@ import com.falconenergy.service.DeliveryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -44,7 +45,7 @@ public class DeliveryController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_OPERATOR', 'ROLE_OPERATIONS', 'ROLE_DISPATCHER')")
     public ResponseEntity<ApiResponse<DeliveryResponse>> markArrived(
             @PathVariable Long id,
-            @RequestBody(required = false) DeliveryArrivalRequest request
+            @Valid @RequestBody DeliveryArrivalRequest request
     ) {
         DeliveryResponse response = deliveryService.markArrived(id, request);
         return ResponseEntity.ok(ApiResponse.success("Arrival recorded successfully", response));
@@ -54,7 +55,7 @@ public class DeliveryController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_OPERATOR', 'ROLE_OPERATIONS', 'ROLE_DISPATCHER')")
     public ResponseEntity<ApiResponse<DeliveryResponse>> completeDelivery(
             @PathVariable Long id,
-            @RequestBody(required = false) DeliveryCompleteRequest request
+            @Valid @RequestBody DeliveryCompleteRequest request
     ) {
         DeliveryResponse response = deliveryService.completeDelivery(id, request);
         return ResponseEntity.ok(ApiResponse.success("Delivery completed successfully", response));

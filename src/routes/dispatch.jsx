@@ -19,7 +19,7 @@ import {
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
-import { listDeliveries, updateDeliveryStatus } from "../services/deliveryService";
+import { OperatorWorkflowProgress } from "../components/OperatorWorkflowProgress";
 import { listDrivers } from "../services/driverService";
 import { listVehicles } from "../services/vehicleService";
 import { listLoadingOrders } from "../services/loadingOrderService";
@@ -37,16 +37,17 @@ export const Route = createFileRoute("/dispatch")({
 });
 
 const SIDE = [
-  { key: "dash", label: "Dashboard", icon: FiHome },
+  { key: "operations", label: "Operations", icon: FiHome },
+  { key: "documents", label: "Delivery Documents", icon: FiFileText },
+  { key: "dash", label: "Dispatch Management", icon: FiHome },
   { key: "queue", label: "Dispatch Queue", icon: FiClipboard },
-  { key: "deliveries", label: "Deliveries / Trips", icon: FiMapPin },
+  { key: "deliveries", label: "Delivery Management", icon: FiMapPin },
   { key: "trucks", label: "Fleet Trucks", icon: FiTruck },
 ];
 
 function DispatchDash() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dash");
-  const [deliveries, setDeliveries] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [completedActivities, setCompletedActivities] = useState([]);
@@ -63,22 +64,19 @@ function DispatchDash() {
     setLoading(true);
     setError("");
     Promise.allSettled([
-      listDeliveries(),
       listDrivers(),
       listVehicles(),
       listLoadingOrders(),
     ])
       .then(async (results) => {
         if (results[0].status === "fulfilled")
-          setDeliveries(results[0].value.content || results[0].value || []);
+          setDrivers(results[0].value.content || results[0].value || []);
         if (results[1].status === "fulfilled")
-          setDrivers(results[1].value.content || results[1].value || []);
-        if (results[2].status === "fulfilled")
-          setVehicles(results[2].value.content || results[2].value || []);
+          setVehicles(results[1].value.content || results[1].value || []);
         
         let completedActs = [];
-        if (results[3].status === "fulfilled") {
-          const orders = results[3].value || [];
+        if (results[2].status === "fulfilled") {
+          const orders = results[2].value || [];
           orders.forEach((order) => {
             if (order.activities) {
               order.activities.forEach((activity) => {
@@ -112,15 +110,15 @@ function DispatchDash() {
         statuses[act.id] = { dn: null, inv: null, dispatch: null, loading: true };
         try {
           const dnRes = await getDeliveryNote(act.id);
-          statuses[act.id].dn = dnRes.data || null;
+          statuses[act.id].dn = dnRes || null;
         } catch (e) {}
         try {
           const invRes = await getTruckInvoice(act.id);
-          statuses[act.id].inv = invRes.data || null;
+          statuses[act.id].inv = invRes || null;
         } catch (e) {}
         try {
           const dispRes = await getDispatchByActivityId(act.id);
-          statuses[act.id].dispatch = dispRes.data || null;
+          statuses[act.id].dispatch = dispRes || null;
         } catch (e) {}
         statuses[act.id].loading = false;
       })
@@ -132,24 +130,12 @@ function DispatchDash() {
     loadData();
   }, []);
 
-  const handleUpdateTripStatus = async (deliveryId, newStatus) => {
-    setError("");
-    setSuccess("");
-    try {
-      await updateDeliveryStatus(deliveryId, newStatus);
-      setSuccess(`Trip marked as ${newStatus} successfully.`);
-      loadData();
-    } catch (err) {
-      setError(err?.message || "Failed to update trip status.");
-    }
-  };
-
   const handleCreateDispatch = async (activityId) => {
     setError("");
     setSuccess("");
     try {
       const res = await createDispatch(activityId);
-      setSuccess(`Dispatch record ${res.data.dispatchNumber} created successfully!`);
+      setSuccess(`Dispatch record ${res.dispatchNumber} created successfully!`);
       loadData();
     } catch (err) {
       setError(err?.message || "Failed to initiate dispatch.");
@@ -161,7 +147,7 @@ function DispatchDash() {
     setSuccess("");
     try {
       const res = await releaseTruck(dispatchId);
-      setSuccess(`Truck has been successfully released from terminal! (Dispatch: ${res.data.dispatchNumber})`);
+      setSuccess(`Truck has been successfully released from terminal! (Dispatch: ${res.dispatchNumber})`);
       loadData();
     } catch (err) {
       setError(err?.message || "Failed to release truck.");
@@ -181,13 +167,14 @@ function DispatchDash() {
   };
 
   const activeFleet = vehicles.length;
-  const tripsEnRoute = deliveries.filter((d) => d.deliveryStatus === "EN_ROUTE").length;
   
   // Ready queue displays COMPLETED activities where Delivery Note status is HANDED_TO_DRIVER and Invoice exists
   const queueActivities = completedActivities.filter((act) => {
     const state = dispatchStatusMap[act.id];
     return state && state.dn && state.dn.status === "HANDED_TO_DRIVER" && state.inv;
   });
+  const readyToCreateDispatch = queueActivities.filter((activity) => !dispatchStatusMap[activity.id]?.dispatch);
+  const releasedOrInTransit = queueActivities.filter((activity) => dispatchStatusMap[activity.id]?.dispatch);
 
   return (
     <RouteGuard allowedRoles={["DISPATCHER", "OPERATIONS", "ADMIN", "OPERATOR"]}>
@@ -195,9 +182,15 @@ function DispatchDash() {
         role="DISPATCHER"
         sideItems={SIDE}
         activeKey={activeTab}
-        onSelect={setActiveTab}
+        onSelect={(key) => {
+          if (key === "operations") navigate({ to: "/operations" });
+          else if (key === "documents") navigate({ to: "/delivery-documents" });
+          else if (key === "deliveries") navigate({ to: "/deliveries" });
+          else setActiveTab(key);
+        }}
       >
-        <PageHeader title="Dispatcher Console" crumbs={["Dispatch", activeTab]} />
+        <PageHeader title="Dispatch Management" crumbs={["Operations", "Dispatch Management", activeTab === "dash" ? "Overview" : SIDE.find((item) => item.key === activeTab)?.label || activeTab]} />
+        <OperatorWorkflowProgress current="Dispatch" nextLabel="Delivery Management" onNext={() => navigate({ to: "/deliveries" })} />
 
         {error && (
           <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 20 }}>
@@ -221,14 +214,14 @@ function DispatchDash() {
             tone="primary"
           />
           <StatCard
-            label="Trips En Route"
-            value={loading ? "…" : String(tripsEnRoute)}
+            label="Ready to Create Dispatch"
+            value={loading ? "…" : String(readyToCreateDispatch.length)}
             icon={FiMapPin}
             tone="secondary"
           />
           <StatCard
-            label="Pending Dispatch"
-            value={loading ? "…" : String(queueActivities.filter(a => !dispatchStatusMap[a.id]?.dispatch).length)}
+            label="Released / In Transit"
+            value={loading ? "…" : String(releasedOrInTransit.length)}
             icon={FiClipboard}
             tone="warning"
           />
@@ -246,12 +239,12 @@ function DispatchDash() {
               ) : (
                 <div>
                   <p>
-                    Showing overview of system operations: <strong>{deliveries.length}</strong>{" "}
-                    total deliveries, <strong>{drivers.length}</strong> registered drivers, and{" "}
+                    Showing the terminal release workflow: <strong>{queueActivities.length}</strong>{" "}
+                    eligible dispatch activities, <strong>{drivers.length}</strong> registered drivers, and{" "}
                     <strong>{vehicles.length}</strong> vehicles in fleet.
                   </p>
                   <p style={{ marginTop: 10 }}>
-                    Select the **Dispatch Queue** tab to release loaded trucks or **Deliveries / Trips** to track active transport.
+                    Create and release eligible dispatches here. A truck becomes eligible only after its Delivery Note is handed to the driver and its Truck Invoice is generated.
                   </p>
                 </div>
               )}
@@ -364,114 +357,7 @@ function DispatchDash() {
                     <tr>
                       <td colSpan="7" style={{ textAlign: "center", color: "var(--feftms-text-muted)", padding: 25 }}>
                         <FiInfo size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
-                        <p>No trucks waiting in the dispatch queue.</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* DELIVERIES LIST VIEW */}
-        {activeTab === "deliveries" && (
-          <div className="fef-panel" style={{ marginTop: 24 }}>
-            <div className="fef-panel-head">
-              <h3>Dispatch Deliveries Management</h3>
-            </div>
-            <div className="fef-table-wrap">
-              <table className="fef-table">
-                <thead>
-                  <tr>
-                    <th>Delivery #</th>
-                    <th>Driver Name</th>
-                    <th>Vehicle Plate</th>
-                    <th>Order Details</th>
-                    <th>Status</th>
-                    <th>Quick Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deliveries.map((d) => (
-                    <tr key={d.id}>
-                      <td>
-                        <strong>{d.deliveryNumber}</strong>
-                      </td>
-                      <td>
-                        {d.driver?.firstName} {d.driver?.lastName}
-                      </td>
-                      <td>{d.vehicle?.plateNumber}</td>
-                      <td>
-                        {d.order?.productName || "—"} ({d.order?.quantity} L)
-                      </td>
-                      <td>
-                        <span className={`fef-badge fef-badge-${d.deliveryStatus?.toLowerCase()}`}>
-                          {d.deliveryStatus}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          {d.deliveryStatus === "PENDING" && (
-                            <button
-                              className="fef-btn fef-btn-outline"
-                              style={{ padding: "4px 8px", fontSize: 11 }}
-                              onClick={() => handleUpdateTripStatus(d.id, "EN_ROUTE")}
-                            >
-                              Dispatch En Route
-                            </button>
-                          )}
-                          {d.deliveryStatus === "EN_ROUTE" && (
-                            <button
-                              className="fef-btn fef-btn-outline"
-                              style={{ padding: "4px 8px", fontSize: 11 }}
-                              onClick={() => handleUpdateTripStatus(d.id, "ARRIVED")}
-                            >
-                              Mark Arrived
-                            </button>
-                          )}
-                          {d.deliveryStatus === "ARRIVED" && (
-                            <button
-                              className="fef-btn fef-btn-outline"
-                              style={{ padding: "4px 8px", fontSize: 11 }}
-                              onClick={() => handleUpdateTripStatus(d.id, "DELIVERED")}
-                            >
-                              Mark Delivered
-                            </button>
-                          )}
-                          {(d.deliveryStatus === "PENDING" ||
-                            d.deliveryStatus === "EN_ROUTE" ||
-                            d.deliveryStatus === "ARRIVED") && (
-                            <button
-                              className="fef-btn fef-btn-outline fef-btn-danger"
-                              style={{
-                                padding: "4px 8px",
-                                fontSize: 11,
-                                border: "1px solid var(--feftms-danger)",
-                                color: "var(--feftms-danger)",
-                              }}
-                              onClick={() => handleUpdateTripStatus(d.id, "CANCELLED")}
-                            >
-                              Cancel
-                            </button>
-                          )}
-                          {(d.deliveryStatus === "DELIVERED" ||
-                            d.deliveryStatus === "CANCELLED") && (
-                            <span style={{ fontSize: 12, color: "var(--feftms-text-muted)" }}>
-                              Closed
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {deliveries.length === 0 && !loading && (
-                    <tr>
-                      <td
-                        colSpan="6"
-                        style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}
-                      >
-                        No deliveries registered in database.
+                        <p>No trucks are ready for dispatch. Complete loading, generate and print both delivery documents, then hand the Delivery Note to the driver.</p>
                       </td>
                     </tr>
                   )}

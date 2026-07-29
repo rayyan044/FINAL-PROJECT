@@ -36,7 +36,7 @@ export function normalizeApiError(error) {
         ? "The request timed out. Please try again."
         : "Unable to reach the service. Check your network connection. If this page is hosted separately from the API, the connection may be blocked by CORS.";
   } else if (status === 400) {
-    message = "The login request was invalid. Please check your details and try again.";
+    message = backendMessage || "The request was invalid. Please check the entered details and try again.";
   } else if (status === 401) {
     message = backendMessage.includes("expired")
       ? "This account or its credentials have expired. Please contact an administrator."
@@ -89,7 +89,19 @@ export const registerLogoutCallback = (cb) => {
 
 // Global response interceptor (handling token expiration/unauthorized errors)
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    const envelope = response.data;
+    // API clients receive the project's ApiResponse envelope. Treat an explicit
+    // unsuccessful envelope as an error even if a proxy returned HTTP 200.
+    if (envelope && typeof envelope === "object" && envelope.success === false) {
+      return Promise.reject(
+        new ApiRequestError(envelope.message || "The request could not be completed.", {
+          status: response.status,
+        }),
+      );
+    }
+    return envelope;
+  },
   (error) => {
     if (error.response?.status === 401) {
       const requestToken = error.config?.headers?.Authorization?.replace("Bearer ", "");

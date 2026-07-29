@@ -153,6 +153,7 @@ public class DispatchServiceImpl implements DispatchService {
         if (activity != null) {
             activity.setStatus(LoadingActivityStatus.DISPATCHED);
             loadingActivityRepository.save(activity);
+            if (activity.getVehicle() != null) activity.getVehicle().setCurrentStatus("DISPATCHED");
             
             // Check & Update LoadingOrder Status
             checkAndUpdateOrderStatus(activity.getLoadingOrder(), LoadingActivityStatus.DISPATCHED, LoadingOrderStatus.DISPATCHED);
@@ -181,18 +182,17 @@ public class DispatchServiceImpl implements DispatchService {
         if (activity != null) {
             activity.setStatus(LoadingActivityStatus.IN_TRANSIT);
             loadingActivityRepository.save(activity);
+            if (activity.getVehicle() != null) activity.getVehicle().setCurrentStatus("IN_TRANSIT");
 
             // Check & Update LoadingOrder Status
             checkAndUpdateOrderStatus(activity.getLoadingOrder(), LoadingActivityStatus.IN_TRANSIT, LoadingOrderStatus.IN_TRANSIT);
         }
 
         Dispatch saved = dispatchRepository.save(dispatch);
-        
-        try {
-            deliveryService.createDelivery(saved.getId());
-        } catch (Exception e) {
-            log.error("Failed to auto-create delivery for dispatch: {}", saved.getId(), e);
-        }
+
+        // This method is transactional: failure to create the matching delivery
+        // rolls back the transition to IN_TRANSIT and avoids an orphan dispatch.
+        deliveryService.createDelivery(saved.getId());
 
         return toDispatchResponse(saved);
     }

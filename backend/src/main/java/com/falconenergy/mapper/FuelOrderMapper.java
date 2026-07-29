@@ -12,7 +12,6 @@ public interface FuelOrderMapper {
     @Mapping(target = "invoiceId", source = "invoice.id")
     @Mapping(target = "invoiceNumber", source = "invoice.invoiceNumber")
     @Mapping(target = "paymentStatus", source = "invoice.paymentStatus")
-    @Mapping(target = "truckNominationStatus", source = "truckNomination.status")
     FuelOrderResponse toResponse(FuelOrder fuelOrder);
 
     @Mapping(target = "customer", ignore = true)

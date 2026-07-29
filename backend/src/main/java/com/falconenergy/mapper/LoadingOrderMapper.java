@@ -24,6 +24,7 @@ public interface LoadingOrderMapper {
     LoadingOrderResponse toResponse(LoadingOrder entity);
 
     @Mapping(target = "completedById", source = "completedBy.id")
+    @Mapping(target = "vehicleId", source = "vehicle.id")
     @Mapping(target = "completedByName", expression = "java(entity.getCompletedBy() != null ? entity.getCompletedBy().getFirstName() + \" \" + entity.getCompletedBy().getLastName() : null)")
     LoadingActivityResponse toActivityResponse(LoadingActivity entity);
 

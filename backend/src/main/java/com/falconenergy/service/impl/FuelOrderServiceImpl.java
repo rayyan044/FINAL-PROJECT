@@ -36,6 +36,12 @@ import com.falconenergy.repository.InvoiceRepository;
 import com.falconenergy.dto.FuelOrderEditApprovalRequest;
 import com.falconenergy.repository.PaymentAccountRepository;
 import com.falconenergy.entity.PaymentAccount;
+import com.falconenergy.entity.OrderTruckAllocation;
+import com.falconenergy.entity.Vehicle;
+import com.falconenergy.repository.OrderTruckAllocationRepository;
+import com.falconenergy.repository.TruckPricingRepository;
+import com.falconenergy.repository.VehicleRepository;
+import com.falconenergy.service.FleetAllocationService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -59,6 +65,10 @@ public class FuelOrderServiceImpl implements FuelOrderService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentAccountRepository paymentAccountRepository;
     private final SystemSettingService systemSettingService;
+    private final FleetAllocationService fleetAllocationService;
+    private final OrderTruckAllocationRepository orderTruckAllocationRepository;
+    private final TruckPricingRepository truckPricingRepository;
+    private final VehicleRepository vehicleRepository;
 
     public FuelOrderServiceImpl(
             FuelOrderRepository fuelOrderRepository,
@@ -73,7 +83,11 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             UserRepository userRepository,
             InvoiceRepository invoiceRepository,
             PaymentAccountRepository paymentAccountRepository,
-            SystemSettingService systemSettingService
+            SystemSettingService systemSettingService,
+            FleetAllocationService fleetAllocationService,
+            OrderTruckAllocationRepository orderTruckAllocationRepository,
+            TruckPricingRepository truckPricingRepository,
+            VehicleRepository vehicleRepository
     ) {
         this.fuelOrderRepository = fuelOrderRepository;
         this.customerRepository = customerRepository;
@@ -88,6 +102,10 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         this.invoiceRepository = invoiceRepository;
         this.paymentAccountRepository = paymentAccountRepository;
         this.systemSettingService = systemSettingService;
+        this.fleetAllocationService = fleetAllocationService;
+        this.orderTruckAllocationRepository = orderTruckAllocationRepository;
+        this.truckPricingRepository = truckPricingRepository;
+        this.vehicleRepository = vehicleRepository;
     }
 
     @Override
@@ -169,7 +187,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Fuel product not found with id: " + request.getProductId()));
 
         // Check if the order was already APPROVED
-        boolean wasApproved = "APPROVED".equalsIgnoreCase(order.getOrderStatus());
+        boolean wasApproved = "SALES_CONFIRMED".equalsIgnoreCase(order.getOrderStatus());
         
         if (wasApproved) {
             // Return old quantity to stock first before checking new capacity
@@ -258,9 +276,11 @@ public class FuelOrderServiceImpl implements FuelOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Fuel order not found with id: " + id));
 
         String newStatus = status.toUpperCase();
+        // Keep the legacy endpoint compatible while making Sales confirmation explicit.
+        if ("APPROVED".equals(newStatus)) newStatus = "SALES_CONFIRMED";
         String oldStatus = order.getOrderStatus() != null ? order.getOrderStatus().toUpperCase() : "PENDING";
 
-        if (newStatus.equals("APPROVED") && !oldStatus.equals("APPROVED")) {
+        if (newStatus.equals("SALES_CONFIRMED") && !oldStatus.equals("SALES_CONFIRMED")) {
             // Approve / Confirm logic: Verify stock and deduct
             FuelProduct product = order.getProduct();
             BigDecimal requestedQty = order.getQuantity();
@@ -356,7 +376,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             );
             auditLogService.log("INVENTORY_DEDUCTION", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(), auditDetails);
 
-        } else if (!newStatus.equals("APPROVED") && oldStatus.equals("APPROVED")) {
+        } else if (!newStatus.equals("SALES_CONFIRMED") && oldStatus.equals("SALES_CONFIRMED")) {
             // Cancellation / Rejection after approval: Restore stock
             FuelProduct product = order.getProduct();
             java.util.List<StorageTank> tanks = storageTankRepository.findByFuelProductId(product.getId());
@@ -420,8 +440,11 @@ public class FuelOrderServiceImpl implements FuelOrderService {
 
         order.setOrderStatus(newStatus);
         FuelOrder updated = fuelOrderRepository.save(order);
-        if ("APPROVED".equalsIgnoreCase(newStatus) && !"APPROVED".equalsIgnoreCase(oldStatus)) {
+        if ("SALES_CONFIRMED".equalsIgnoreCase(newStatus) && !"SALES_CONFIRMED".equalsIgnoreCase(oldStatus)) {
+            allocateCompanyFleet(updated);
             generateInvoiceForOrder(updated);
+            auditLogService.log("SALES_ORDER_CONFIRMED", "FUEL_ORDER", updated.getId(), updated.getCustomer().getCustomerCode(),
+                    "Sales confirmed order " + updated.getOrderNumber() + "; fleet allocated and invoice sent to Finance.");
         }
         FuelOrderResponse response = fuelOrderMapper.toResponse(updated);
         nullifyProductQuantityIfCustomer(response);
@@ -435,7 +458,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Fuel order not found with id: " + id));
         
         // Restore stock ONLY if it was APPROVED
-        if ("APPROVED".equalsIgnoreCase(order.getOrderStatus())) {
+        if ("SALES_CONFIRMED".equalsIgnoreCase(order.getOrderStatus())) {
             FuelProduct product = order.getProduct();
             product.setAvailableQuantity(product.getAvailableQuantity().add(order.getQuantity()));
             if (product.getAvailableQuantity().compareTo(BigDecimal.ZERO) > 0 && "UNAVAILABLE".equals(product.getStatus())) {
@@ -598,8 +621,8 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             fuelProductRepository.save(product);
         }
 
-        // 4. Update order status to APPROVED
-        order.setOrderStatus("APPROVED");
+        // 4. Update order status to SALES_CONFIRMED
+        order.setOrderStatus("SALES_CONFIRMED");
         FuelOrder savedOrder = fuelOrderRepository.save(order);
 
         // 5. Audit logs
@@ -627,11 +650,44 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         auditLogService.log("ORDER_APPROVED_WITH_EDIT", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(), editHistoryDetails);
 
         // 6. Generate Invoice
+        allocateCompanyFleet(savedOrder);
         generateInvoiceForOrder(savedOrder);
+        auditLogService.log("SALES_ORDER_CONFIRMED", "FUEL_ORDER", savedOrder.getId(), savedOrder.getCustomer().getCustomerCode(),
+                "Sales confirmed edited order " + savedOrder.getOrderNumber() + "; fleet allocated and invoice sent to Finance.");
 
         FuelOrderResponse response = fuelOrderMapper.toResponse(savedOrder);
         nullifyProductQuantityIfCustomer(response);
         return response;
+    }
+
+    /** Reserves the exact company fleet and finance rate before the invoice is issued. */
+    private void allocateCompanyFleet(FuelOrder order) {
+        if (orderTruckAllocationRepository.existsByOrderId(order.getId())) return;
+
+        BigDecimal remaining = order.getApprovedQuantity() != null ? order.getApprovedQuantity() : order.getQuantity();
+        BigDecimal totalTransport = BigDecimal.ZERO;
+        for (Vehicle vehicle : fleetAllocationService.suggest(order)) {
+            BigDecimal price = truckPricingRepository
+                    .findByCapacityAndFuelTypeIgnoreCaseAndActiveTrue(vehicle.getCapacity(), order.getProduct().getFuelType())
+                    .or(() -> truckPricingRepository.findByCapacityAndFuelTypeIgnoreCaseAndActiveTrue(vehicle.getCapacity(), "ALL"))
+                    .orElseThrow(() -> new BadRequestException("Finance must configure transport pricing for truck capacity " + vehicle.getCapacity()))
+                    .getTransportPrice();
+            BigDecimal allocatedQuantity = remaining.min(vehicle.getCapacity());
+            orderTruckAllocationRepository.save(OrderTruckAllocation.builder()
+                    .order(order).vehicle(vehicle).allocatedQuantity(allocatedQuantity)
+                    .capacitySnapshot(vehicle.getCapacity()).transportPrice(price).build());
+            remaining = remaining.subtract(allocatedQuantity);
+            totalTransport = totalTransport.add(price);
+            vehicle.setCurrentStatus("ASSIGNED");
+            vehicleRepository.save(vehicle);
+        }
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new BadRequestException("The available fleet cannot satisfy this order quantity.");
+        }
+        order.setTransportCharges(totalTransport);
+        fuelOrderRepository.save(order);
+        auditLogService.log("TRUCK_AUTO_ASSIGNED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
+                "Company fleet automatically allocated for order " + order.getOrderNumber() + "; transport charge " + totalTransport);
     }
 
     private void generateInvoiceForOrder(FuelOrder order) {
@@ -752,7 +808,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         log.info("Invoice generated successfully with invoice number: {}", savedInvoice.getInvoiceNumber());
 
         auditLogService.log(
-                "INVOICE_GENERATED",
+                "INVOICE_CREATED",
                 "INVOICE",
                 savedInvoice.getId() != null ? savedInvoice.getId() : 0L,
                 order.getCustomer().getCustomerCode(),

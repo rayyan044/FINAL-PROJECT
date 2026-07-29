@@ -356,6 +356,19 @@ button {
     padding: 0 !important;
     background: none !important;
   }
+  /* Delivery document previews are the printable documents; do not print the
+     surrounding modal controls or the Operations workspace behind them. */
+  .fef-modal-window > :not(.fef-print-area) {
+    display: none !important;
+  }
+  .fef-print-area {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
   /* Position the printable area at the very top-left of the page */
   #invoice-printable-area {
     width: 100% !important;
@@ -392,6 +405,15 @@ button {
   border-color: #fca5a5 !important;
   color: #b91c1c !important;
 }
+
+.operator-workflow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; margin-bottom: 20px; border: 1px solid var(--feftms-border, #e5e7eb); border-radius: 8px; background: var(--feftms-surface, rgba(255, 255, 255, 0.03)); }
+.operator-workflow-stages { display: flex; flex: 1; justify-content: space-between; gap: 8px; }
+.operator-workflow-stage { display: flex; align-items: center; gap: 6px; color: var(--feftms-text-muted); font-size: 12px; }
+.operator-workflow-stage span { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; font-weight: 700; }
+.operator-workflow-stage.is-complete, .operator-workflow-stage.is-current { color: var(--feftms-primary, #f97316); }
+.operator-workflow-stage.is-current small { font-weight: 700; }
+.operator-workflow-next { white-space: nowrap; }
+@media (max-width: 700px) { .operator-workflow { align-items: flex-start; flex-direction: column; } .operator-workflow-stages { flex-wrap: wrap; justify-content: flex-start; } }
 
 @media (max-width: 480px) {
   [data-sonner-toaster][data-x-position="right"] {

@@ -30,6 +30,7 @@ import {
   togglePaymentAccountStatus,
 } from "../services/paymentAccountService";
 import { getCompanySettings, updateCompanySettings } from "../services/companySettingsService";
+import { listTruckPricing, saveTruckPricing } from "../services/truckPricingService";
 
 export const Route = createFileRoute("/finance")({
   head: () => ({ meta: [{ title: "Finance Desk — FEFTMS" }] }),
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/finance")({
 const SIDE = [
   { key: "dash", label: "Dashboard", icon: FiHome },
   { key: "pricing", label: "Fuel Pricing", icon: FiDollarSign },
+  { key: "transportPricing", label: "Transport Pricing", icon: FiActivity },
   { key: "invoices", label: "Invoices", icon: FiFileText },
   { key: "paymentAccounts", label: "Payment Accounts", icon: FiCreditCard },
   { key: "companySettings", label: "Company Settings", icon: FiSettings },
@@ -56,6 +58,9 @@ function FinanceDash() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [truckPricing, setTruckPricing] = useState([]);
+  const [transportForm, setTransportForm] = useState({ capacity: "", fuelType: "", transportPrice: "", active: true });
+  const [showTransportModal, setShowTransportModal] = useState(false);
 
   // Modals
   const [showEditModal, setShowEditModal] = useState(false);
@@ -139,6 +144,20 @@ function FinanceDash() {
       });
   };
 
+  const loadTruckPricing = () => listTruckPricing().then((res) => setTruckPricing(res.data || res || [])).catch((err) => console.warn("Unable to load transport pricing", err));
+  const saveTransportPrice = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      await saveTruckPricing({ capacity: Number(transportForm.capacity), fuelType: transportForm.fuelType, transportPrice: Number(transportForm.transportPrice), active: transportForm.active }, transportForm.id);
+      setTransportForm({ capacity: "", fuelType: "", transportPrice: "", active: true });
+      setShowTransportModal(false);
+      setSuccess("Transport price saved. Existing allocations retain their snapshots.");
+      loadTruckPricing();
+    } catch (err) { setError(err?.message || "Unable to save transport price."); }
+  };
+
   const handleSaveCompanySettings = async (e) => {
     e.preventDefault();
     setError("");
@@ -193,6 +212,7 @@ function FinanceDash() {
     if (activeTab === "companySettings") {
       loadCompanySettings();
     }
+    if (activeTab === "transportPricing") loadTruckPricing();
   }, [activeTab]);
 
   const handleEditPriceClick = (prod) => {
@@ -494,6 +514,14 @@ function FinanceDash() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === "transportPricing" && (
+          <div className="fef-panel" style={{ marginTop: 24 }}>
+            <div className="fef-panel-head"><div><h3>Capacity-based Transport Pricing</h3><p style={{ margin: 0, color: "var(--feftms-text-muted)" }}>Set a transport rate for each truck capacity and compatible fuel type.</p></div><button className="fef-btn fef-btn-primary" onClick={() => { setTransportForm({ capacity: "", fuelType: "", transportPrice: "", active: true }); setShowTransportModal(true); }}>Create Rate</button></div>
+            <div className="fef-table-wrap"><table className="fef-table"><thead><tr><th>Capacity</th><th>Fuel Type</th><th>Transport Price</th><th>Status</th><th>Action</th></tr></thead><tbody>{truckPricing.map((rate) => <tr key={rate.id}><td>{rate.capacity?.toLocaleString()} L</td><td>{rate.fuelType || "All Fuel Types"}</td><td>{rate.transportPrice?.toLocaleString()}</td><td>{rate.active ? "Active" : "Inactive"}</td><td><button className="fef-btn fef-btn-outline" onClick={() => { setTransportForm({ ...rate, fuelType: rate.fuelType || "" }); setShowTransportModal(true); }}>Edit</button></td></tr>)}</tbody></table></div>
+            {showTransportModal && typeof window !== "undefined" && createPortal(<div className="fef-modal-backdrop" onClick={() => setShowTransportModal(false)}><div className="fef-modal-window" style={{ maxWidth: 520 }} onClick={(event) => event.stopPropagation()}><button className="fef-modal-close" onClick={() => setShowTransportModal(false)}><FiX /></button><div className="fef-detail-modal-header"><h2 className="fef-detail-modal-title">{transportForm.id ? "Edit Transport Rate" : "Create Transport Rate"}</h2></div><form onSubmit={saveTransportPrice}><div className="fef-detail-modal-body"><div className="fef-field"><label className="fef-label">Truck Capacity (L)</label><input required type="number" min="0.01" step="0.01" className="fef-input" value={transportForm.capacity} onChange={(e) => setTransportForm({ ...transportForm, capacity: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Fuel Type</label><select required className="fef-select" value={transportForm.fuelType} onChange={(e) => setTransportForm({ ...transportForm, fuelType: e.target.value })}><option value="">Select fuel type</option>{[...new Set(products.map((product) => product.fuelType).filter(Boolean))].map((fuelType) => <option key={fuelType} value={fuelType}>{fuelType}</option>)}</select></div><div className="fef-field"><label className="fef-label">Transport Price</label><input required type="number" min="0" step="0.01" className="fef-input" value={transportForm.transportPrice} onChange={(e) => setTransportForm({ ...transportForm, transportPrice: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Status</label><select className="fef-select" value={transportForm.active ? "true" : "false"} onChange={(e) => setTransportForm({ ...transportForm, active: e.target.value === "true" })}><option value="true">Active</option><option value="false">Inactive</option></select></div></div><div className="fef-detail-modal-footer"><button type="button" className="fef-btn fef-btn-outline" onClick={() => setShowTransportModal(false)}>Cancel</button><button className="fef-btn fef-btn-primary">Save Rate</button></div></form></div></div>, document.body)}
           </div>
         )}
 

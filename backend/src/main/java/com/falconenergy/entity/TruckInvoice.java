@@ -54,6 +54,12 @@ public class TruckInvoice extends BaseEntity {
     @Column(name = "transport_company", length = 150)
     private String transportCompany;
 
+    @Column(name = "truck_capacity", precision = 12, scale = 2)
+    private BigDecimal truckCapacity;
+
+    @Column(name = "transport_charge", precision = 12, scale = 2)
+    private BigDecimal transportCharge;
+
     @Column(name = "quantity", precision = 12, scale = 2)
     private BigDecimal quantity;
 
@@ -65,7 +71,7 @@ public class TruckInvoice extends BaseEntity {
 
     @Column(name = "payment_status", nullable = false, length = 50)
     @Builder.Default
-    private String paymentStatus = "PAID";
+    private String paymentStatus = "PENDING_PAYMENT";
 
     @Column(name = "invoice_status", nullable = false, length = 50)
     private String invoiceStatus; // GENERATED, PRINTED

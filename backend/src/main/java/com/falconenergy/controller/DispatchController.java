@@ -46,12 +46,8 @@ public class DispatchController {
     @GetMapping("/activity/{activityId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_DISPATCHER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
     public ResponseEntity<ApiResponse<DispatchResponse>> getDispatchByActivityId(@PathVariable Long activityId) {
-        try {
-            DispatchResponse response = dispatchService.getDispatchByActivityId(activityId);
-            return ResponseEntity.ok(ApiResponse.success("Dispatch record retrieved successfully", response));
-        } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.success("Dispatch record not found", null));
-        }
+        DispatchResponse response = dispatchService.getDispatchByActivityId(activityId);
+        return ResponseEntity.ok(ApiResponse.success("Dispatch record retrieved successfully", response));
     }
 
     @PostMapping("/{id}/release")

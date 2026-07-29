@@ -11,4 +11,7 @@ import java.util.Optional;
 public interface VehicleRepository extends JpaRepository<Vehicle, Long>, JpaSpecificationExecutor<Vehicle> {
     Optional<Vehicle> findByPlateNumber(String plateNumber);
     boolean existsByPlateNumber(String plateNumber);
+    boolean existsByTruckNumber(String truckNumber);
+    Optional<Vehicle> findByTruckNumber(String truckNumber);
+    java.util.List<Vehicle> findByActiveTrueAndCurrentStatusIgnoreCase(String currentStatus);
 }

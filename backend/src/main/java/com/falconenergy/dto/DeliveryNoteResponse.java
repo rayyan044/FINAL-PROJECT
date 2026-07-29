@@ -23,6 +23,8 @@ public class DeliveryNoteResponse {
     private String driverName;
     private String driverLicenseNumber;
     private String transportCompany;
+    private BigDecimal truckCapacity;
+    private BigDecimal transportCharge;
     private BigDecimal ambientVolume;
     private BigDecimal standardVolume;
     private String destination;

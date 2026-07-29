@@ -43,7 +43,6 @@ import {
   startLoadingActivity,
   completeLoadingActivity,
 } from "../services/loadingOrderService";
-import { rejectNomination, approveNomination, getNominationByOrderId } from "../services/truckNominationService";
 import "../styles/forms.css";
 import falconLogo from "../assets/falcon-logo.png";
 
@@ -97,14 +96,12 @@ function OpsDash() {
   });
 
   const [showVehicleModal, setShowVehicleModal] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState({ plateNumber: "", capacity: "", driverId: "" });
+  const [vehicleForm, setVehicleForm] = useState({ truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: "", currentStatus: "AVAILABLE" });
 
   const [showStockModal, setShowStockModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [stockForm, setStockForm] = useState({
-    actionType: "ADD", // ADD, SUBTRACT, STATUS_ONLY
     quantity: "",
-    overrideStatus: "",
   });
 
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
@@ -182,16 +179,6 @@ function OpsDash() {
     consignee: "",
     loadingRemarks: "",
   });
-  const [showRejectNominationModal, setShowRejectNominationModal] = useState(false);
-  const [selectedOrderForRejection, setSelectedOrderForRejection] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState("");
-
-  const [showReviewNominationModal, setShowReviewNominationModal] = useState(false);
-  const [selectedOrderForReview, setSelectedOrderForReview] = useState(null);
-  const [nominationDetails, setNominationDetails] = useState(null);
-  const [nominationDetailsLoading, setNominationDetailsLoading] = useState(false);
-  const [submittingNomination, setSubmittingNomination] = useState(false);
-
   const [showEditLOForm, setShowEditLOForm] = useState(false);
   const [editingLO, setEditingLO] = useState(null);
   const [editLOForm, setEditLOForm] = useState({
@@ -317,66 +304,6 @@ function OpsDash() {
       loadData();
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Failed to complete loading.");
-    }
-  };
-
-  const handleOpenRejectNomination = (order) => {
-    setSelectedOrderForRejection(order);
-    setRejectionReason("");
-    setShowRejectNominationModal(true);
-  };
-
-  const handleRejectNominationSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    try {
-      // Find nomination by orderId
-      // We will reject nomination using the order's nomination
-      // First we need to get the nomination id or we can query it
-      const nomRes = await getNominationByOrderId(selectedOrderForRejection.id);
-      const nom = nomRes.data || nomRes;
-      await rejectNomination(nom.id, rejectionReason);
-      setSuccess("Truck nomination changes requested. Returned to DRAFT status for Sales Officer.");
-      setShowRejectNominationModal(false);
-      setSelectedOrderForRejection(null);
-      loadData();
-    } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to request changes on truck nomination.");
-    }
-  };
-  const handleOpenReviewNomination = async (order) => {
-    setSelectedOrderForReview(order);
-    setShowReviewNominationModal(true);
-    setNominationDetailsLoading(true);
-    setNominationDetails(null);
-    setError("");
-    setSuccess("");
-    try {
-      const nomRes = await getNominationByOrderId(order.id);
-      const nom = nomRes.data || nomRes;
-      setNominationDetails(nom);
-    } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to retrieve nomination details.");
-    } finally {
-      setNominationDetailsLoading(false);
-    }
-  };
-
-  const handleApproveNomination = async () => {
-    if (!nominationDetails) return;
-    setSubmittingNomination(true);
-    setError("");
-    setSuccess("");
-    try {
-      await approveNomination(nominationDetails.id);
-      setSuccess("Truck nomination approved successfully.");
-      setShowReviewNominationModal(false);
-      loadData();
-    } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to approve nomination.");
-    } finally {
-      setSubmittingNomination(false);
     }
   };
 
@@ -645,14 +572,17 @@ function OpsDash() {
     setSuccess("");
     try {
       await createVehicle({
+        truckNumber: vehicleForm.truckNumber,
         plateNumber: vehicleForm.plateNumber,
         capacity: parseFloat(vehicleForm.capacity),
         driverId: vehicleForm.driverId ? parseInt(vehicleForm.driverId) : null,
-        currentStatus: "ACTIVE",
+        assignedFuelTypes: vehicleForm.assignedFuelTypes.split(",").map((value) => value.trim()).filter(Boolean),
+        currentStatus: vehicleForm.currentStatus,
+        active: true,
       });
       setSuccess("Vehicle registered successfully");
       setShowVehicleModal(false);
-      setVehicleForm({ plateNumber: "", capacity: "", driverId: "" });
+      setVehicleForm({ truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: "", currentStatus: "AVAILABLE" });
       loadData();
     } catch (err) {
       setError(err?.message || "Failed to register vehicle. Ensure plate number is unique.");
@@ -662,9 +592,7 @@ function OpsDash() {
   const handleOpenStockModal = (prod) => {
     setSelectedProduct(prod);
     setStockForm({
-      actionType: "ADD",
       quantity: "",
-      overrideStatus: prod.status,
     });
     setShowStockModal(true);
   };
@@ -676,33 +604,23 @@ function OpsDash() {
     if (!selectedProduct) return;
 
     try {
-      let finalQty = selectedProduct.availableQuantity;
+      const currentQty = Number(selectedProduct.availableQuantity || 0);
       const changeQty = parseFloat(stockForm.quantity);
-
-      if (stockForm.actionType !== "STATUS_ONLY") {
-        if (isNaN(changeQty) || changeQty <= 0) {
-          throw new Error("Quantity must be a positive number.");
-        }
-
-        if (stockForm.actionType === "ADD") {
-          finalQty += changeQty;
-        } else if (stockForm.actionType === "SUBTRACT") {
-          if (finalQty < changeQty) {
-            throw new Error(`Cannot subtract more than available stock (${finalQty} L).`);
-          }
-          finalQty -= changeQty;
-        }
+      if (isNaN(changeQty) || changeQty <= 0) {
+        throw new Error("Added quantity must be a positive number.");
       }
+      const finalQty = currentQty + changeQty;
 
       await updateProduct(selectedProduct.id, {
         productName: selectedProduct.productName,
         fuelType: selectedProduct.fuelType,
+        unitPrice: selectedProduct.unitPrice,
         density: selectedProduct.density,
         availableQuantity: finalQty,
-        status: stockForm.overrideStatus || (finalQty > 0 ? "ACTIVE" : "UNAVAILABLE"),
+        status: "ACTIVE",
       });
 
-      setSuccess(`Inventory for ${selectedProduct.productName} updated successfully.`);
+      setSuccess(`${changeQty.toLocaleString()} L added to ${selectedProduct.productName}.`);
       setShowStockModal(false);
       setSelectedProduct(null);
       loadData();
@@ -931,9 +849,6 @@ function OpsDash() {
                         <span className={`fef-badge fef-badge-${selectedOrderForLO.orderStatus?.toLowerCase()}`}>
                           {selectedOrderForLO.orderStatus}
                         </span>
-                        <span className={`fef-badge fef-badge-${selectedOrderForLO.truckNominationStatus === "APPROVED" ? "success" : "warning"}`} style={{ fontSize: "11px" }}>
-                          Nomination: {selectedOrderForLO.truckNominationStatus || "PENDING"}
-                        </span>
                       </div>
                       <h2 className="fef-detail-modal-title">Create Loading Order</h2>
                     </div>
@@ -1017,197 +932,6 @@ function OpsDash() {
             }
 
             {/* Request Changes Modal */}
-            {showRejectNominationModal && selectedOrderForRejection && (
-              <div className="fef-card" style={{ padding: 20, marginBottom: 24, background: "rgba(255,255,255,0.05)" }}>
-                <h4>Request Truck Nomination Changes for Order {selectedOrderForRejection.orderNumber}</h4>
-                <form onSubmit={handleRejectNominationSubmit} style={{ marginTop: 15 }}>
-                  <div className="fef-field">
-                    <label className="fef-label">Specify Required Corrections / Remarks</label>
-                    <textarea
-                      required
-                      className="fef-input"
-                      rows="3"
-                      placeholder="Specify why changes are requested (e.g. Invalid driver licence, allocated qty mismatch, etc.)"
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                    />
-                  </div>
-                  <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
-                    <button type="submit" className="fef-btn fef-btn-danger">
-                      Request Revisions
-                    </button>
-                    <button
-                      type="button"
-                      className="fef-btn fef-btn-outline"
-                      onClick={() => {
-                        setShowRejectNominationModal(false);
-                        setSelectedOrderForRejection(null);
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* Review Nomination Popup Modal */}
-            {showReviewNominationModal &&
-              selectedOrderForReview &&
-              typeof window !== "undefined" &&
-              createPortal(
-                <div className="fef-modal-backdrop" onClick={() => setShowReviewNominationModal(false)}>
-                  <div className="fef-modal-window" style={{ maxWidth: "850px" }} onClick={(e) => e.stopPropagation()}>
-                    <button className="fef-modal-close" onClick={() => setShowReviewNominationModal(false)}>
-                      <FiX />
-                    </button>
-                    
-                    <div className="fef-detail-modal-header">
-                      <div className="fef-badge-row">
-                        <span className="fef-badge fef-badge-pending" style={{ fontSize: "11px" }}>
-                          {selectedOrderForReview.orderNumber}
-                        </span>
-                        <span className={`fef-badge fef-badge-${selectedOrderForReview.orderStatus?.toLowerCase()}`}>
-                          {selectedOrderForReview.orderStatus}
-                        </span>
-                        <span className={`fef-badge fef-badge-${selectedOrderForReview.truckNominationStatus === "APPROVED" ? "success" : "warning"}`} style={{ fontSize: "11px" }}>
-                          Nomination: {selectedOrderForReview.truckNominationStatus || "PENDING"}
-                        </span>
-                      </div>
-                      <h2 className="fef-detail-modal-title">Truck Nomination Details</h2>
-                    </div>
-
-                    <div className="fef-detail-modal-body" style={{ maxHeight: "60vh", overflowY: "auto" }}>
-                      {error && (
-                        <div className="fef-alert fef-alert-danger" style={{ marginBottom: 15 }}>
-                          <FiAlertCircle style={{ verticalAlign: "-2px", marginRight: 6 }} />
-                          {error}
-                        </div>
-                      )}
-                      {nominationDetailsLoading && <p>Loading nomination details...</p>}
-                      {!nominationDetailsLoading && !nominationDetails && <p style={{ color: "#EF4444" }}>Could not load nomination details.</p>}
-                      {!nominationDetailsLoading && nominationDetails && (
-                        <div>
-                          {/* Summary Section */}
-                          <div className="fef-detail-section">
-                            <h4 className="fef-detail-section-title">Transport Summary</h4>
-                            <div className="fef-detail-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-                              <div className="fef-detail-item">
-                                <span className="fef-detail-label">Customer Transport</span>
-                                <span className="fef-detail-value">
-                                  {nominationDetails.transportSource === "CUSTOMER_TRUCKS" ? "Yes (Customer Own)" : "No (Falcon Arranged)"}
-                                </span>
-                              </div>
-                              {nominationDetails.transportSource === "CUSTOMER_TRUCKS" && (
-                                <div className="fef-detail-item">
-                                  <span className="fef-detail-label">Number of Trucks</span>
-                                  <span className="fef-detail-value">{nominationDetails.numberOfTrucks}</span>
-                                </div>
-                              )}
-                              <div className="fef-detail-item">
-                                <span className="fef-detail-label">Total Allocated Quantity</span>
-                                <span className="fef-detail-value">{nominationDetails.totalAllocatedQuantity?.toLocaleString()} L</span>
-                              </div>
-                            </div>
-
-                            {nominationDetails.confirmationNotes && (
-                              <div style={{ marginTop: 15 }}>
-                                <span className="fef-detail-label">Logistics Notes</span>
-                                <p className="fef-detail-value" style={{ margin: "5px 0 0 0", fontSize: 13, background: "rgba(255,255,255,0.02)", padding: 10, borderRadius: 4 }}>
-                                  {nominationDetails.confirmationNotes}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Trucks Section */}
-                          <div className="fef-detail-section" style={{ marginTop: 25 }}>
-                            <h4 className="fef-detail-section-title">Nominated Trucks</h4>
-                            <div className="fef-table-wrap" style={{ marginTop: 10 }}>
-                              <table className="fef-table" style={{ fontSize: 12 }}>
-                                <thead>
-                                  <tr>
-                                    <th>Truck No</th>
-                                    <th>Trailer No</th>
-                                    <th>Driver Name</th>
-                                    <th>Licence</th>
-                                    <th>Passport/ID</th>
-                                    <th>Transporter</th>
-                                    <th>Destination</th>
-                                    <th>Capacity</th>
-                                    <th>Allocated</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {nominationDetails.items?.map((item, idx) => (
-                                    <tr key={idx}>
-                                      <td><strong>{item.truckNumber}</strong></td>
-                                      <td>{item.trailerNumber || "N/A"}</td>
-                                      <td>{item.driverName}</td>
-                                      <td>{item.driverLicenceNumber}</td>
-                                      <td>{item.driverPassport || "N/A"}</td>
-                                      <td>{item.transportCompany}</td>
-                                      <td>{item.destination}</td>
-                                      <td>{item.truckCapacity?.toLocaleString()} L</td>
-                                      <td><strong>{item.allocatedQuantity?.toLocaleString()} L</strong></td>
-                                    </tr>
-                                  ))}
-                                  {(!nominationDetails.items || nominationDetails.items.length === 0) && (
-                                    <tr>
-                                      <td colSpan="9" style={{ textAlign: "center", padding: 20, color: "var(--feftms-text-muted)" }}>
-                                        No nominated trucks. Allocation will be handled during Loading Order drafting.
-                                      </td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="fef-detail-modal-footer" style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        className="fef-btn fef-btn-outline fef-detail-close-btn"
-                        onClick={() => setShowReviewNominationModal(false)}
-                        style={{ margin: 0 }}
-                      >
-                        Close
-                      </button>
-                      {!nominationDetailsLoading && nominationDetails && (
-                        <>
-                          <button
-                            type="button"
-                            className="fef-btn fef-btn-outline"
-                            onClick={() => {
-                              setShowReviewNominationModal(false);
-                              handleOpenRejectNomination(selectedOrderForReview);
-                            }}
-                            disabled={submittingNomination}
-                            style={{ color: "#EF4444", borderColor: "rgba(239, 68, 68, 0.4)", margin: 0 }}
-                          >
-                            Request Changes
-                          </button>
-                          <button
-                            type="button"
-                            className="fef-btn fef-btn-primary"
-                            onClick={handleApproveNomination}
-                            disabled={submittingNomination}
-                            style={{ background: "#10B981", margin: 0 }}
-                          >
-                            {submittingNomination ? "Approving..." : "Approve Nomination"}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>,
-                document.body
-              )
-            }
-
             {/* Edit Loading Order Card */}
             {showEditLOForm &&
               editingLO &&
@@ -1473,7 +1197,7 @@ function OpsDash() {
                 <div className="fef-panel-head" style={{ marginBottom: 15 }}>
                   <h3>Customer Orders Ready for Loading</h3>
                   <span className="fef-badge fef-badge-info" style={{ fontSize: 12 }}>
-                    Pending Action: {ordersList.filter(o => o.orderStatus === "READY_FOR_LOADING" && o.paymentStatus === "PAID" && !loadingOrdersList.some(lo => lo.orderId === o.id)).length}
+                    Pending Action: {ordersList.filter(o => o.orderStatus === "PAYMENT_CONFIRMED" && o.paymentStatus === "PAID" && !loadingOrdersList.some(lo => lo.orderId === o.id)).length}
                   </span>
                 </div>
                 <div className="fef-table-wrap">
@@ -1490,7 +1214,7 @@ function OpsDash() {
                     </thead>
                     <tbody>
                       {ordersList
-                        .filter((o) => o.orderStatus === "READY_FOR_LOADING" && o.paymentStatus === "PAID" && !loadingOrdersList.some(lo => lo.orderId === o.id))
+                        .filter((o) => o.orderStatus === "PAYMENT_CONFIRMED" && o.paymentStatus === "PAID" && !loadingOrdersList.some(lo => lo.orderId === o.id))
                         .map((o) => (
                           <tr key={o.id}>
                             <td>{o.orderNumber}</td>
@@ -1498,43 +1222,14 @@ function OpsDash() {
                             <td>{o.productName}</td>
                             <td>{(o.approvedQuantity || o.quantity)?.toLocaleString()} L</td>
                             <td>
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <span className="fef-badge fef-badge-success" style={{ alignSelf: "flex-start" }}>Ready for Loading</span>
-                                <span className={`fef-badge fef-badge-${o.truckNominationStatus === "APPROVED" ? "success" : "warning"}`} style={{ alignSelf: "flex-start", fontSize: 10 }}>
-                                  Nomination: {o.truckNominationStatus || "PENDING"}
-                                </span>
-                              </div>
+                              <span className="fef-badge fef-badge-success" style={{ alignSelf: "flex-start" }}>Payment Confirmed</span>
                             </td>
                             <td>
-                              <div style={{ display: "flex", gap: 8 }}>
-                                {o.truckNominationStatus === "APPROVED" ? (
-                                  <button
-                                    className="fef-btn fef-btn-primary"
-                                    onClick={() => handleOpenCreateLO(o)}
-                                  >
-                                    Create Loading Order
-                                  </button>
-                                ) : (
-                                  <button
-                                    className="fef-btn fef-btn-primary"
-                                    onClick={() => handleOpenReviewNomination(o)}
-                                    style={{ background: "#3B82F6" }}
-                                  >
-                                    Review Nomination
-                                  </button>
-                                )}
-                                <button
-                                  className="fef-btn fef-btn-outline"
-                                  onClick={() => handleOpenRejectNomination(o)}
-                                  style={{ color: "#EF4444", borderColor: "rgba(239, 68, 68, 0.4)" }}
-                                >
-                                  Request Changes
-                                </button>
-                              </div>
+                              <button className="fef-btn fef-btn-primary" onClick={() => handleOpenCreateLO(o)}>Create Loading Order</button>
                             </td>
                           </tr>
                         ))}
-                      {ordersList.filter((o) => o.orderStatus === "READY_FOR_LOADING" && o.paymentStatus === "PAID" && !loadingOrdersList.some(lo => lo.orderId === o.id)).length === 0 && (
+                      {ordersList.filter((o) => o.orderStatus === "PAYMENT_CONFIRMED" && o.paymentStatus === "PAID" && !loadingOrdersList.some(lo => lo.orderId === o.id)).length === 0 && (
                         <tr>
                           <td colSpan="6" style={{ textAlign: "center", color: "var(--feftms-text-muted)", padding: 20 }}>
                             No pending customer orders ready for loading order creation.
@@ -2178,6 +1873,10 @@ function OpsDash() {
                 <form onSubmit={handleCreateVehicle} style={{ marginTop: 15 }}>
                   <div className="fef-form-grid">
                     <div className="fef-field">
+                      <label className="fef-label">Truck Number</label>
+                      <input required className="fef-input" value={vehicleForm.truckNumber} onChange={(e) => setVehicleForm({ ...vehicleForm, truckNumber: e.target.value })} placeholder="FAL-001" />
+                    </div>
+                    <div className="fef-field">
                       <label className="fef-label">Plate Number</label>
                       <input
                         required
@@ -2217,6 +1916,16 @@ function OpsDash() {
                             {d.firstName} {d.lastName}
                           </option>
                         ))}
+                      </select>
+                    </div>
+                    <div className="fef-field">
+                      <label className="fef-label">Compatible Fuel Products</label>
+                      <input required className="fef-input" value={vehicleForm.assignedFuelTypes} onChange={(e) => setVehicleForm({ ...vehicleForm, assignedFuelTypes: e.target.value })} placeholder="Diesel, Petrol" />
+                    </div>
+                    <div className="fef-field">
+                      <label className="fef-label">Fleet Status</label>
+                      <select className="fef-select" value={vehicleForm.currentStatus} onChange={(e) => setVehicleForm({ ...vehicleForm, currentStatus: e.target.value })}>
+                        <option value="AVAILABLE">Available</option><option value="MAINTENANCE">Maintenance</option><option value="OUT_OF_SERVICE">Out of Service</option>
                       </select>
                     </div>
                   </div>
@@ -2459,7 +2168,7 @@ function OpsDash() {
                             style={{ padding: "6px 12px", fontSize: "13px" }}
                             onClick={() => handleOpenStockModal(p)}
                           >
-                            Adjust Stock / Status
+                          Receive Stock
                           </button>
                           <button
                             className="fef-btn fef-btn-danger"
@@ -2493,7 +2202,7 @@ function OpsDash() {
                   <FiX />
                 </button>
                 <div className="fef-detail-modal-header">
-                  <h2 className="fef-detail-modal-title">Inventory Adjustment</h2>
+                  <h2 className="fef-detail-modal-title">Receive Fuel Stock</h2>
                   <p style={{ margin: "4px 0 0", color: "var(--feftms-text-muted)" }}>
                     Update available stock for {selectedProduct.productName} (Current:{" "}
                     {selectedProduct.availableQuantity?.toLocaleString()} L)
@@ -2502,52 +2211,8 @@ function OpsDash() {
                 <form onSubmit={handleStockSubmit} style={{ marginTop: 20 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <div className="fef-field">
-                      <label className="fef-label">Adjustment Type</label>
-                      <select
-                        className="fef-select"
-                        value={stockForm.actionType}
-                        onChange={(e) => setStockForm({ ...stockForm, actionType: e.target.value })}
-                      >
-                        <option value="ADD">Add Received Fuel Delivery (Increase Stock)</option>
-                        <option value="SUBTRACT">
-                          Inventory Adjustment / Shrinkage (Decrease Stock)
-                        </option>
-                        <option value="STATUS_ONLY">
-                          Manual Availability Status Override Only
-                        </option>
-                      </select>
-                    </div>
-
-                    {stockForm.actionType !== "STATUS_ONLY" && (
-                      <div className="fef-field">
-                        <label className="fef-label">Quantity (Litres)</label>
-                        <input
-                          required
-                          type="number"
-                          min="1"
-                          className="fef-input"
-                          value={stockForm.quantity}
-                          onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })}
-                          placeholder="e.g. 5000"
-                        />
-                      </div>
-                    )}
-
-                    <div className="fef-field">
-                      <label className="fef-label">Status Override / Manual Control</label>
-                      <select
-                        className="fef-select"
-                        value={stockForm.overrideStatus}
-                        onChange={(e) =>
-                          setStockForm({ ...stockForm, overrideStatus: e.target.value })
-                        }
-                      >
-                        <option value="">-- Auto Determine (Active if stock &gt; 0) --</option>
-                        <option value="ACTIVE">FORCE AVAILABLE (ACTIVE)</option>
-                        <option value="UNAVAILABLE">
-                          FORCE UNAVAILABLE (Tank maintenance, contamination, etc.)
-                        </option>
-                      </select>
+                      <label className="fef-label">Received Quantity (Litres)</label>
+                      <input required type="number" min="0.01" step="0.01" className="fef-input" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: e.target.value })} placeholder="e.g. 5000" />
                     </div>
 
                     <div className="fef-field" style={{ opacity: 0.6 }}>

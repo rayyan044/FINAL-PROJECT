@@ -337,6 +337,7 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
   const levies = currentInvoice.levies || order.levies || 0;
   const discount = currentInvoice.discount || order.discount || 0;
   const transportCharges = currentInvoice.transportCharges || order.transportCharges || 0;
+  const transportAllocations = currentInvoice.transportAllocations || [];
   const deliveryCharges = currentInvoice.deliveryCharges || order.deliveryCharges || 0;
   const additionalCharges = currentInvoice.additionalCharges || order.additionalCharges || 0;
 
@@ -987,27 +988,25 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
                             </tr>
                           )}
                           {transportCharges > 0 && (
-                            <tr>
-                              <td
-                                style={{
-                                  border: "1px solid #000000",
-                                  padding: "8px 12px",
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                TRANSPORT:
-                              </td>
-                              <td
-                                colSpan={3}
-                                style={{ border: "1px solid #000000", padding: "8px 12px" }}
-                              >
-                                {currencySymbol}{" "}
-                                {transportCharges.toLocaleString(undefined, {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
-                              </td>
-                            </tr>
+                            <>
+                              <tr>
+                                <td colSpan={4} style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold", background: "#f4f4f4" }}>TRANSPORT DETAILS</td>
+                              </tr>
+                              {transportAllocations.map((allocation, index) => (
+                                <tr key={allocation.vehicleId || index}>
+                                  <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>TRUCK {index + 1}:</td>
+                                  <td colSpan={2} style={{ border: "1px solid #000000", padding: "8px 12px" }}>
+                                    {allocation.truckNumber} {allocation.plateNumber ? `(${allocation.plateNumber})` : ""} — {Number(allocation.capacity || 0).toLocaleString()} L
+                                    {allocation.driverName ? ` — Driver: ${allocation.driverName}` : ""}
+                                  </td>
+                                  <td style={{ border: "1px solid #000000", padding: "8px 12px" }}>{currencySymbol} {Number(allocation.transportPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td style={{ border: "1px solid #000000", padding: "8px 12px", fontWeight: "bold" }}>TRANSPORT TOTAL:</td>
+                                <td colSpan={3} style={{ border: "1px solid #000000", padding: "8px 12px" }}>{currencySymbol} {transportCharges.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              </tr>
+                            </>
                           )}
                           {deliveryCharges > 0 && (
                             <tr>

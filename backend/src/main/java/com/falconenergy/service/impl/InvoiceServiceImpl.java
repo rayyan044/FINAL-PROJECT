@@ -2,6 +2,7 @@ package com.falconenergy.service.impl;
 
 import com.falconenergy.dto.InvoiceResponse;
 import com.falconenergy.dto.FuelProductResponse;
+import com.falconenergy.dto.TransportAllocationResponse;
 import com.falconenergy.entity.Invoice;
 import com.falconenergy.entity.CompanySettings;
 import com.falconenergy.entity.PaymentAccount;
@@ -17,6 +18,9 @@ import com.falconenergy.repository.CompanySettingsRepository;
 import com.falconenergy.repository.PaymentAccountRepository;
 import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.FuelProductRepository;
+import com.falconenergy.repository.OrderTruckAllocationRepository;
+import com.falconenergy.service.LoadingOrderService;
+import com.falconenergy.dto.LoadingOrderRequest;
 import com.falconenergy.service.InvoiceService;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.SystemSettingService;
@@ -43,6 +47,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final FuelProductRepository fuelProductRepository;
     private final FuelProductMapper fuelProductMapper;
     private final SystemSettingService systemSettingService;
+    private final OrderTruckAllocationRepository orderTruckAllocationRepository;
+    private final LoadingOrderService loadingOrderService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -54,7 +60,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             FuelOrderRepository fuelOrderRepository,
             FuelProductRepository fuelProductRepository,
             FuelProductMapper fuelProductMapper,
-            SystemSettingService systemSettingService
+            SystemSettingService systemSettingService,
+            OrderTruckAllocationRepository orderTruckAllocationRepository,
+            LoadingOrderService loadingOrderService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceMapper = invoiceMapper;
@@ -66,6 +74,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.fuelProductRepository = fuelProductRepository;
         this.fuelProductMapper = fuelProductMapper;
         this.systemSettingService = systemSettingService;
+        this.orderTruckAllocationRepository = orderTruckAllocationRepository;
+        this.loadingOrderService = loadingOrderService;
     }
 
     private InvoiceResponse mapToResponse(Invoice invoice) {
@@ -136,6 +146,20 @@ public class InvoiceServiceImpl implements InvoiceService {
 
             response.setCompanyDetails(companySettingsMapper.toResponse(companySettings));
 
+            if (invoice.getOrder() != null) {
+                response.setTransportAllocations(orderTruckAllocationRepository.findByOrderId(invoice.getOrder().getId()).stream()
+                        .map(allocation -> TransportAllocationResponse.builder()
+                                .vehicleId(allocation.getVehicle().getId())
+                                .truckNumber(allocation.getVehicle().getTruckNumber())
+                                .plateNumber(allocation.getVehicle().getPlateNumber())
+                                .capacity(allocation.getCapacitySnapshot())
+                                .driverName(allocation.getVehicle().getDriver() == null ? null : allocation.getVehicle().getDriver().getFirstName() + " " + allocation.getVehicle().getDriver().getLastName())
+                                .transportCompany("FALCON ENERGY")
+                                .allocatedQuantity(allocation.getAllocatedQuantity())
+                                .transportPrice(allocation.getTransportPrice())
+                                .build()).toList());
+            }
+
             // Override payment instructions if dynamic setting is configured
             String dynamicInstructions = systemSettingService.getSetting("PAYMENT_INSTRUCTIONS");
             if (dynamicInstructions != null && !dynamicInstructions.isBlank()) {
@@ -187,6 +211,16 @@ public class InvoiceServiceImpl implements InvoiceService {
                     order.getCustomer().getCustomerCode(),
                     "Order status changed from " + prevStatus + " to PAYMENT_CONFIRMED after payment confirmation"
             );
+
+            // The loading order is generated from the Sales-confirmed allocation; Operations never selects trucks.
+            if (order.getLoadingOrder() == null) {
+                loadingOrderService.createLoadingOrder(LoadingOrderRequest.builder()
+                        .orderId(order.getId())
+                        .loadingTerminal("Main Terminal")
+                        .consignee(order.getCustomer().getCompanyName())
+                        .loadingRemarks("Automatically released after Finance payment confirmation")
+                        .build());
+            }
         }
 
         Invoice updated = invoiceRepository.save(invoice);
@@ -198,6 +232,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                 updated.getOrder().getCustomer().getCustomerCode(),
                 "Invoice payment approved by " + approvedBy
         );
+        auditLogService.log("PAYMENT_APPROVED", "INVOICE", updated.getId(), updated.getOrder().getCustomer().getCustomerCode(),
+                "Finance approved payment for invoice " + updated.getInvoiceNumber());
 
         return mapToResponse(updated);
     }

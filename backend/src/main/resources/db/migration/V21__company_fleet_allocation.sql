@@ -1,0 +1,9 @@
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS truck_number VARCHAR(50);
+UPDATE vehicles SET truck_number = plate_number WHERE truck_number IS NULL;
+ALTER TABLE vehicles ALTER COLUMN truck_number SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_vehicles_truck_number ON vehicles(truck_number);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
+CREATE TABLE IF NOT EXISTS vehicle_fuel_types (vehicle_id BIGINT NOT NULL REFERENCES vehicles(id), fuel_type VARCHAR(50) NOT NULL, PRIMARY KEY(vehicle_id, fuel_type));
+CREATE TABLE IF NOT EXISTS truck_pricing (id BIGSERIAL PRIMARY KEY, capacity DECIMAL(12,2) NOT NULL UNIQUE, transport_price DECIMAL(12,2) NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, created_by VARCHAR(50), updated_by VARCHAR(50), deleted BOOLEAN NOT NULL DEFAULT FALSE, deleted_at TIMESTAMP);
+ALTER TABLE loading_activities ADD COLUMN IF NOT EXISTS vehicle_id BIGINT REFERENCES vehicles(id);
+ALTER TABLE loading_activities ADD COLUMN IF NOT EXISTS transport_charge DECIMAL(12,2) NOT NULL DEFAULT 0;

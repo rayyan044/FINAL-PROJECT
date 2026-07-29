@@ -29,6 +29,8 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final DispatchRepository dispatchRepository;
     private final LoadingActivityRepository loadingActivityRepository;
     private final LoadingOrderRepository loadingOrderRepository;
+    private final FuelOrderRepository fuelOrderRepository;
+    private final VehicleRepository vehicleRepository;
     private final DeliveryMapper deliveryMapper;
 
     @Override
@@ -140,6 +142,10 @@ public class DeliveryServiceImpl implements DeliveryService {
         if (activity != null) {
             activity.setStatus(LoadingActivityStatus.DELIVERED);
             loadingActivityRepository.save(activity);
+            if (activity.getVehicle() != null) {
+                activity.getVehicle().setCurrentStatus("AVAILABLE");
+                vehicleRepository.save(activity.getVehicle());
+            }
 
             // Check & Update LoadingOrder Status if ALL activities under it are now DELIVERED
             checkAndUpdateOrderStatus(activity.getLoadingOrder());
@@ -171,6 +177,12 @@ public class DeliveryServiceImpl implements DeliveryService {
         if (allDelivered && !activities.isEmpty()) {
             loadingOrder.setStatus(LoadingOrderStatus.DELIVERED);
             loadingOrderRepository.save(loadingOrder);
+
+            FuelOrder fuelOrder = loadingOrder.getOrder();
+            if (fuelOrder != null) {
+                fuelOrder.setOrderStatus("DELIVERED");
+                fuelOrderRepository.save(fuelOrder);
+            }
         }
     }
 

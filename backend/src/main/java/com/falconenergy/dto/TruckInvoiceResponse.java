@@ -23,6 +23,8 @@ public class TruckInvoiceResponse {
     private String truckNumber;
     private String driverName;
     private String transportCompany;
+    private BigDecimal truckCapacity;
+    private BigDecimal transportCharge;
     private BigDecimal quantity;
     private BigDecimal unitPrice;
     private BigDecimal totalAmount;

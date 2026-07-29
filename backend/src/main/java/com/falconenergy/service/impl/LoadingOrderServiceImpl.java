@@ -17,22 +17,26 @@ import com.falconenergy.entity.InventoryTransaction;
 import com.falconenergy.entity.LoadingReport;
 import com.falconenergy.entity.User;
 import com.falconenergy.entity.FuelProduct;
-import com.falconenergy.entity.TruckNomination;
-import com.falconenergy.entity.TruckNominationItem;
+import com.falconenergy.entity.Vehicle;
 import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.exception.ResourceNotFoundException;
 import com.falconenergy.mapper.LoadingOrderMapper;
 import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.LoadingOrderRepository;
 import com.falconenergy.repository.LoadingActivityRepository;
-import com.falconenergy.repository.TruckNominationRepository;
+import com.falconenergy.repository.VehicleRepository;
+import com.falconenergy.repository.TruckPricingRepository;
 import com.falconenergy.repository.UserRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.LoadingCompartmentRepository;
 import com.falconenergy.repository.InventoryTransactionRepository;
 import com.falconenergy.repository.LoadingReportRepository;
+import com.falconenergy.repository.InvoiceRepository;
+import com.falconenergy.repository.OrderTruckAllocationRepository;
+import com.falconenergy.entity.OrderTruckAllocation;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.LoadingOrderService;
+import com.falconenergy.service.FleetAllocationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -56,7 +60,9 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
     private final LoadingOrderRepository loadingOrderRepository;
     private final LoadingActivityRepository loadingActivityRepository;
     private final FuelOrderRepository fuelOrderRepository;
-    private final TruckNominationRepository truckNominationRepository;
+    private final VehicleRepository vehicleRepository;
+    private final TruckPricingRepository truckPricingRepository;
+    private final FleetAllocationService fleetAllocationService;
     private final LoadingOrderMapper loadingOrderMapper;
     private final AuditLogService auditLogService;
     private final UserRepository userRepository;
@@ -64,15 +70,17 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
     private final LoadingCompartmentRepository loadingCompartmentRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final LoadingReportRepository loadingReportRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final OrderTruckAllocationRepository orderTruckAllocationRepository;
 
     @Override
     public LoadingOrderResponse createLoadingOrder(LoadingOrderRequest request) {
         FuelOrder order = fuelOrderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Fuel Order not found with id: " + request.getOrderId()));
 
-        // Verification 1: Order status must be READY_FOR_LOADING
-        if (!"READY_FOR_LOADING".equalsIgnoreCase(order.getOrderStatus())) {
-            throw new BadRequestException("Customer Order status must be READY_FOR_LOADING to create a Loading Order.");
+        // A payment-confirmed order is handed directly to Operations; Sales does not nominate trucks.
+        if (!"PAYMENT_CONFIRMED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new BadRequestException("Customer Order must have payment confirmed before fleet allocation.");
         }
 
         // Verification 2: Payment must be approved
@@ -81,14 +89,7 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
             throw new BadRequestException("Finance must approve the invoice payment before creating a Loading Order.");
         }
 
-        // Verification 3: Nomination must be APPROVED
-        TruckNomination nomination = truckNominationRepository.findByOrderId(order.getId())
-                .orElseThrow(() -> new BadRequestException("Truck Nomination must exist and be approved."));
-        if (!"APPROVED".equalsIgnoreCase(nomination.getStatus())) {
-            throw new BadRequestException("Truck Nomination status must be APPROVED to proceed.");
-        }
-
-        // Verification 4: Prevent duplicate Loading Orders
+        // Prevent duplicate Loading Orders
         if (loadingOrderRepository.findByOrderId(order.getId()).isPresent()) {
             throw new BadRequestException("A Loading Order already exists for this customer order.");
         }
@@ -109,28 +110,40 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
                 .operationsManager(request.getOperationsManager())
                 .build();
 
-        // Copy truck information from the Truck Nomination
+        // Sales has already reserved the company fleet. Loading reuses those exact trucks and price snapshots.
         List<LoadingActivity> activities = new ArrayList<>();
         int index = 1;
-        for (TruckNominationItem item : nomination.getItems()) {
+        BigDecimal remaining = order.getApprovedQuantity() != null ? order.getApprovedQuantity() : order.getQuantity();
+        List<OrderTruckAllocation> allocations = orderTruckAllocationRepository.findByOrderId(order.getId());
+        if (allocations.isEmpty()) {
+            throw new BadRequestException("No Sales-confirmed fleet allocation exists for this order.");
+        }
+        for (OrderTruckAllocation allocation : allocations) {
+            Vehicle vehicle = allocation.getVehicle();
+            BigDecimal allocated = allocation.getAllocatedQuantity();
+            BigDecimal transportCharge = allocation.getTransportPrice();
             LoadingActivity activity = LoadingActivity.builder()
                     .loadingOrder(loadingOrder)
-                    .truckNumber(item.getTruckNumber())
-                    .trailerNumber(item.getTrailerNumber())
-                    .driverName(item.getDriverName())
-                    .driverLicenceNumber(item.getDriverLicenceNumber())
-                    .driverPassport(item.getDriverPassport())
-                    .transportCompany(item.getTransportCompany())
-                    .destination(item.getDestination())
+                    .vehicle(vehicle)
+                    .truckNumber(vehicle.getTruckNumber())
+                    .driverName(vehicle.getDriver() == null ? "Unassigned" : vehicle.getDriver().getFirstName() + " " + vehicle.getDriver().getLastName())
+                    .driverLicenceNumber(vehicle.getDriver() == null ? "Unassigned" : vehicle.getDriver().getLicenseNumber())
+                    .transportCompany("FALCON ENERGY")
+                    .destination(order.getDestination() != null ? order.getDestination() : request.getConsignee())
                     .product(order.getProduct().getProductName())
-                    .allocatedQuantity(item.getAllocatedQuantity())
+                    .allocatedQuantity(allocated)
+                    .transportCharge(transportCharge)
                     .status(LoadingActivityStatus.PENDING)
                     .queueNumber("Q-" + String.format("%03d", index++))
                     .bayNumber("BAY-1") // default bay
                     .build();
             activities.add(activity);
+            remaining = remaining.subtract(allocated);
+            vehicle.setCurrentStatus("ASSIGNED");
+            vehicleRepository.save(vehicle);
         }
         loadingOrder.setActivities(activities);
+        updateTransportInvoice(order, activities);
 
         // Update FuelOrder status to LOADING_ORDER_CREATED
         String prevStatus = order.getOrderStatus();
@@ -312,10 +325,16 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
 
         LoadingOrderStatus oldStatus = loadingOrder.getStatus();
         loadingOrder.setStatus(LoadingOrderStatus.CANCELLED);
+        for (LoadingActivity activity : loadingOrder.getActivities()) {
+            if (activity.getVehicle() != null) {
+                activity.getVehicle().setCurrentStatus("AVAILABLE");
+                vehicleRepository.save(activity.getVehicle());
+            }
+        }
 
         FuelOrder order = loadingOrder.getOrder();
         String prevStatus = order.getOrderStatus();
-        order.setOrderStatus("READY_FOR_LOADING");
+        order.setOrderStatus("PAYMENT_CONFIRMED");
         fuelOrderRepository.save(order);
 
         LoadingOrder saved = loadingOrderRepository.save(loadingOrder);
@@ -324,9 +343,31 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
         auditLogService.log("LOADING_ORDER_CANCELLED", "LOADING_ORDER", saved.getId(), order.getCustomer().getCustomerCode(),
                 "Loading Order " + saved.getLoadingOrderNumber() + " cancelled by " + username + " (previous status: " + oldStatus.name() + ")");
         auditLogService.log("ORDER_STATUS_CHANGED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
-                "Order status reset from " + prevStatus + " to READY_FOR_LOADING for order " + order.getOrderNumber());
+                "Order status reset from " + prevStatus + " to PAYMENT_CONFIRMED for order " + order.getOrderNumber());
 
         return loadingOrderMapper.toResponse(saved);
+    }
+
+    /** Stores the selected-rate snapshot on the invoice so future price updates never alter history. */
+    private void updateTransportInvoice(FuelOrder order, List<LoadingActivity> activities) {
+        BigDecimal transport = activities.stream().map(LoadingActivity::getTransportCharge)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setTransportCharges(transport);
+        fuelOrderRepository.save(order);
+        Invoice invoice = order.getInvoice();
+        if (invoice == null) return;
+        BigDecimal fuel = order.getAmount() == null ? BigDecimal.ZERO : order.getAmount();
+        BigDecimal levies = order.getLevies() == null ? BigDecimal.ZERO : order.getLevies();
+        BigDecimal discount = order.getDiscount() == null ? BigDecimal.ZERO : order.getDiscount();
+        BigDecimal delivery = order.getDeliveryCharges() == null ? BigDecimal.ZERO : order.getDeliveryCharges();
+        BigDecimal additional = order.getAdditionalCharges() == null ? BigDecimal.ZERO : order.getAdditionalCharges();
+        BigDecimal subtotal = fuel.add(transport).add(levies).add(delivery).add(additional).subtract(discount)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        invoice.setTransportCharges(transport);
+        invoice.setSubtotal(subtotal);
+        invoice.setTax(subtotal.multiply(new BigDecimal("0.16")).setScale(2, java.math.RoundingMode.HALF_UP));
+        invoice.setGrandTotal(subtotal.add(invoice.getTax()));
+        invoiceRepository.save(invoice);
     }
 
     private synchronized String generateLoadingOrderNumber() {

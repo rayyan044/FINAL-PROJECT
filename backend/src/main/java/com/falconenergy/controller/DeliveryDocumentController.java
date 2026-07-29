@@ -33,23 +33,15 @@ public class DeliveryDocumentController {
     @GetMapping("/delivery-notes/loading-activity/{activityId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_FINANCE', 'ROLE_SALES_OFFICER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
     public ResponseEntity<ApiResponse<DeliveryNoteResponse>> getDeliveryNoteByActivity(@PathVariable Long activityId) {
-        try {
-            DeliveryNoteResponse response = deliveryDocumentService.getDeliveryNoteByActivity(activityId);
-            return ResponseEntity.ok(ApiResponse.success("Delivery Note retrieved successfully", response));
-        } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.success("Delivery Note not found", null));
-        }
+        DeliveryNoteResponse response = deliveryDocumentService.getDeliveryNoteByActivity(activityId);
+        return ResponseEntity.ok(ApiResponse.success("Delivery Note retrieved successfully", response));
     }
 
     @GetMapping("/truck-invoices/loading-activity/{activityId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_FINANCE', 'ROLE_SALES_OFFICER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
     public ResponseEntity<ApiResponse<TruckInvoiceResponse>> getTruckInvoiceByActivity(@PathVariable Long activityId) {
-        try {
-            TruckInvoiceResponse response = deliveryDocumentService.getTruckInvoiceByActivity(activityId);
-            return ResponseEntity.ok(ApiResponse.success("Truck Invoice retrieved successfully", response));
-        } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.success("Truck Invoice not found", null));
-        }
+        TruckInvoiceResponse response = deliveryDocumentService.getTruckInvoiceByActivity(activityId);
+        return ResponseEntity.ok(ApiResponse.success("Truck Invoice retrieved successfully", response));
     }
 
     @PostMapping("/delivery-notes/{id}/print")

@@ -68,6 +68,11 @@ class FuelOrderServiceImplTest {
     @Mock
     private com.falconenergy.service.SystemSettingService systemSettingService;
 
+    @Mock private com.falconenergy.service.FleetAllocationService fleetAllocationService;
+    @Mock private com.falconenergy.repository.OrderTruckAllocationRepository orderTruckAllocationRepository;
+    @Mock private com.falconenergy.repository.TruckPricingRepository truckPricingRepository;
+    @Mock private com.falconenergy.repository.VehicleRepository vehicleRepository;
+
     @InjectMocks
     private FuelOrderServiceImpl fuelOrderService;
 
@@ -116,12 +121,20 @@ class FuelOrderServiceImplTest {
         when(paymentAccountRepository.findByStatus("ACTIVE")).thenReturn(java.util.List.of(paymentAccount));
         when(invoiceRepository.save(any(com.falconenergy.entity.Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(systemSettingService.getSetting("INVOICE_PREFIX", "INV-")).thenReturn("INV-");
+        com.falconenergy.entity.Vehicle vehicle = com.falconenergy.entity.Vehicle.builder()
+                .id(40L).truckNumber("TRK-001").plateNumber("T-001").capacity(new BigDecimal("100")).build();
+        com.falconenergy.entity.TruckPricing pricing = com.falconenergy.entity.TruckPricing.builder()
+                .capacity(new BigDecimal("100")).fuelType("AGO").transportPrice(new BigDecimal("50")).active(true).build();
+        when(orderTruckAllocationRepository.existsByOrderId(30L)).thenReturn(false);
+        when(fleetAllocationService.suggest(order)).thenReturn(java.util.List.of(vehicle));
+        when(truckPricingRepository.findByCapacityAndFuelTypeIgnoreCaseAndActiveTrue(new BigDecimal("100"), "AGO"))
+                .thenReturn(Optional.of(pricing));
 
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("sales-agent", "password", java.util.List.of())
         );
 
-        fuelOrderService.updateOrderStatus(30L, "APPROVED");
+        fuelOrderService.updateOrderStatus(30L, "SALES_CONFIRMED");
 
         verify(auditLogService).log(
                 any(String.class),

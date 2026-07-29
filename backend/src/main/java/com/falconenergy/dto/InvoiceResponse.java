@@ -3,6 +3,7 @@ package com.falconenergy.dto;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -48,6 +49,7 @@ public class InvoiceResponse {
     private String port;
     private String destination;
     private String logisticsInfo;
+    private List<TransportAllocationResponse> transportAllocations;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

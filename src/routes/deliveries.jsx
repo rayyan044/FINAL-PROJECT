@@ -17,6 +17,7 @@ import {
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
+import { OperatorWorkflowProgress } from "../components/OperatorWorkflowProgress";
 import {
   getActiveDeliveries,
   getDeliveryHistory,
@@ -30,7 +31,10 @@ export const Route = createFileRoute("/deliveries")({
 });
 
 const SIDE = [
-  { key: "dash", label: "Dashboard", icon: FiHome },
+  { key: "operations", label: "Operations", icon: FiHome },
+  { key: "documents", label: "Delivery Documents", icon: FiFileText },
+  { key: "dispatch", label: "Dispatch Management", icon: FiArrowRight },
+  { key: "dash", label: "Delivery Management", icon: FiHome },
   { key: "active", label: "Active Transits", icon: FiTruck },
   { key: "history", label: "Delivery History", icon: FiCheckCircle },
 ];
@@ -61,10 +65,10 @@ function DeliveryDash() {
     Promise.allSettled([getActiveDeliveries(), getDeliveryHistory()])
       .then((results) => {
         if (results[0].status === "fulfilled") {
-          setActiveDeliveries(results[0].value.data || results[0].value || []);
+          setActiveDeliveries(results[0].value || []);
         }
         if (results[1].status === "fulfilled") {
-          setHistoryDeliveries(results[1].value.data || results[1].value || []);
+          setHistoryDeliveries(results[1].value || []);
         }
         const failures = results.filter((r) => r.status === "rejected");
         if (failures.length) console.warn("Delivery partial load failures:", failures);
@@ -117,9 +121,15 @@ function DeliveryDash() {
         role="Operations Management"
         sideItems={SIDE}
         activeKey={activeTab}
-        onSelect={setActiveTab}
+        onSelect={(key) => {
+          if (key === "operations") navigate({ to: "/operations" });
+          else if (key === "documents") navigate({ to: "/delivery-documents" });
+          else if (key === "dispatch") navigate({ to: "/dispatch" });
+          else setActiveTab(key);
+        }}
       >
-        <PageHeader title="Delivery Management Console" crumbs={["Deliveries", activeTab]} />
+        <PageHeader title="Delivery Management" crumbs={["Operations", "Delivery Management", activeTab === "dash" ? "Overview" : SIDE.find((item) => item.key === activeTab)?.label || activeTab]} />
+        <OperatorWorkflowProgress current="Delivery" nextLabel="View Completed Deliveries" onNext={() => setActiveTab("history")} />
 
         {error && (
           <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 20 }}>
@@ -264,7 +274,7 @@ function DeliveryDash() {
                     <tr>
                       <td colSpan="7" style={{ textAlign: "center", color: "var(--feftms-text-muted)", padding: 25 }}>
                         <FiInfo size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
-                        <p>No active transits currently en route.</p>
+                        <p>No active deliveries are available. Release a dispatch and start transit in Dispatch Management to create a delivery for tracking.</p>
                       </td>
                     </tr>
                   )}
@@ -327,7 +337,7 @@ function DeliveryDash() {
                   {historyDeliveries.length === 0 && !loading && (
                     <tr>
                       <td colSpan="7" style={{ textAlign: "center", color: "var(--feftms-text-muted)", padding: 25 }}>
-                        No delivery history found.
+                        No completed deliveries yet. Record arrival and then complete the delivery from Active Transits.
                       </td>
                     </tr>
                   )}

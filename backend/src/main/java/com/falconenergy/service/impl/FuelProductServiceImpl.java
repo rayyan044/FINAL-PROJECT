@@ -93,23 +93,20 @@ public class FuelProductServiceImpl implements FuelProductService {
                 product.setUnitPrice(request.getUnitPrice());
             }
         } else if (isOperator) {
-            // Operator: Can only edit stock quantity and availability status
+            // Operator inventory receipts may only increase stock. Sales confirmation owns stock deductions.
             log.info("Enforcing Operator restrictions on fuel product update.");
             if (request.getAvailableQuantity() != null) {
+                BigDecimal currentQuantity = product.getAvailableQuantity() != null ? product.getAvailableQuantity() : BigDecimal.ZERO;
+                if (request.getAvailableQuantity().compareTo(currentQuantity) < 0) {
+                    throw new BadRequestException("Operations can only add received stock. Fuel is deducted automatically when a customer order is confirmed.");
+                }
                 product.setAvailableQuantity(request.getAvailableQuantity());
                 
                 // Automatic Availability Management
                 // If Available Quantity > 0, Status = ACTIVE (Available)
                 // If Available Quantity == 0, Status = UNAVAILABLE (Unavailable)
                 String autoStatus = request.getAvailableQuantity().compareTo(BigDecimal.ZERO) > 0 ? "ACTIVE" : "UNAVAILABLE";
-                if (request.getStatus() != null && !request.getStatus().trim().isEmpty()) {
-                    // Manual override from operator
-                    product.setStatus(request.getStatus().toUpperCase());
-                } else {
-                    product.setStatus(autoStatus);
-                }
-            } else if (request.getStatus() != null && !request.getStatus().trim().isEmpty()) {
-                product.setStatus(request.getStatus().toUpperCase());
+                product.setStatus(autoStatus);
             }
         } else if (isAdminOrManager || authentication == null || !authentication.isAuthenticated()) {
             // Admin, Manager, or fallback (for bootstrap / tests if not authenticated)

@@ -13,6 +13,7 @@ import java.util.List;
 public class LoadingActivityResponse {
     private Long id;
     private String truckNumber;
+    private Long vehicleId;
     private String trailerNumber;
     private String driverName;
     private String driverLicenceNumber;
@@ -21,6 +22,7 @@ public class LoadingActivityResponse {
     private String destination;
     private String product;
     private BigDecimal allocatedQuantity;
+    private BigDecimal transportCharge;
     private String queueNumber;
     private String bayNumber;
     private String pumpNumber;

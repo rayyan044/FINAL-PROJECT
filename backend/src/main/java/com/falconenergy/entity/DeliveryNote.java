@@ -57,6 +57,12 @@ public class DeliveryNote extends BaseEntity {
     @Column(name = "transport_company", length = 150)
     private String transportCompany;
 
+    @Column(name = "truck_capacity", precision = 12, scale = 2)
+    private BigDecimal truckCapacity;
+
+    @Column(name = "transport_charge", precision = 12, scale = 2)
+    private BigDecimal transportCharge;
+
     @Column(name = "ambient_volume", precision = 12, scale = 2)
     private BigDecimal ambientVolume;
 

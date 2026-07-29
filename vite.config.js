@@ -12,7 +12,7 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
     tsr: {
-      generatedRouteTree: "./src/routeTree.gen.js",
+      generatedRouteTree: "./src/routeTree.gen.ts",
     },
   },
 });

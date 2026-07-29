@@ -31,6 +31,10 @@ public class LoadingActivity extends BaseEntity {
     @Column(name = "truck_number", nullable = false, length = 50)
     private String truckNumber;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id")
+    private Vehicle vehicle;
+
     @Column(name = "trailer_number", length = 50)
     private String trailerNumber;
 
@@ -54,6 +58,10 @@ public class LoadingActivity extends BaseEntity {
 
     @Column(name = "allocated_quantity", nullable = false, precision = 12, scale = 2)
     private BigDecimal allocatedQuantity;
+
+    @Column(name = "transport_charge", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal transportCharge = BigDecimal.ZERO;
 
     @Column(name = "queue_number", nullable = false, length = 50)
     private String queueNumber;

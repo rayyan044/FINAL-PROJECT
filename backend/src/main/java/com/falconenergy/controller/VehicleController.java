@@ -24,7 +24,7 @@ public class VehicleController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'OPERATIONS')")
     public ResponseEntity<ApiResponse<VehicleResponse>> createVehicle(@Valid @RequestBody VehicleRequest request) {
         VehicleResponse response = vehicleService.createVehicle(request);
         return ResponseEntity.ok(ApiResponse.success("Vehicle registered successfully", response));
@@ -37,7 +37,7 @@ public class VehicleController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'OPERATIONS')")
     public ResponseEntity<ApiResponse<VehicleResponse>> updateVehicle(
             @PathVariable Long id,
             @Valid @RequestBody VehicleRequest request
@@ -47,7 +47,7 @@ public class VehicleController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'OPERATIONS')")
     public ResponseEntity<ApiResponse<Void>> deleteVehicle(@PathVariable Long id) {
         vehicleService.deleteVehicle(id);
         return ResponseEntity.ok(ApiResponse.success("Vehicle deleted successfully"));

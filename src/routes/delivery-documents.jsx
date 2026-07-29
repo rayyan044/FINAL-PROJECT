@@ -18,6 +18,7 @@ import {
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
+import { OperatorWorkflowProgress } from "../components/OperatorWorkflowProgress";
 import { listLoadingOrders } from "../services/loadingOrderService";
 import {
   generateDeliveryNote,
@@ -36,8 +37,10 @@ export const Route = createFileRoute("/delivery-documents")({
 });
 
 const SIDE = [
-  { key: "back", label: "Back to Operations", icon: FiArrowLeft },
+  { key: "operations", label: "Operations", icon: FiArrowLeft },
   { key: "docs", label: "Delivery Documents", icon: FiFileText },
+  { key: "dispatch", label: "Dispatch Management", icon: FiTruck },
+  { key: "deliveries", label: "Delivery Management", icon: FiCompass },
 ];
 
 function DeliveryDocumentsWorkspace() {
@@ -91,13 +94,13 @@ function DeliveryDocumentsWorkspace() {
         statuses[act.id] = { dn: null, inv: null, loading: true };
         try {
           const dnRes = await getDeliveryNote(act.id);
-          statuses[act.id].dn = dnRes.data || null;
+          statuses[act.id].dn = dnRes || null;
         } catch (e) {
           // not generated
         }
         try {
           const invRes = await getTruckInvoice(act.id);
-          statuses[act.id].inv = invRes.data || null;
+          statuses[act.id].inv = invRes || null;
         } catch (e) {
           // not generated
         }
@@ -112,8 +115,12 @@ function DeliveryDocumentsWorkspace() {
   }, []);
 
   const handleTabSelect = (key) => {
-    if (key === "back") {
+    if (key === "operations") {
       navigate({ to: "/operations" });
+    } else if (key === "dispatch") {
+      navigate({ to: "/dispatch" });
+    } else if (key === "deliveries") {
+      navigate({ to: "/deliveries" });
     } else {
       setActiveTab(key);
     }
@@ -124,7 +131,7 @@ function DeliveryDocumentsWorkspace() {
     setSuccess("");
     try {
       const res = await generateDeliveryNote(activityId);
-      setSuccess(`Delivery Note ${res.data.deliveryNoteNumber} generated successfully!`);
+      setSuccess(`Delivery Note ${res.deliveryNoteNumber} generated successfully!`);
       await loadData();
     } catch (err) {
       setError(err?.message || "Failed to generate Delivery Note.");
@@ -136,7 +143,7 @@ function DeliveryDocumentsWorkspace() {
     setSuccess("");
     try {
       const res = await generateTruckInvoice(activityId);
-      setSuccess(`Truck Invoice ${res.data.invoiceNumber} generated successfully!`);
+      setSuccess(`Truck Invoice ${res.invoiceNumber} generated successfully!`);
       await loadData();
     } catch (err) {
       setError(err?.message || "Failed to generate Truck Invoice.");
@@ -146,7 +153,7 @@ function DeliveryDocumentsWorkspace() {
   const handlePrintDN = async (noteId) => {
     try {
       const res = await printDeliveryNote(noteId);
-      setPreviewNote(res.data);
+      setPreviewNote(res);
       // Trigger browser print for printable section
       setTimeout(() => {
         window.print();
@@ -160,7 +167,7 @@ function DeliveryDocumentsWorkspace() {
   const handlePrintInv = async (invoiceId) => {
     try {
       const res = await printTruckInvoice(invoiceId);
-      setPreviewInvoice(res.data);
+      setPreviewInvoice(res);
       // Trigger browser print for printable section
       setTimeout(() => {
         window.print();
@@ -176,7 +183,7 @@ function DeliveryDocumentsWorkspace() {
     setSuccess("");
     try {
       const res = await markHandedToDriver(noteId);
-      setSuccess(`Delivery Note ${res.data.deliveryNoteNumber} successfully handed to driver!`);
+      setSuccess(`Delivery Note ${res.deliveryNoteNumber} successfully handed to driver!`);
       await loadData();
     } catch (err) {
       setError(err?.message || "Failed to record handover to driver.");
@@ -199,7 +206,8 @@ function DeliveryDocumentsWorkspace() {
         activeKey={activeTab}
         onSelect={handleTabSelect}
       >
-        <PageHeader title="Operations Documentation Dashboard" crumbs={["Operations", "Documentation"]} />
+        <PageHeader title="Delivery Documents" crumbs={["Operations", "Delivery Documents"]} />
+        <OperatorWorkflowProgress current="Documentation" nextLabel="Dispatch Management" onNext={() => navigate({ to: "/dispatch" })} />
 
         {error && (
           <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 20 }}>
@@ -393,7 +401,7 @@ function DeliveryDocumentsWorkspace() {
                   <tr>
                     <td colSpan="7" style={{ textAlign: "center", color: "var(--feftms-text-muted)", padding: 30 }}>
                       <FiInfo size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
-                      <p>No completed truck loading activities found needing documentation.</p>
+                      <p>No loading activities are ready for documentation. Complete loading and generate its Loading Report in Operations first.</p>
                     </td>
                   </tr>
                 )}
