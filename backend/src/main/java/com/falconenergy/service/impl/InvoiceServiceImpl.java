@@ -24,6 +24,7 @@ import com.falconenergy.dto.LoadingOrderRequest;
 import com.falconenergy.service.InvoiceService;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.SystemSettingService;
+import com.falconenergy.service.PaymentReceiptService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +50,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final SystemSettingService systemSettingService;
     private final OrderTruckAllocationRepository orderTruckAllocationRepository;
     private final LoadingOrderService loadingOrderService;
+    private final PaymentReceiptService paymentReceiptService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -62,7 +64,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             FuelProductMapper fuelProductMapper,
             SystemSettingService systemSettingService,
             OrderTruckAllocationRepository orderTruckAllocationRepository,
-            LoadingOrderService loadingOrderService
+            LoadingOrderService loadingOrderService,
+            PaymentReceiptService paymentReceiptService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceMapper = invoiceMapper;
@@ -76,6 +79,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.systemSettingService = systemSettingService;
         this.orderTruckAllocationRepository = orderTruckAllocationRepository;
         this.loadingOrderService = loadingOrderService;
+        this.paymentReceiptService = paymentReceiptService;
     }
 
     private InvoiceResponse mapToResponse(Invoice invoice) {
@@ -212,18 +216,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                     "Order status changed from " + prevStatus + " to PAYMENT_CONFIRMED after payment confirmation"
             );
 
-            // The loading order is generated from the Sales-confirmed allocation; Operations never selects trucks.
-            if (order.getLoadingOrder() == null) {
-                loadingOrderService.createLoadingOrder(LoadingOrderRequest.builder()
-                        .orderId(order.getId())
-                        .loadingTerminal("Main Terminal")
-                        .consignee(order.getCustomer().getCompanyName())
-                        .loadingRemarks("Automatically released after Finance payment confirmation")
-                        .build());
-            }
         }
 
         Invoice updated = invoiceRepository.save(invoice);
+        paymentReceiptService.generateForPaidInvoice(updated);
 
         auditLogService.log(
                 "INVOICE_PAID",
@@ -269,6 +265,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
 
         Invoice updated = invoiceRepository.save(invoice);
+        if ("PAID".equalsIgnoreCase(updated.getPaymentStatus())) paymentReceiptService.generateForPaidInvoice(updated);
 
         auditLogService.log(
                 "INVOICE_OVERRIDE",

@@ -18,7 +18,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { RouteGuard } from "../components/RouteGuard";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
-import { listProducts, updateProduct } from "../services/productService";
+import { listProducts } from "../services/productService";
 import { listOrders } from "../services/orderService";
 import { listInvoices } from "../services/invoiceService";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -30,7 +30,14 @@ import {
   togglePaymentAccountStatus,
 } from "../services/paymentAccountService";
 import { getCompanySettings, updateCompanySettings } from "../services/companySettingsService";
-import { listTruckPricing, saveTruckPricing } from "../services/truckPricingService";
+import { deleteTruckPricing, listTruckPricing, saveTruckPricing } from "../services/truckPricingService";
+import {
+  createFuelPriceRange,
+  deleteFuelPriceRange,
+  listFuelPriceRanges,
+  toggleFuelPriceRange,
+  updateFuelPriceRange,
+} from "../services/fuelPriceRangeService";
 
 export const Route = createFileRoute("/finance")({
   head: () => ({ meta: [{ title: "Finance Desk — FEFTMS" }] }),
@@ -59,13 +66,10 @@ function FinanceDash() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [truckPricing, setTruckPricing] = useState([]);
-  const [transportForm, setTransportForm] = useState({ capacity: "", fuelType: "", transportPrice: "", active: true });
-  const [showTransportModal, setShowTransportModal] = useState(false);
+  const [transportForm, setTransportForm] = useState({ fuelProductId: "", minLitres: "", maxLitres: "", transportPrice: "", effectiveDate: new Date().toISOString().slice(0, 10), status: "ACTIVE" });
+  const [fuelPriceRanges, setFuelPriceRanges] = useState([]);
+  const [rangeForm, setRangeForm] = useState({ fuelProductId: "", minLitres: "", maxLitres: "", pricePerLitre: "", effectiveDate: new Date().toISOString().slice(0, 10), status: "ACTIVE" });
 
-  // Modals
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [newPrice, setNewPrice] = useState("");
 
   // Company Settings Form State
   const [companySettings, setCompanySettings] = useState({
@@ -145,17 +149,38 @@ function FinanceDash() {
   };
 
   const loadTruckPricing = () => listTruckPricing().then((res) => setTruckPricing(res.data || res || [])).catch((err) => console.warn("Unable to load transport pricing", err));
+  const loadFuelPriceRanges = () => listFuelPriceRanges().then((res) => setFuelPriceRanges(res.data || res || [])).catch((err) => setError(err?.message || "Unable to load fuel price ranges."));
+  const resetRangeForm = () => setRangeForm({ fuelProductId: "", minLitres: "", maxLitres: "", pricePerLitre: "", effectiveDate: new Date().toISOString().slice(0, 10), status: "ACTIVE" });
+  const saveFuelPriceRange = async (event) => {
+    event.preventDefault(); setError(""); setSuccess("");
+    try {
+      const payload = { ...rangeForm, fuelProductId: Number(rangeForm.fuelProductId), minLitres: Number(rangeForm.minLitres), maxLitres: Number(rangeForm.maxLitres), pricePerLitre: Number(rangeForm.pricePerLitre) };
+      if (rangeForm.id) await updateFuelPriceRange(rangeForm.id, payload); else await createFuelPriceRange(payload);
+      setSuccess(`Fuel price range ${rangeForm.id ? "updated" : "created"} successfully.`); resetRangeForm(); loadFuelPriceRanges();
+    } catch (err) { setError(err?.message || "Unable to save fuel price range."); }
+  };
   const saveTransportPrice = async (event) => {
     event.preventDefault();
     setError("");
     setSuccess("");
     try {
-      await saveTruckPricing({ capacity: Number(transportForm.capacity), fuelType: transportForm.fuelType, transportPrice: Number(transportForm.transportPrice), active: transportForm.active }, transportForm.id);
-      setTransportForm({ capacity: "", fuelType: "", transportPrice: "", active: true });
-      setShowTransportModal(false);
+      await saveTruckPricing({ fuelProductId: Number(transportForm.fuelProductId), minLitres: Number(transportForm.minLitres), maxLitres: Number(transportForm.maxLitres), transportPrice: Number(transportForm.transportPrice), effectiveDate: transportForm.effectiveDate, status: transportForm.status }, transportForm.id);
+      setTransportForm({ fuelProductId: "", minLitres: "", maxLitres: "", transportPrice: "", effectiveDate: new Date().toISOString().slice(0, 10), status: "ACTIVE" });
       setSuccess("Transport price saved. Existing allocations retain their snapshots.");
       loadTruckPricing();
     } catch (err) { setError(err?.message || "Unable to save transport price."); }
+  };
+  const deleteTransportPrice = async (id) => {
+    if (!window.confirm("Delete this transport pricing range?")) return;
+    setError("");
+    setSuccess("");
+    try {
+      await deleteTruckPricing(id);
+      setSuccess("Transport pricing range deleted.");
+      loadTruckPricing();
+    } catch (err) {
+      setError(err?.message || "Unable to delete transport pricing range.");
+    }
   };
 
   const handleSaveCompanySettings = async (e) => {
@@ -213,43 +238,8 @@ function FinanceDash() {
       loadCompanySettings();
     }
     if (activeTab === "transportPricing") loadTruckPricing();
+    if (activeTab === "pricing") loadFuelPriceRanges();
   }, [activeTab]);
-
-  const handleEditPriceClick = (prod) => {
-    setSelectedProduct(prod);
-    setNewPrice(prod.unitPrice.toString());
-    setShowEditModal(true);
-  };
-
-  const handleSavePrice = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    if (!selectedProduct) return;
-
-    try {
-      const price = parseFloat(newPrice);
-      if (isNaN(price) || price <= 0) {
-        throw new Error("Price must be a positive number.");
-      }
-
-      await updateProduct(selectedProduct.id, {
-        productName: selectedProduct.productName,
-        fuelType: selectedProduct.fuelType,
-        unitPrice: price,
-        density: selectedProduct.density,
-        availableQuantity: selectedProduct.availableQuantity,
-        status: selectedProduct.status,
-      });
-
-      setSuccess(`Unit price for ${selectedProduct.productName} updated successfully.`);
-      setShowEditModal(false);
-      loadProducts();
-    } catch (err) {
-      console.error(err);
-      setError(err?.message || "Failed to update product price.");
-    }
-  };
 
   // Payment Account Handlers
   const handleOpenAccountModal = (acc = null) => {
@@ -437,77 +427,38 @@ function FinanceDash() {
           <div className="fef-panel" style={{ marginTop: 24 }}>
             <div className="fef-panel-head" style={{ marginBottom: 20 }}>
               <div>
-                <h3>Active Fuel Prices & Stock Levels</h3>
+                <h3>Fuel Price Range Management</h3>
                 <p style={{ margin: 0, color: "var(--feftms-text-muted)" }}>
-                  Fuel products are created by the operations team. Finance may only update pricing
-                  for existing operator-added products.
+                  Configure the price per litre by product and ordered litre range. Overlapping ranges are not allowed.
                 </p>
               </div>
             </div>
-
+            <form onSubmit={saveFuelPriceRange} className="fef-form-grid" style={{ margin: "0 20px 24px" }}>
+              <div className="fef-field"><label className="fef-label">Fuel Product</label><select required className="fef-select" value={rangeForm.fuelProductId} onChange={(e) => setRangeForm({ ...rangeForm, fuelProductId: e.target.value })}><option value="">Select product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.productName} ({product.fuelType})</option>)}</select></div>
+              <div className="fef-field"><label className="fef-label">Minimum Litres</label><input required min="0.01" step="0.01" type="number" className="fef-input" value={rangeForm.minLitres} onChange={(e) => setRangeForm({ ...rangeForm, minLitres: e.target.value })} /></div>
+              <div className="fef-field"><label className="fef-label">Maximum Litres</label><input required min="0.01" step="0.01" type="number" className="fef-input" value={rangeForm.maxLitres} onChange={(e) => setRangeForm({ ...rangeForm, maxLitres: e.target.value })} /></div>
+              <div className="fef-field"><label className="fef-label">Price Per Litre</label><input required min="0" step="0.01" type="number" className="fef-input" value={rangeForm.pricePerLitre} onChange={(e) => setRangeForm({ ...rangeForm, pricePerLitre: e.target.value })} /></div>
+              <div className="fef-field"><label className="fef-label">Effective Date</label><input required type="date" className="fef-input" value={rangeForm.effectiveDate} onChange={(e) => setRangeForm({ ...rangeForm, effectiveDate: e.target.value })} /></div>
+              <div className="fef-field"><label className="fef-label">Status</label><select className="fef-select" value={rangeForm.status} onChange={(e) => setRangeForm({ ...rangeForm, status: e.target.value })}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
+              <div style={{ display: "flex", gap: 10, alignItems: "end" }}><button className="fef-btn fef-btn-primary">{rangeForm.id ? "Update Range" : "Create Range"}</button>{rangeForm.id && <button type="button" className="fef-btn fef-btn-outline" onClick={resetRangeForm}>Cancel</button>}</div>
+            </form>
             <div className="fef-table-wrap">
               <table className="fef-table">
                 <thead>
                   <tr>
-                    <th>Product Name</th>
-                    <th>Fuel Type</th>
-                    <th>Unit Price (L)</th>
-                    <th>Unit Price (CBM)</th>
-                    <th>Density</th>
-                    <th>Stock Available</th>
+                    <th>Fuel Product</th><th>Min Litres</th><th>Max Litres</th><th>Price / Litre</th><th>Effective Date</th><th>Status</th><th>Created By</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((prod) => (
-                    <tr key={prod.id}>
-                      <td>
-                        <strong>{prod.productName}</strong>
-                      </td>
-                      <td>
-                        <span
-                          className={`fef-badge fef-badge-${prod.fuelType?.toLowerCase() === "pms" ? "accent" : "primary"}`}
-                        >
-                          {prod.fuelType}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>${prod.unitPrice?.toFixed(2)}</td>
-                      <td style={{ color: "var(--feftms-text-muted)" }}>
-                        $
-                        {(prod.unitPrice * 1000).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>{prod.density?.toFixed(3)} kg/L</td>
-                      <td>
-                        <span
-                          style={{
-                            fontWeight: 600,
-                            color:
-                              prod.availableQuantity <= 1000 ? "var(--feftms-danger)" : "inherit",
-                          }}
-                        >
-                          {prod.availableQuantity?.toLocaleString()} L
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="fef-btn fef-btn-outline"
-                          style={{ padding: "4px 8px", fontSize: "12px" }}
-                          onClick={() => handleEditPriceClick(prod)}
-                        >
-                          <FiDollarSign style={{ marginRight: 4 }} /> Edit Price
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {products.length === 0 && !loading && (
+                  {fuelPriceRanges.map((range) => <tr key={range.id}><td><strong>{range.fuelProductName}</strong> ({range.fuelType})</td><td>{range.minLitres?.toLocaleString()}</td><td>{range.maxLitres?.toLocaleString()}</td><td>${range.pricePerLitre?.toLocaleString()}</td><td>{range.effectiveDate}</td><td><span className={`fef-badge fef-badge-${range.status === "ACTIVE" ? "success" : "danger"}`}>{range.status}</span></td><td>{range.createdBy || "—"}</td><td style={{ display: "flex", gap: 6 }}><button className="fef-btn fef-btn-outline" onClick={() => setRangeForm(range)}>Edit</button><button className="fef-btn fef-btn-outline" onClick={async () => { try { await toggleFuelPriceRange(range.id); loadFuelPriceRanges(); } catch (err) { setError(err?.message || "Unable to update price range."); } }}>{range.status === "ACTIVE" ? "Deactivate" : "Activate"}</button><button className="fef-btn fef-btn-danger" onClick={async () => { if (window.confirm("Delete this fuel price range?")) { try { await deleteFuelPriceRange(range.id); loadFuelPriceRanges(); } catch (err) { setError(err?.message || "Unable to delete price range."); } } }}>Delete</button></td></tr>)}
+                  {fuelPriceRanges.length === 0 && !loading && (
                     <tr>
                       <td
-                        colSpan="7"
+                        colSpan="8"
                         style={{ textAlign: "center", color: "var(--feftms-text-muted)" }}
                       >
-                        No fuel products registered.
+                        No fuel price ranges configured.
                       </td>
                     </tr>
                   )}
@@ -519,9 +470,9 @@ function FinanceDash() {
 
         {activeTab === "transportPricing" && (
           <div className="fef-panel" style={{ marginTop: 24 }}>
-            <div className="fef-panel-head"><div><h3>Capacity-based Transport Pricing</h3><p style={{ margin: 0, color: "var(--feftms-text-muted)" }}>Set a transport rate for each truck capacity and compatible fuel type.</p></div><button className="fef-btn fef-btn-primary" onClick={() => { setTransportForm({ capacity: "", fuelType: "", transportPrice: "", active: true }); setShowTransportModal(true); }}>Create Rate</button></div>
-            <div className="fef-table-wrap"><table className="fef-table"><thead><tr><th>Capacity</th><th>Fuel Type</th><th>Transport Price</th><th>Status</th><th>Action</th></tr></thead><tbody>{truckPricing.map((rate) => <tr key={rate.id}><td>{rate.capacity?.toLocaleString()} L</td><td>{rate.fuelType || "All Fuel Types"}</td><td>{rate.transportPrice?.toLocaleString()}</td><td>{rate.active ? "Active" : "Inactive"}</td><td><button className="fef-btn fef-btn-outline" onClick={() => { setTransportForm({ ...rate, fuelType: rate.fuelType || "" }); setShowTransportModal(true); }}>Edit</button></td></tr>)}</tbody></table></div>
-            {showTransportModal && typeof window !== "undefined" && createPortal(<div className="fef-modal-backdrop" onClick={() => setShowTransportModal(false)}><div className="fef-modal-window" style={{ maxWidth: 520 }} onClick={(event) => event.stopPropagation()}><button className="fef-modal-close" onClick={() => setShowTransportModal(false)}><FiX /></button><div className="fef-detail-modal-header"><h2 className="fef-detail-modal-title">{transportForm.id ? "Edit Transport Rate" : "Create Transport Rate"}</h2></div><form onSubmit={saveTransportPrice}><div className="fef-detail-modal-body"><div className="fef-field"><label className="fef-label">Truck Capacity (L)</label><input required type="number" min="0.01" step="0.01" className="fef-input" value={transportForm.capacity} onChange={(e) => setTransportForm({ ...transportForm, capacity: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Fuel Type</label><select required className="fef-select" value={transportForm.fuelType} onChange={(e) => setTransportForm({ ...transportForm, fuelType: e.target.value })}><option value="">Select fuel type</option>{[...new Set(products.map((product) => product.fuelType).filter(Boolean))].map((fuelType) => <option key={fuelType} value={fuelType}>{fuelType}</option>)}</select></div><div className="fef-field"><label className="fef-label">Transport Price</label><input required type="number" min="0" step="0.01" className="fef-input" value={transportForm.transportPrice} onChange={(e) => setTransportForm({ ...transportForm, transportPrice: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Status</label><select className="fef-select" value={transportForm.active ? "true" : "false"} onChange={(e) => setTransportForm({ ...transportForm, active: e.target.value === "true" })}><option value="true">Active</option><option value="false">Inactive</option></select></div></div><div className="fef-detail-modal-footer"><button type="button" className="fef-btn fef-btn-outline" onClick={() => setShowTransportModal(false)}>Cancel</button><button className="fef-btn fef-btn-primary">Save Rate</button></div></form></div></div>, document.body)}
+            <div className="fef-panel-head"><div><h3>Ordered-Litre Transport Pricing</h3><p style={{ margin: 0, color: "var(--feftms-text-muted)" }}>Finance controls transport charges by customer ordered-litre ranges.</p></div></div>
+            <form onSubmit={saveTransportPrice} className="fef-form-grid" style={{ padding: 20 }}><div className="fef-field"><label className="fef-label">Fuel Product</label><select required className="fef-input" value={transportForm.fuelProductId} onChange={(e) => setTransportForm({ ...transportForm, fuelProductId: e.target.value })}><option value="">Select fuel product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.productName}</option>)}</select></div><div className="fef-field"><label className="fef-label">Minimum Ordered Litres</label><input required type="number" min="0.01" step="0.01" className="fef-input" value={transportForm.minLitres} onChange={(e) => setTransportForm({ ...transportForm, minLitres: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Maximum Ordered Litres</label><input required type="number" min="0.01" step="0.01" className="fef-input" value={transportForm.maxLitres} onChange={(e) => setTransportForm({ ...transportForm, maxLitres: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Transport Price</label><input required type="number" min="0" step="0.01" className="fef-input" value={transportForm.transportPrice} onChange={(e) => setTransportForm({ ...transportForm, transportPrice: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Effective Date</label><input required type="date" className="fef-input" value={transportForm.effectiveDate} onChange={(e) => setTransportForm({ ...transportForm, effectiveDate: e.target.value })} /></div><button className="fef-btn fef-btn-primary">{transportForm.id ? "Update Range" : "Create Range"}</button></form>
+            <div className="fef-table-wrap"><table className="fef-table"><thead><tr><th>Fuel Product</th><th>Min Litres</th><th>Max Litres</th><th>Transport Price</th><th>Effective Date</th><th>Status</th><th>Action</th></tr></thead><tbody>{truckPricing.map((rate) => <tr key={rate.id}><td>{rate.fuelProductName || "Not selected"}</td><td>{rate.minLitres?.toLocaleString()}</td><td>{rate.maxLitres?.toLocaleString()}</td><td>{rate.transportPrice?.toLocaleString()}</td><td>{rate.effectiveDate}</td><td>{rate.status}</td><td style={{ display: "flex", gap: 8 }}><button className="fef-btn fef-btn-outline" onClick={() => setTransportForm(rate)}>Edit</button><button className="fef-btn fef-btn-outline" style={{ color: "var(--feftms-danger)", borderColor: "var(--feftms-danger)" }} onClick={() => deleteTransportPrice(rate.id)}>Delete</button></td></tr>)}</tbody></table></div>
           </div>
         )}
 
@@ -922,58 +873,6 @@ function FinanceDash() {
             </form>
           </div>
         )}
-
-        {/* MODAL: EDIT PRICE */}
-        {showEditModal &&
-          selectedProduct &&
-          typeof window !== "undefined" &&
-          createPortal(
-            <div className="fef-modal-backdrop" onClick={() => setShowEditModal(false)}>
-              <div
-                className="fef-modal-window"
-                style={{ maxWidth: "450px" }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button className="fef-modal-close" onClick={() => setShowEditModal(false)}>
-                  <FiX />
-                </button>
-                <div className="fef-detail-modal-header">
-                  <h2 className="fef-detail-modal-title">Edit Price</h2>
-                  <p style={{ margin: "4px 0 0", color: "var(--feftms-text-muted)" }}>
-                    Update selling price for {selectedProduct.productName}
-                  </p>
-                </div>
-                <form onSubmit={handleSavePrice} style={{ marginTop: 20 }}>
-                  <div className="fef-field" style={{ marginBottom: 20 }}>
-                    <label className="fef-label">New Price per Litre ($)</label>
-                    <input
-                      required
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      className="fef-input"
-                      value={newPrice}
-                      onChange={(e) => setNewPrice(e.target.value)}
-                      placeholder="e.g. 1.85"
-                    />
-                  </div>
-                  <div className="fef-detail-actions" style={{ marginTop: 24 }}>
-                    <button
-                      type="button"
-                      className="fef-btn fef-btn-outline"
-                      onClick={() => setShowEditModal(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="fef-btn fef-btn-primary">
-                      <FiCheck style={{ marginRight: 4 }} /> Update Price
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>,
-            document.body,
-          )}
 
         {/* MODAL: ADD/EDIT PAYMENT ACCOUNT */}
         {showAccountModal &&

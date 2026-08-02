@@ -12,6 +12,7 @@ public class LoadingReportResponse {
     private Long id;
     private Long loadingActivityId;
     private Long loadingOrderId;
+    private String customerName;
     private String reportNumber;
     private String loadingOfficer;
     private String terminal;

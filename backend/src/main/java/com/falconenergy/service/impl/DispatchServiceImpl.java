@@ -9,6 +9,7 @@ import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.exception.ResourceNotFoundException;
 import com.falconenergy.repository.*;
 import com.falconenergy.service.DispatchService;
+import com.falconenergy.service.AuditLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,6 +40,9 @@ public class DispatchServiceImpl implements DispatchService {
     private final DeliveryNoteRepository deliveryNoteRepository;
     private final TruckInvoiceRepository truckInvoiceRepository;
     private final LoadingOrderRepository loadingOrderRepository;
+    private final PaymentReceiptRepository paymentReceiptRepository;
+    private final TransportReleaseFormRepository transportReleaseFormRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
@@ -49,14 +53,49 @@ public class DispatchServiceImpl implements DispatchService {
         return activities.stream()
                 .filter(act -> act.getStatus() == LoadingActivityStatus.COMPLETED)
                 .filter(act -> loadingReportRepository.findByLoadingActivityId(act.getId()).isPresent())
-                .filter(act -> {
-                    var dnOpt = deliveryNoteRepository.findByLoadingActivityId(act.getId());
-                    return dnOpt.isPresent() && "HANDED_TO_DRIVER".equals(dnOpt.get().getStatus());
-                })
-                .filter(act -> truckInvoiceRepository.existsByLoadingActivityId(act.getId()))
-                .filter(act -> !dispatchRepository.existsByLoadingActivityId(act.getId()))
+                .filter(act -> dispatchRepository.existsByLoadingActivityId(act.getId()))
                 .map(this::toLoadingActivityResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public DispatchResponse createReadyDispatchForCompletedLoading(LoadingActivity activity, LoadingReport report) {
+        if (activity.getStatus() != LoadingActivityStatus.COMPLETED) {
+            throw new BadRequestException("A detailed loading activity must be COMPLETED before creating a Dispatch.");
+        }
+        if (report.getReportStatus() != LoadingReportStatus.GENERATED) {
+            throw new BadRequestException("A completed Loading Report is required before creating a Dispatch.");
+        }
+        LoadingOrder loadingOrder = activity.getLoadingOrder();
+        Invoice invoice = loadingOrder != null && loadingOrder.getOrder() != null ? loadingOrder.getOrder().getInvoice() : null;
+        if (invoice == null || !"PAID".equalsIgnoreCase(invoice.getPaymentStatus()) || !paymentReceiptRepository.existsByInvoiceId(invoice.getId())) {
+            throw new BadRequestException("A confirmed payment and Payment Receipt are required before creating a Dispatch.");
+        }
+        if (!deliveryNoteRepository.existsByLoadingActivityId(activity.getId()) || transportReleaseFormRepository.findByLoadingActivityId(activity.getId()).isEmpty()) {
+            throw new BadRequestException("Delivery Note and Transport Release Form are required before creating a Dispatch.");
+        }
+        if (dispatchRepository.existsByLoadingActivityId(activity.getId())) {
+            return toDispatchResponse(dispatchRepository.findByLoadingActivityId(activity.getId()).orElseThrow());
+        }
+
+        String username = resolveCurrentUser();
+        Dispatch dispatch = Dispatch.builder()
+                .dispatchNumber(generateDispatchNumber())
+                .loadingOrder(loadingOrder)
+                .loadingActivity(activity)
+                .truckNumber(activity.getTruckNumber())
+                .driverName(activity.getDriverName())
+                .driverLicenseNumber(activity.getDriverLicenceNumber())
+                .transportCompany(activity.getTransportCompany())
+                .destination(activity.getDestination())
+                .dispatchStatus(DispatchStatus.READY)
+                .remarks("Automatically created after loading report " + report.getReportNumber() + " was generated.")
+                .build();
+        dispatch.setCreatedBy(username);
+        dispatch.setUpdatedBy(username);
+        Dispatch saved = dispatchRepository.save(dispatch);
+        auditLogService.log("DISPATCH_CREATED", "DISPATCH", saved.getId(), username, "Dispatch created automatically after Loading Report " + report.getReportNumber() + " and all release documents were confirmed.", null, DispatchStatus.READY.name());
+        return toDispatchResponse(saved);
     }
 
     @Override
@@ -138,6 +177,34 @@ public class DispatchServiceImpl implements DispatchService {
             throw new BadRequestException("Truck can only be released if the dispatch status is READY. Current status: " + dispatch.getDispatchStatus());
         }
 
+        LoadingActivity releaseActivity = dispatch.getLoadingActivity();
+        if (releaseActivity == null || !deliveryNoteRepository.existsByLoadingActivityId(releaseActivity.getId())) {
+            throw new BadRequestException("Truck cannot be released: the Delivery Note has not been generated.");
+        }
+        LoadingOrder releaseOrder = dispatch.getLoadingOrder();
+        Invoice customerInvoice = releaseOrder != null && releaseOrder.getOrder() != null ? releaseOrder.getOrder().getInvoice() : null;
+        if (customerInvoice == null || !paymentReceiptRepository.existsByInvoiceId(customerInvoice.getId())) {
+            throw new BadRequestException("Truck cannot be released: the Payment Receipt has not been generated.");
+        }
+        if (transportReleaseFormRepository.findByLoadingActivityId(releaseActivity.getId()).isEmpty()) {
+            throw new BadRequestException("Truck cannot be released: the Transport Release Form has not been generated.");
+        }
+        LoadingReport releaseReport = loadingReportRepository.findByLoadingActivityId(releaseActivity.getId())
+                .orElseThrow(() -> new BadRequestException("Truck cannot be released: the Loading Report is missing."));
+        if (releaseReport.getReportStatus() != LoadingReportStatus.GENERATED) {
+            throw new BadRequestException("Truck cannot be released: the Loading Report is not completed.");
+        }
+        Vehicle vehicle = releaseActivity.getVehicle();
+        if (vehicle == null || !vehicle.isActive() || !"ASSIGNED".equalsIgnoreCase(vehicle.getCurrentStatus())) {
+            throw new BadRequestException("Truck cannot be released: the nominated vehicle is not available for this dispatch.");
+        }
+        if (vehicle.getDriver() == null || !"AVAILABLE".equalsIgnoreCase(vehicle.getDriver().getStatus())) {
+            throw new BadRequestException("Truck cannot be released: the nominated driver is not available.");
+        }
+        if (dispatch.getDeliveryNote() == null) {
+            dispatch.setDeliveryNote(deliveryNoteRepository.findByLoadingActivityId(releaseActivity.getId()).orElseThrow());
+        }
+
         String username = resolveCurrentUser();
         LocalDateTime now = LocalDateTime.now();
 
@@ -160,6 +227,7 @@ public class DispatchServiceImpl implements DispatchService {
         }
 
         Dispatch saved = dispatchRepository.save(dispatch);
+        auditLogService.log("TRUCK_RELEASED", "DISPATCH", saved.getId(), username, "Truck released for dispatch.", DispatchStatus.READY.name(), DispatchStatus.DISPATCHED.name());
         return toDispatchResponse(saved);
     }
 
@@ -189,6 +257,7 @@ public class DispatchServiceImpl implements DispatchService {
         }
 
         Dispatch saved = dispatchRepository.save(dispatch);
+        auditLogService.log("TRANSIT_STARTED", "DISPATCH", saved.getId(), username, "Truck transit started.", DispatchStatus.DISPATCHED.name(), DispatchStatus.IN_TRANSIT.name());
 
         // This method is transactional: failure to create the matching delivery
         // rolls back the transition to IN_TRANSIT and avoids an orphan dispatch.
@@ -278,6 +347,9 @@ public class DispatchServiceImpl implements DispatchService {
                 .dispatchNumber(d.getDispatchNumber())
                 .loadingOrderId(d.getLoadingOrder() != null ? d.getLoadingOrder().getId() : null)
                 .loadingOrderNumber(d.getLoadingOrder() != null ? d.getLoadingOrder().getLoadingOrderNumber() : null)
+                .invoiceId(d.getLoadingOrder() != null && d.getLoadingOrder().getOrder() != null && d.getLoadingOrder().getOrder().getInvoice() != null ? d.getLoadingOrder().getOrder().getInvoice().getId() : null)
+                .invoiceNumber(d.getLoadingOrder() != null && d.getLoadingOrder().getOrder() != null && d.getLoadingOrder().getOrder().getInvoice() != null ? d.getLoadingOrder().getOrder().getInvoice().getInvoiceNumber() : null)
+                .customerName(com.falconenergy.util.BuyerNameResolver.resolveName(d.getLoadingOrder()))
                 .loadingActivityId(d.getLoadingActivity() != null ? d.getLoadingActivity().getId() : null)
                 .deliveryNoteId(d.getDeliveryNote() != null ? d.getDeliveryNote().getId() : null)
                 .deliveryNoteNumber(d.getDeliveryNote() != null ? d.getDeliveryNote().getDeliveryNoteNumber() : null)

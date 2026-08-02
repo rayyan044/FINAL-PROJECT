@@ -42,6 +42,9 @@ public class FuelOrder extends BaseEntity {
     @Column(name = "amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
+    @Column(name = "unit_price", precision = 12, scale = 2)
+    private BigDecimal unitPrice;
+
     @Column(name = "order_date", nullable = false)
     @Builder.Default
     private LocalDateTime orderDate = LocalDateTime.now();

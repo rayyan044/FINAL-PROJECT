@@ -87,11 +87,7 @@ public class FuelProductServiceImpl implements FuelProductService {
         }
 
         if (isFinance) {
-            // Finance: Can only edit price per litre (unitPrice)
-            log.info("Enforcing Finance restrictions on fuel product update.");
-            if (request.getUnitPrice() != null) {
-                product.setUnitPrice(request.getUnitPrice());
-            }
+            throw new BadRequestException("Fuel prices are managed through Finance fuel price ranges.");
         } else if (isOperator) {
             // Operator inventory receipts may only increase stock. Sales confirmation owns stock deductions.
             log.info("Enforcing Operator restrictions on fuel product update.");

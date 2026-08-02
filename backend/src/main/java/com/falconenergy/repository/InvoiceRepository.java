@@ -18,6 +18,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     boolean existsByOrderId(Long orderId);
     Optional<Invoice> findByOrderId(Long orderId);
 
+    @Query("SELECT i FROM Invoice i JOIN FETCH i.order o JOIN FETCH o.customer JOIN FETCH o.product WHERE i.id = :id")
+    Optional<Invoice> findDetailedById(@Param("id") Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Invoice i WHERE i.id = :id")
     Optional<Invoice> findByIdForUpdate(@Param("id") Long id);

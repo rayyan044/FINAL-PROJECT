@@ -81,6 +81,9 @@ public class LoadingActivity extends BaseEntity {
     @Column(name = "loading_officer", length = 100)
     private String loadingOfficer;
 
+    @Column(name = "started_by", length = 100)
+    private String startedBy;
+
     @Column(name = "status", nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     @Builder.Default
@@ -116,6 +119,9 @@ public class LoadingActivity extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    @Column(name = "completed_by_name", length = 100)
+    private String completedByName;
 
     @OneToMany(mappedBy = "loadingActivity", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

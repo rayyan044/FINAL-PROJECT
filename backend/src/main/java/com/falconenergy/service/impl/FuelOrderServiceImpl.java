@@ -17,6 +17,8 @@ import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.FuelTransactionRepository;
 import com.falconenergy.service.FuelOrderService;
+import com.falconenergy.service.FuelPriceRangeService;
+import com.falconenergy.service.TransportPriceRangeService;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.SystemSettingService;
 import com.falconenergy.service.StorageTankService;
@@ -69,6 +71,8 @@ public class FuelOrderServiceImpl implements FuelOrderService {
     private final OrderTruckAllocationRepository orderTruckAllocationRepository;
     private final TruckPricingRepository truckPricingRepository;
     private final VehicleRepository vehicleRepository;
+    private final FuelPriceRangeService fuelPriceRangeService;
+    private final TransportPriceRangeService transportPriceRangeService;
 
     public FuelOrderServiceImpl(
             FuelOrderRepository fuelOrderRepository,
@@ -87,7 +91,9 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             FleetAllocationService fleetAllocationService,
             OrderTruckAllocationRepository orderTruckAllocationRepository,
             TruckPricingRepository truckPricingRepository,
-            VehicleRepository vehicleRepository
+            VehicleRepository vehicleRepository,
+            FuelPriceRangeService fuelPriceRangeService,
+            TransportPriceRangeService transportPriceRangeService
     ) {
         this.fuelOrderRepository = fuelOrderRepository;
         this.customerRepository = customerRepository;
@@ -106,6 +112,8 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         this.orderTruckAllocationRepository = orderTruckAllocationRepository;
         this.truckPricingRepository = truckPricingRepository;
         this.vehicleRepository = vehicleRepository;
+        this.fuelPriceRangeService = fuelPriceRangeService;
+        this.transportPriceRangeService = transportPriceRangeService;
     }
 
     @Override
@@ -121,13 +129,16 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         FuelProduct product = fuelProductRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Fuel product not found with id: " + request.getProductId()));
 
-        // Calculate order amount: quantity * unit price
-        BigDecimal amount = request.getQuantity().multiply(product.getUnitPrice());
+        BigDecimal unitPrice = fuelPriceRangeService.resolvePrice(product, request.getQuantity());
+        BigDecimal amount = request.getQuantity().multiply(unitPrice);
+        BigDecimal transportCharges = transportPriceRangeService.resolve(product, request.getQuantity());
 
         FuelOrder order = fuelOrderMapper.toEntity(request);
         order.setCustomer(customer);
         order.setProduct(product);
         order.setAmount(amount);
+        order.setUnitPrice(unitPrice);
+        order.setTransportCharges(transportCharges);
         order.setCurrency(product.getCurrency() != null ? product.getCurrency() : "USD");
         order.setOrderStatus("PENDING");
 
@@ -231,12 +242,16 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             }
         }
 
-        BigDecimal amount = request.getQuantity().multiply(product.getUnitPrice());
+        BigDecimal unitPrice = fuelPriceRangeService.resolvePrice(product, request.getQuantity());
+        BigDecimal amount = request.getQuantity().multiply(unitPrice);
+        BigDecimal transportCharges = transportPriceRangeService.resolve(product, request.getQuantity());
 
         fuelOrderMapper.updateEntityFromRequest(request, order);
         order.setCustomer(customer);
         order.setProduct(product);
         order.setAmount(amount);
+        order.setUnitPrice(unitPrice);
+        order.setTransportCharges(transportCharges);
         order.setCurrency(product.getCurrency() != null ? product.getCurrency() : "USD");
 
         FuelOrder updated = fuelOrderRepository.save(order);
@@ -359,7 +374,9 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             }
 
             BigDecimal remainingQty = product.getAvailableQuantity();
-            order.setAmount(requestedQty.multiply(product.getUnitPrice()));
+            BigDecimal unitPrice = fuelPriceRangeService.resolvePrice(product, requestedQty);
+            order.setUnitPrice(unitPrice);
+            order.setAmount(requestedQty.multiply(unitPrice));
 
             // Log detailed audit trail
             String actor = resolveCurrentUser();
@@ -441,10 +458,9 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         order.setOrderStatus(newStatus);
         FuelOrder updated = fuelOrderRepository.save(order);
         if ("SALES_CONFIRMED".equalsIgnoreCase(newStatus) && !"SALES_CONFIRMED".equalsIgnoreCase(oldStatus)) {
-            allocateCompanyFleet(updated);
             generateInvoiceForOrder(updated);
             auditLogService.log("SALES_ORDER_CONFIRMED", "FUEL_ORDER", updated.getId(), updated.getCustomer().getCustomerCode(),
-                    "Sales confirmed order " + updated.getOrderNumber() + "; fleet allocated and invoice sent to Finance.");
+                    "Sales confirmed order " + updated.getOrderNumber() + " and sent its invoice to Finance for payment approval.");
         }
         FuelOrderResponse response = fuelOrderMapper.toResponse(updated);
         nullifyProductQuantityIfCustomer(response);
@@ -573,8 +589,10 @@ public class FuelOrderServiceImpl implements FuelOrderService {
 
         // Update the order quantity and amount
         order.setQuantity(approvedQty);
-        BigDecimal newAmount = approvedQty.multiply(product.getUnitPrice());
+        BigDecimal unitPrice = fuelPriceRangeService.resolvePrice(product, approvedQty);
+        BigDecimal newAmount = approvedQty.multiply(unitPrice);
         order.setAmount(newAmount);
+        order.setUnitPrice(unitPrice);
 
         BigDecimal qtyBefore = product.getAvailableQuantity();
 
@@ -649,11 +667,9 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         );
         auditLogService.log("ORDER_APPROVED_WITH_EDIT", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(), editHistoryDetails);
 
-        // 6. Generate Invoice
-        allocateCompanyFleet(savedOrder);
         generateInvoiceForOrder(savedOrder);
         auditLogService.log("SALES_ORDER_CONFIRMED", "FUEL_ORDER", savedOrder.getId(), savedOrder.getCustomer().getCustomerCode(),
-                "Sales confirmed edited order " + savedOrder.getOrderNumber() + "; fleet allocated and invoice sent to Finance.");
+                "Sales confirmed edited order " + savedOrder.getOrderNumber() + " and sent its invoice to Finance for payment approval.");
 
         FuelOrderResponse response = fuelOrderMapper.toResponse(savedOrder);
         nullifyProductQuantityIfCustomer(response);
@@ -667,11 +683,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         BigDecimal remaining = order.getApprovedQuantity() != null ? order.getApprovedQuantity() : order.getQuantity();
         BigDecimal totalTransport = BigDecimal.ZERO;
         for (Vehicle vehicle : fleetAllocationService.suggest(order)) {
-            BigDecimal price = truckPricingRepository
-                    .findByCapacityAndFuelTypeIgnoreCaseAndActiveTrue(vehicle.getCapacity(), order.getProduct().getFuelType())
-                    .or(() -> truckPricingRepository.findByCapacityAndFuelTypeIgnoreCaseAndActiveTrue(vehicle.getCapacity(), "ALL"))
-                    .orElseThrow(() -> new BadRequestException("Finance must configure transport pricing for truck capacity " + vehicle.getCapacity()))
-                    .getTransportPrice();
+            BigDecimal price = transportPriceRangeService.resolve(order.getProduct(), order.getQuantity());
             BigDecimal allocatedQuantity = remaining.min(vehicle.getCapacity());
             orderTruckAllocationRepository.save(OrderTruckAllocation.builder()
                     .order(order).vehicle(vehicle).allocatedQuantity(allocatedQuantity)
@@ -711,8 +723,8 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         if (order.getQuantity() == null || order.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
             throw new BadRequestException("Cannot generate invoice: Quantity must be greater than zero.");
         }
-        if (order.getProduct().getUnitPrice() == null || order.getProduct().getUnitPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("Cannot generate invoice: Fuel product unit price is missing or invalid.");
+        if (order.getUnitPrice() == null || order.getUnitPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Cannot generate invoice: Finance-configured fuel price is missing or invalid.");
         }
         String currency = order.getCurrency() != null ? order.getCurrency() : order.getProduct().getCurrency();
         if (currency == null || currency.isBlank()) {

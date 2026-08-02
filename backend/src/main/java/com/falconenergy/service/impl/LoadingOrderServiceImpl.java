@@ -37,6 +37,9 @@ import com.falconenergy.entity.OrderTruckAllocation;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.LoadingOrderService;
 import com.falconenergy.service.FleetAllocationService;
+import com.falconenergy.service.TransportPriceRangeService;
+import com.falconenergy.service.DispatchService;
+import com.falconenergy.service.DeliveryDocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -72,6 +75,9 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
     private final LoadingReportRepository loadingReportRepository;
     private final InvoiceRepository invoiceRepository;
     private final OrderTruckAllocationRepository orderTruckAllocationRepository;
+    private final TransportPriceRangeService transportPriceRangeService;
+    private final DispatchService dispatchService;
+    private final DeliveryDocumentService deliveryDocumentService;
 
     @Override
     public LoadingOrderResponse createLoadingOrder(LoadingOrderRequest request) {
@@ -84,9 +90,12 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
         }
 
         // Verification 2: Payment must be approved
-        Invoice invoice = order.getInvoice();
+        Invoice invoice = invoiceRepository.findByOrderId(order.getId()).orElse(null);
         if (invoice == null || !"PAID".equalsIgnoreCase(invoice.getPaymentStatus())) {
             throw new BadRequestException("Finance must approve the invoice payment before creating a Loading Order.");
+        }
+        if (invoice.getOrder() == null || !order.getId().equals(invoice.getOrder().getId())) {
+            throw new BadRequestException("The selected Loading Order must use the invoice linked to its customer order.");
         }
 
         // Prevent duplicate Loading Orders
@@ -110,13 +119,13 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
                 .operationsManager(request.getOperationsManager())
                 .build();
 
-        // Sales has already reserved the company fleet. Loading reuses those exact trucks and price snapshots.
+        // Reserve compatible company vehicles once payment is confirmed, then use those snapshots for loading.
         List<LoadingActivity> activities = new ArrayList<>();
         int index = 1;
         BigDecimal remaining = order.getApprovedQuantity() != null ? order.getApprovedQuantity() : order.getQuantity();
         List<OrderTruckAllocation> allocations = orderTruckAllocationRepository.findByOrderId(order.getId());
         if (allocations.isEmpty()) {
-            throw new BadRequestException("No Sales-confirmed fleet allocation exists for this order.");
+            allocations = allocateFleetForLoading(order);
         }
         for (OrderTruckAllocation allocation : allocations) {
             Vehicle vehicle = allocation.getVehicle();
@@ -159,6 +168,39 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
                 "Order status changed from " + prevStatus + " to LOADING_ORDER_CREATED for order " + order.getOrderNumber(), prevStatus, "LOADING_ORDER_CREATED");
 
         return loadingOrderMapper.toResponse(saved);
+    }
+
+    private List<OrderTruckAllocation> allocateFleetForLoading(FuelOrder order) {
+        BigDecimal remaining = order.getApprovedQuantity() != null ? order.getApprovedQuantity() : order.getQuantity();
+        BigDecimal totalTransport = BigDecimal.ZERO;
+        List<OrderTruckAllocation> allocations = new ArrayList<>();
+
+        for (Vehicle vehicle : fleetAllocationService.suggest(order)) {
+            BigDecimal price = transportPriceRangeService.resolve(order.getProduct(), order.getQuantity());
+            BigDecimal allocatedQuantity = remaining.min(vehicle.getCapacity());
+            OrderTruckAllocation allocation = orderTruckAllocationRepository.save(OrderTruckAllocation.builder()
+                    .order(order)
+                    .vehicle(vehicle)
+                    .allocatedQuantity(allocatedQuantity)
+                    .capacitySnapshot(vehicle.getCapacity())
+                    .transportPrice(price)
+                    .build());
+            allocations.add(allocation);
+            remaining = remaining.subtract(allocatedQuantity);
+            totalTransport = totalTransport.add(price);
+            vehicle.setCurrentStatus("ASSIGNED");
+            vehicleRepository.save(vehicle);
+        }
+
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new BadRequestException("The available fleet cannot satisfy this order quantity.");
+        }
+
+        order.setTransportCharges(totalTransport);
+        fuelOrderRepository.save(order);
+        auditLogService.log("TRUCK_AUTO_ASSIGNED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
+                "Company fleet allocated for loading order " + order.getOrderNumber() + "; transport charge " + totalTransport);
+        return allocations;
     }
 
     @Override
@@ -603,6 +645,8 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
                 .build();
         loadingReportRepository.save(report);
         activity.getReports().add(report);
+        deliveryDocumentService.generateDocumentsForCompletedLoading(activity, report);
+        dispatchService.createReadyDispatchForCompletedLoading(activity, report);
 
         // Check if all activities for this loading order are COMPLETED
         boolean allCompleted = loadingOrder.getActivities().stream()

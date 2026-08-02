@@ -76,9 +76,7 @@ export function DashboardLayout({
       <aside className={`fef-sidebar ${open ? "open" : ""}`}>
         <Link to="/" className="fef-brand">
           <span className="fef-brand-mark">F</span>
-          <span className="fef-brand-text">
-            Falcon <span>Energy</span>
-          </span>
+          <span className="fef-brand-text">FFMS</span>
         </Link>
         <div className="fef-side-heading">Workspace</div>
         {sideItems.map((item) => {

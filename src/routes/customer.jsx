@@ -5,6 +5,7 @@ import { SiteNav } from "../components/SiteNav";
 import { listCustomers } from "../services/customerService";
 import { listProducts } from "../services/productService";
 import { createRequest } from "../services/requestService";
+import { previewOrderPricing } from "../services/orderPricingService";
 import {
   FiUser,
   FiMapPin,
@@ -81,6 +82,8 @@ function CustomerPortal() {
   const [products, setProducts] = useState([]);
   const [emergencyCustomerId, setEmergencyCustomerId] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  const [pricePreview, setPricePreview] = useState(null);
+  const [pricingError, setPricingError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -138,6 +141,28 @@ function CustomerPortal() {
     return visibleProducts.find((p) => p.fuelType?.toLowerCase() === form.fuelType.toLowerCase());
   };
 
+  useEffect(() => {
+    const product = getSelectedProduct();
+    const quantity = Number(form.quantity);
+    if (!product || !Number.isFinite(quantity) || quantity <= 0) {
+      setPricePreview(null);
+      setPricingError("");
+      return;
+    }
+    previewOrderPricing(product.id, quantity)
+      .then((result) => {
+        setPricePreview(result);
+        setPricingError("");
+      })
+      .catch((err) => {
+        setPricePreview(null);
+        setPricingError(
+          err?.message ||
+            "No transport price has been configured for this litre range. Please contact the Finance Department.",
+        );
+      });
+  }, [form.fuelType, form.quantity, products]);
+
   const formatPrice = (value) => {
     const amount = Number(value ?? 0);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -147,10 +172,7 @@ function CustomerPortal() {
   };
 
   const calculateTotal = () => {
-    const qty = parseFloat(form.quantity);
-    const prod = getSelectedProduct();
-    if (!qty || isNaN(qty) || !prod) return 0;
-    return qty * prod.unitPrice;
+    return Number(pricePreview?.totalAmount ?? 0);
   };
 
   const update = (k) => (e) => {
@@ -248,6 +270,10 @@ function CustomerPortal() {
       if (!selectedProduct) {
         errs.quantity =
           "Selected fuel is not configured yet. Please choose another product or contact Finance.";
+      } else if (!pricePreview) {
+        errs.quantity =
+          pricingError ||
+          "No transport price has been configured for this litre range. Please contact the Finance Department.";
       }
     }
     setErrors(errs);
@@ -285,6 +311,13 @@ function CustomerPortal() {
     if (!validateStep(step)) return;
 
     setError("");
+    if (!pricePreview) {
+      setError(
+        pricingError ||
+          "No transport price has been configured for this litre range. Please contact the Finance Department.",
+      );
+      return;
+    }
     setLoading(true);
     setSubmitted(false);
 
@@ -314,6 +347,7 @@ function CustomerPortal() {
         emergencyLevel: form.emergencyLevel,
         paymentMethod: form.paymentMethod,
         notes: form.notes,
+        transportCharges: pricePreview.transportPrice,
       };
 
       const res = await createRequest(payload);
@@ -627,9 +661,11 @@ function CustomerPortal() {
                         >
                           <span>Price per Litre:</span>
                           <span style={{ fontWeight: 600, color: "var(--feftms-text)" }}>
-                            {getSelectedProduct()
-                              ? formatPrice(getSelectedProduct().unitPrice)
-                              : "—"}
+                            {pricePreview
+                              ? `TZS ${Number(pricePreview.fuelPricePerLitre).toLocaleString()} per litre`
+                              : getSelectedProduct()
+                                ? formatPrice(getSelectedProduct().unitPrice)
+                                : "—"}
                           </span>
                         </div>
                         <div
@@ -643,6 +679,14 @@ function CustomerPortal() {
                           <span>Quantity Ordered:</span>
                           <span style={{ fontWeight: 600, color: "var(--feftms-text)" }}>
                             {form.quantity} litres
+                          </span>
+                        </div>
+                        <div
+                          style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--feftms-text-muted)" }}
+                        >
+                          <span>Transport Price:</span>
+                          <span style={{ fontWeight: 600, color: "var(--feftms-text)" }}>
+                            TZS {Number(pricePreview?.transportPrice || 0).toLocaleString()}
                           </span>
                         </div>
                         <hr
@@ -669,13 +713,18 @@ function CustomerPortal() {
                               color: "var(--feftms-success)",
                             }}
                           >
-                            US${" "}
+                            TZS{" "}
                             {calculateTotal().toLocaleString(undefined, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
                           </span>
                         </div>
+                      </div>
+                    )}
+                    {pricingError && (
+                      <div className="fef-alert fef-alert-error" style={{ marginTop: 8 }}>
+                        {pricingError}
                       </div>
                     )}
                   </div>
@@ -1106,7 +1155,7 @@ function CustomerPortal() {
                     type="button"
                     onClick={onSubmit}
                     className="fef-btn fef-btn-primary"
-                    disabled={loading}
+                    disabled={loading || !pricePreview}
                     style={{
                       background:
                         form.emergencyLevel === "Critical"
@@ -1149,7 +1198,7 @@ function CustomerPortal() {
             type="button"
             onClick={onSubmit}
             className="fef-btn fef-btn-primary"
-            disabled={loading}
+            disabled={loading || !pricePreview}
             style={{
               flex: 2,
               background:

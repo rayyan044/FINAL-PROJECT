@@ -1557,7 +1557,7 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
             Close
           </button>
 
-          {isPending && !isPaid && !hasConfirmed && userRole === "FINANCE" && validationErrors.length === 0 && (
+          {isPending && !isPaid && !hasConfirmed && userRole === "FINANCE" && (
             <button
               className="fef-btn fef-btn-success"
               onClick={handleApprovePayment}

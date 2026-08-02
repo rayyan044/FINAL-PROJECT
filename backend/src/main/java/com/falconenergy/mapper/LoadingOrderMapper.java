@@ -17,7 +17,9 @@ public interface LoadingOrderMapper {
 
     @Mapping(target = "orderId", source = "order.id")
     @Mapping(target = "customerOrderNumber", source = "order.orderNumber")
-    @Mapping(target = "customerName", source = "order.customer.companyName")
+    @Mapping(target = "invoiceId", source = "order.invoice.id")
+    @Mapping(target = "invoiceNumber", source = "order.invoice.invoiceNumber")
+    @Mapping(target = "customerName", expression = "java(com.falconenergy.util.BuyerNameResolver.resolveName(entity))")
     @Mapping(target = "product", source = "order.product.productName")
     @Mapping(target = "approvedQuantity", source = "order.approvedQuantity")
     @Mapping(target = "numberOfTrucks", expression = "java(entity.getActivities() != null ? entity.getActivities().size() : 0)")
@@ -33,6 +35,7 @@ public interface LoadingOrderMapper {
 
     @Mapping(target = "loadingActivityId", source = "loadingActivity.id")
     @Mapping(target = "loadingOrderId", source = "loadingOrder.id")
+    @Mapping(target = "customerName", expression = "java(com.falconenergy.util.BuyerNameResolver.resolveName(entity.getLoadingOrder()))")
     LoadingReportResponse toReportResponse(LoadingReport entity);
 
     @Mapping(target = "order", ignore = true)

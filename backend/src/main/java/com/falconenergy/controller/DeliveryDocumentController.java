@@ -3,7 +3,12 @@ package com.falconenergy.controller;
 import com.falconenergy.dto.ApiResponse;
 import com.falconenergy.dto.DeliveryNoteResponse;
 import com.falconenergy.dto.TruckInvoiceResponse;
+import com.falconenergy.dto.PaymentReceiptResponse;
+import com.falconenergy.dto.TransportReleaseFormResponse;
 import com.falconenergy.service.DeliveryDocumentService;
+import com.falconenergy.service.PaymentReceiptService;
+import com.falconenergy.repository.InvoiceRepository;
+import com.falconenergy.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,6 +20,34 @@ import org.springframework.web.bind.annotation.*;
 public class DeliveryDocumentController {
 
     private final DeliveryDocumentService deliveryDocumentService;
+    private final PaymentReceiptService paymentReceiptService;
+    private final InvoiceRepository invoiceRepository;
+
+    @GetMapping("/payment-receipts/invoice/{invoiceId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_FINANCE', 'ROLE_SALES_OFFICER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
+    public ResponseEntity<ApiResponse<PaymentReceiptResponse>> getPaymentReceipt(@PathVariable Long invoiceId) {
+        var invoice = invoiceRepository.findById(invoiceId).orElseThrow(() -> new ResourceNotFoundException("Customer invoice not found with id: " + invoiceId));
+        PaymentReceiptResponse receipt = "PAID".equalsIgnoreCase(invoice.getPaymentStatus())
+                ? paymentReceiptService.generateForPaidInvoice(invoice)
+                : paymentReceiptService.getByInvoiceId(invoiceId);
+        return ResponseEntity.ok(ApiResponse.success("Payment Receipt retrieved successfully", receipt));
+    }
+
+    @GetMapping("/payment-receipts/order/{orderId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_FINANCE', 'ROLE_SALES_OFFICER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
+    public ResponseEntity<ApiResponse<PaymentReceiptResponse>> getPaymentReceiptForOrder(@PathVariable Long orderId) {
+        var invoice = invoiceRepository.findByOrderId(orderId).orElseThrow(() -> new ResourceNotFoundException("Customer invoice not found for order id: " + orderId));
+        PaymentReceiptResponse receipt = "PAID".equalsIgnoreCase(invoice.getPaymentStatus())
+                ? paymentReceiptService.generateForPaidInvoice(invoice)
+                : paymentReceiptService.getByInvoiceId(invoice.getId());
+        return ResponseEntity.ok(ApiResponse.success("Payment Receipt retrieved successfully", receipt));
+    }
+
+    @GetMapping("/transport-release-forms/loading-activity/{activityId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_FINANCE', 'ROLE_SALES_OFFICER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
+    public ResponseEntity<ApiResponse<TransportReleaseFormResponse>> getTransportReleaseForm(@PathVariable Long activityId) {
+        return ResponseEntity.ok(ApiResponse.success("Transport Release Form retrieved successfully", deliveryDocumentService.getTransportReleaseFormByActivity(activityId)));
+    }
 
     @PostMapping("/delivery-notes/loading-activity/{activityId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")

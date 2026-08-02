@@ -60,6 +60,7 @@ function SalesDash() {
   const [success, setSuccess] = useState("");
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Invoice & Editing States
   const [isEditing, setIsEditing] = useState(false);
@@ -120,12 +121,22 @@ function SalesDash() {
   const handleApprove = async (id) => {
     setError("");
     setSuccess("");
+    setIsConfirming(true);
     try {
-      await updateRequestStatus(id, "SALES_CONFIRMED");
-      setSuccess("Order confirmed. Truck automatically assigned and invoice sent to Finance.");
+      const confirmedOrder = await updateRequestStatus(id, "SALES_CONFIRMED");
+      if (confirmedOrder.orderStatus === "AWAITING_RESTOCK") {
+        setError(
+          "The order could not be confirmed because there is not enough available fuel stock. It has been marked as awaiting restock.",
+        );
+      } else {
+        setSuccess("Order confirmed and invoice sent to Finance for payment approval.");
+        setSelectedRequest(null);
+      }
       loadData();
     } catch (err) {
-      setError(err?.message || "Failed to approve order.");
+      setError(err?.message || "Failed to confirm order.");
+    } finally {
+      setIsConfirming(false);
     }
   };
 
@@ -145,6 +156,7 @@ function SalesDash() {
     setValidationError("");
     setError("");
     setSuccess("");
+    setIsConfirming(true);
     try {
       const parsedQty = parseFloat(editQty);
       if (isNaN(parsedQty) || parsedQty <= 0) {
@@ -178,6 +190,8 @@ function SalesDash() {
       setValidationError(
         err?.response?.data?.message || err?.message || "Failed to approve edited order.",
       );
+    } finally {
+      setIsConfirming(false);
     }
   };
 
@@ -245,10 +259,9 @@ function SalesDash() {
               ? "Sales Overview"
               : activeTab === "requests"
                 ? "Request Approvals"
-               
-                    : activeTab === "inventory"
-                      ? "Fuel Products"
-                      : "Customer Directory"
+                : activeTab === "inventory"
+                  ? "Fuel Products"
+                  : "Customer Directory"
           }
           crumbs={["Sales", activeTab]}
         />
@@ -1068,9 +1081,10 @@ function SalesDash() {
                                   <button
                                     className="fef-btn fef-btn-success"
                                     onClick={() => handleApproveEdited(selectedRequest.id)}
+                                    disabled={isConfirming}
                                     style={{ padding: "10px 20px" }}
                                   >
-                                    <FiCheck /> Confirm Order
+                                    <FiCheck /> {isConfirming ? "Confirming…" : "Confirm Order"}
                                   </button>
                                 </>
                               ) : (
@@ -1115,11 +1129,11 @@ function SalesDash() {
                                 className="fef-btn fef-btn-success"
                                 onClick={() => {
                                   handleApprove(selectedRequest.id);
-                                  setSelectedRequest(null);
                                 }}
+                                disabled={isConfirming}
                                 style={{ padding: "10px 20px" }}
                               >
-                                <FiCheck /> Confirm Order
+                                <FiCheck /> {isConfirming ? "Confirming…" : "Confirm Order"}
                               </button>
                             </>
                           )}

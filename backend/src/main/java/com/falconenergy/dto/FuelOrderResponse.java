@@ -16,6 +16,7 @@ public class FuelOrderResponse {
     private FuelProductResponse product;
     private BigDecimal quantity;
     private BigDecimal amount;
+    private BigDecimal unitPrice;
     private LocalDateTime orderDate;
     private LocalDateTime deliveryDate;
     private String orderStatus;
@@ -24,11 +25,6 @@ public class FuelOrderResponse {
     private LocalDateTime updatedAt;
 
     public BigDecimal getAmount() {
-        if (!"APPROVED".equalsIgnoreCase(orderStatus) && product != null && quantity != null) {
-            if (product.getUnitPrice() != null) {
-                return quantity.multiply(product.getUnitPrice());
-            }
-        }
         return amount;
     }
 

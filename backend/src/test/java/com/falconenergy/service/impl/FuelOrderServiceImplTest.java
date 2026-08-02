@@ -72,6 +72,8 @@ class FuelOrderServiceImplTest {
     @Mock private com.falconenergy.repository.OrderTruckAllocationRepository orderTruckAllocationRepository;
     @Mock private com.falconenergy.repository.TruckPricingRepository truckPricingRepository;
     @Mock private com.falconenergy.repository.VehicleRepository vehicleRepository;
+    @Mock private com.falconenergy.service.FuelPriceRangeService fuelPriceRangeService;
+    @Mock private com.falconenergy.service.TransportPriceRangeService transportPriceRangeService;
 
     @InjectMocks
     private FuelOrderServiceImpl fuelOrderService;
@@ -107,13 +109,10 @@ class FuelOrderServiceImplTest {
         when(fuelOrderRepository.findById(30L)).thenReturn(Optional.of(order));
         when(fuelOrderRepository.save(any(FuelOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(fuelProductRepository.findById(20L)).thenReturn(Optional.of(product));
-        
+        when(fuelPriceRangeService.resolvePrice(product, new BigDecimal("100"))).thenReturn(new BigDecimal("3200"));
         com.falconenergy.entity.PaymentAccount paymentAccount = com.falconenergy.entity.PaymentAccount.builder()
                 .id(1L)
                 .paymentMethod("Bank Transfer")
-                .beneficiaryName("FALCON ENERGY LIMITED")
-                .bankName("CRDB BANK")
-                .accountNumber("025000130UJ00")
                 .currency("USD")
                 .status("ACTIVE")
                 .validityDays(30)
@@ -121,14 +120,6 @@ class FuelOrderServiceImplTest {
         when(paymentAccountRepository.findByStatus("ACTIVE")).thenReturn(java.util.List.of(paymentAccount));
         when(invoiceRepository.save(any(com.falconenergy.entity.Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(systemSettingService.getSetting("INVOICE_PREFIX", "INV-")).thenReturn("INV-");
-        com.falconenergy.entity.Vehicle vehicle = com.falconenergy.entity.Vehicle.builder()
-                .id(40L).truckNumber("TRK-001").plateNumber("T-001").capacity(new BigDecimal("100")).build();
-        com.falconenergy.entity.TruckPricing pricing = com.falconenergy.entity.TruckPricing.builder()
-                .capacity(new BigDecimal("100")).fuelType("AGO").transportPrice(new BigDecimal("50")).active(true).build();
-        when(orderTruckAllocationRepository.existsByOrderId(30L)).thenReturn(false);
-        when(fleetAllocationService.suggest(order)).thenReturn(java.util.List.of(vehicle));
-        when(truckPricingRepository.findByCapacityAndFuelTypeIgnoreCaseAndActiveTrue(new BigDecimal("100"), "AGO"))
-                .thenReturn(Optional.of(pricing));
 
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("sales-agent", "password", java.util.List.of())

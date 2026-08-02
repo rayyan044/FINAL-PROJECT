@@ -620,6 +620,7 @@ function LoadingDash() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 24, marginBottom: 30 }}>
                       <div>
                         <p style={{ margin: "0 0 8px 0" }}><strong>Customer Name:</strong> {selectedOrder.customerName}</p>
+                        <p style={{ margin: "0 0 8px 0" }}><strong>Invoice:</strong> {selectedOrder.invoiceNumber || "—"}</p>
                         <p style={{ margin: "0 0 8px 0" }}><strong>Loading Order:</strong> {selectedOrder.loadingOrderNumber}</p>
                         <p style={{ margin: "0 0 8px 0" }}><strong>Terminal / Depot:</strong> {reportData.terminal}</p>
                         <p style={{ margin: "0 0 8px 0" }}><strong>Loading Bay:</strong> {reportData.loadingBay}</p>

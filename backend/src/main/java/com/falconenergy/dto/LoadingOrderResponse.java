@@ -15,6 +15,8 @@ public class LoadingOrderResponse {
     private String loadingOrderNumber;
     private Long orderId;
     private String customerOrderNumber;
+    private Long invoiceId;
+    private String invoiceNumber;
     private String customerName;
     private LocalDate loadingDate;
     private String product;

@@ -24,7 +24,7 @@ import { RouteGuard } from "../components/RouteGuard";
 import { listRequests } from "../services/requestService";
 import { listDeliveries, createDelivery } from "../services/deliveryService";
 import { listDrivers, createDriver } from "../services/driverService";
-import { listVehicles, createVehicle } from "../services/vehicleService";
+import { listVehicles, createVehicle, updateVehicle } from "../services/vehicleService";
 import {
   listProducts,
   updateProduct,
@@ -42,6 +42,8 @@ import {
   cancelLoadingOrder,
   startLoadingActivity,
   completeLoadingActivity,
+  startLiveLoadingActivity,
+  completeLiveLoadingActivity,
 } from "../services/loadingOrderService";
 import "../styles/forms.css";
 import falconLogo from "../assets/falcon-logo.png";
@@ -96,7 +98,8 @@ function OpsDash() {
   });
 
   const [showVehicleModal, setShowVehicleModal] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState({ truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: "", currentStatus: "AVAILABLE" });
+  const [vehicleForm, setVehicleForm] = useState({ truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: [], currentStatus: "AVAILABLE" });
+  const [editingVehicle, setEditingVehicle] = useState(null);
 
   const [showStockModal, setShowStockModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -115,6 +118,9 @@ function OpsDash() {
   // Loading Order & Activities States
   const [loadingOrdersList, setLoadingOrdersList] = useState([]);
   const [selectedLoadingOrder, setSelectedLoadingOrder] = useState(null);
+  const [completionTarget, setCompletionTarget] = useState(null);
+  const [completionError, setCompletionError] = useState("");
+  const [completionForm, setCompletionForm] = useState({ meterStart: "", meterEnd: "", bayNumber: "", pumpNumber: "", remarks: "", compartmentNumber: "1", capacity: "", productId: "", ambientVolume: "", temperature: "20", density: "" });
 
   const handlePrintLO = () => {
     const printContent = document.getElementById("printable-loading-order");
@@ -278,16 +284,17 @@ function OpsDash() {
     setError("");
     setSuccess("");
     try {
-      const inputs = activityInputs[activityId] || {};
-      const params = {
-        bayNumber: inputs.bayNumber || "BAY-1",
-        pumpNumber: inputs.pumpNumber || ""
-      };
-      const res = await startLoadingActivity(loId, activityId, params);
-      const updated = res.data || res;
+      const updated = await startLiveLoadingActivity(activityId);
       setSuccess("Loading started for truck.");
-      setSelectedLoadingOrder(updated);
-      loadData();
+      setSelectedLoadingOrder((current) => current && ({
+        ...current,
+        activities: current.activities.map((activity) => activity.id === activityId ? {
+          ...activity,
+          status: updated.status,
+          loadingStartTime: updated.loadingStartedAt,
+          loadingOfficer: updated.startedBy,
+        } : activity),
+      }));
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Failed to start loading.");
     }
@@ -297,14 +304,50 @@ function OpsDash() {
     setError("");
     setSuccess("");
     try {
-      const res = await completeLoadingActivity(loId, activityId);
-      const updated = res.data || res;
+      const updated = await completeLiveLoadingActivity(activityId);
       setSuccess("Loading completed for truck.");
-      setSelectedLoadingOrder(updated);
-      loadData();
+      setSelectedLoadingOrder((current) => current && ({
+        ...current,
+        activities: current.activities.map((activity) => activity.id === activityId ? {
+          ...activity,
+          status: updated.status,
+          loadingCompletionTime: updated.loadingCompletedAt,
+          completedByName: updated.completedBy,
+        } : activity),
+      }));
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Failed to complete loading.");
     }
+  };
+
+  const openDetailedCompletion = (activity) => {
+    const product = productsList.find((p) => p.productName === activity.product || p.fuelType === activity.product);
+    setCompletionTarget(activity);
+    setCompletionError("");
+    setCompletionForm({ meterStart: "", meterEnd: "", bayNumber: activity.bayNumber || "", pumpNumber: activity.pumpNumber || "", remarks: "", compartmentNumber: "1", capacity: activity.allocatedQuantity || "", productId: product?.id || "", ambientVolume: activity.allocatedQuantity || "", temperature: "20", density: product?.density || "" });
+  };
+
+  const submitDetailedCompletion = async (e) => {
+    e.preventDefault();
+    if (!completionTarget || !selectedLoadingOrder) return;
+    setError(""); setSuccess(""); setCompletionError("");
+    const meterDifference = Number(completionForm.meterEnd) - Number(completionForm.meterStart);
+    const ambientVolume = Number(completionForm.ambientVolume);
+    if (Math.abs(meterDifference - ambientVolume) > ambientVolume * 0.005) {
+      setCompletionError(`Cannot complete loading: Meter End − Meter Start is ${meterDifference.toLocaleString()} L, but the compartment ambient volume is ${ambientVolume.toLocaleString()} L. These must match within 0.5%.`);
+      return;
+    }
+    try {
+      await completeLoadingActivity(selectedLoadingOrder.id, completionTarget.id, {
+        meterStart: Number(completionForm.meterStart), meterEnd: Number(completionForm.meterEnd), bayNumber: completionForm.bayNumber, pumpNumber: completionForm.pumpNumber, remarks: completionForm.remarks,
+        compartments: [{ compartmentNumber: completionForm.compartmentNumber, capacity: Number(completionForm.capacity), productId: Number(completionForm.productId), ambientVolume: Number(completionForm.ambientVolume), temperature: Number(completionForm.temperature), density: Number(completionForm.density), sealNumber: "N/A" }],
+      });
+      setSuccess("Detailed loading completion recorded. Loading Report and delivery documents were generated.");
+      setCompletionTarget(null);
+      const refreshed = await getLoadingOrderById(selectedLoadingOrder.id);
+      setSelectedLoadingOrder(refreshed);
+      loadData();
+    } catch (err) { const message = err?.response?.data?.message || err?.message || "Failed to complete detailed loading."; setError(message); setCompletionError(message); }
   };
 
   const handleOpenEditLO = (lo) => {
@@ -571,22 +614,50 @@ function OpsDash() {
     setError("");
     setSuccess("");
     try {
-      await createVehicle({
+      const payload = {
         truckNumber: vehicleForm.truckNumber,
         plateNumber: vehicleForm.plateNumber,
         capacity: parseFloat(vehicleForm.capacity),
         driverId: vehicleForm.driverId ? parseInt(vehicleForm.driverId) : null,
-        assignedFuelTypes: vehicleForm.assignedFuelTypes.split(",").map((value) => value.trim()).filter(Boolean),
+        assignedFuelTypes: vehicleForm.assignedFuelTypes,
         currentStatus: vehicleForm.currentStatus,
         active: true,
-      });
-      setSuccess("Vehicle registered successfully");
+      };
+      if (editingVehicle) {
+        await updateVehicle(editingVehicle.id, payload);
+      } else {
+        await createVehicle(payload);
+      }
+      setSuccess(editingVehicle ? "Vehicle updated successfully" : "Vehicle registered successfully");
       setShowVehicleModal(false);
-      setVehicleForm({ truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: "", currentStatus: "AVAILABLE" });
+      setEditingVehicle(null);
+      setVehicleForm({ truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: [], currentStatus: "AVAILABLE" });
       loadData();
     } catch (err) {
       setError(err?.message || "Failed to register vehicle. Ensure plate number is unique.");
     }
+  };
+
+  const openVehicleEditor = (vehicle = null) => {
+    setEditingVehicle(vehicle);
+    setVehicleForm(vehicle ? {
+      truckNumber: vehicle.truckNumber || "",
+      plateNumber: vehicle.plateNumber || "",
+      capacity: vehicle.capacity || "",
+      driverId: vehicle.driver?.id || "",
+      assignedFuelTypes: vehicle.assignedFuelTypes || [],
+      currentStatus: vehicle.currentStatus === "ACTIVE" ? "AVAILABLE" : (vehicle.currentStatus || "AVAILABLE"),
+    } : { truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: [], currentStatus: "AVAILABLE" });
+    setShowVehicleModal(true);
+  };
+
+  const toggleVehicleFuelType = (fuelType) => {
+    setVehicleForm((current) => ({
+      ...current,
+      assignedFuelTypes: current.assignedFuelTypes.includes(fuelType)
+        ? current.assignedFuelTypes.filter((value) => value !== fuelType)
+        : [...current.assignedFuelTypes, fuelType],
+    }));
   };
 
   const handleOpenStockModal = (prod) => {
@@ -1541,7 +1612,7 @@ function OpsDash() {
                                 <div>
                                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                     <strong style={{ fontSize: 15, color: "var(--feftms-primary-light)" }}>{act.truckNumber}</strong>
-                                    <span className={`fef-badge fef-badge-${act.status?.toLowerCase()}`} style={{ fontSize: 10, padding: "2px 6px" }}>
+                                    <span className={`fef-badge fef-badge-${act.status?.toLowerCase()}`} style={{ fontSize: 10, padding: "2px 6px", background: act.status === "PENDING" ? "#F59E0B" : act.status === "LOADING" ? "#3B82F6" : act.status === "LOADED" ? "#10B981" : undefined, color: ["PENDING", "LOADING", "LOADED"].includes(act.status) ? "#fff" : undefined }}>
                                       {act.status}
                                     </span>
                                   </div>
@@ -1563,26 +1634,8 @@ function OpsDash() {
                                 </div>
 
                                 <div>
-                                  {act.status === "WAITING" && (
+                                  {act.status === "PENDING" && (
                                     <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-                                      <div style={{ display: "flex", gap: 8 }}>
-                                        <input
-                                          type="text"
-                                          placeholder="Bay (default: BAY-1)"
-                                          className="fef-input"
-                                          style={{ width: 140, padding: "4px 8px", fontSize: 12, height: 32, color: "#fff", background: "rgba(0,0,0,0.3)" }}
-                                          value={activityInputs[act.id]?.bayNumber || ""}
-                                          onChange={(e) => handleActivityInputChange(act.id, "bayNumber", e.target.value)}
-                                        />
-                                        <input
-                                          type="text"
-                                          placeholder="Pump (optional)"
-                                          className="fef-input"
-                                          style={{ width: 120, padding: "4px 8px", fontSize: 12, height: 32, color: "#fff", background: "rgba(0,0,0,0.3)" }}
-                                          value={activityInputs[act.id]?.pumpNumber || ""}
-                                          onChange={(e) => handleActivityInputChange(act.id, "pumpNumber", e.target.value)}
-                                        />
-                                      </div>
                                       <button
                                         className="fef-btn fef-btn-primary"
                                         onClick={() => handleStartLoading(selectedLoadingOrder.id, act.id)}
@@ -1602,8 +1655,11 @@ function OpsDash() {
                                     </button>
                                   )}
                                   {act.status === "LOADED" && (
-                                    <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#10B981", fontSize: 13, fontWeight: "bold" }}>
-                                      <FiCheckCircle /> Loaded
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#10B981", fontSize: 13, fontWeight: "bold" }}><FiCheckCircle /> Quick Loading Completed</div>
+                                      <button className="fef-btn fef-btn-primary" onClick={() => openDetailedCompletion(act)} style={{ fontSize: 12 }}>
+                                        Record Measurements & Complete Report
+                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -1859,7 +1915,7 @@ function OpsDash() {
           <div className="fef-panel">
             <div className="fef-panel-head" style={{ marginBottom: 20 }}>
               <h3>Fleet Tankers</h3>
-              <button className="fef-btn fef-btn-primary" onClick={() => setShowVehicleModal(true)}>
+              <button className="fef-btn fef-btn-primary" onClick={() => openVehicleEditor()}>
                 <FiPlus /> Register Vehicle
               </button>
             </div>
@@ -1869,7 +1925,7 @@ function OpsDash() {
                 className="fef-card"
                 style={{ padding: 20, marginBottom: 24, background: "rgba(255,255,255,0.05)" }}
               >
-                <h4>Register Fleet Vehicle</h4>
+                <h4>{editingVehicle ? "Edit Fleet Vehicle" : "Register Fleet Vehicle"}</h4>
                 <form onSubmit={handleCreateVehicle} style={{ marginTop: 15 }}>
                   <div className="fef-form-grid">
                     <div className="fef-field">
@@ -1920,23 +1976,37 @@ function OpsDash() {
                     </div>
                     <div className="fef-field">
                       <label className="fef-label">Compatible Fuel Products</label>
-                      <input required className="fef-input" value={vehicleForm.assignedFuelTypes} onChange={(e) => setVehicleForm({ ...vehicleForm, assignedFuelTypes: e.target.value })} placeholder="Diesel, Petrol" />
+                      <div className="fef-card" style={{ padding: 12, display: "grid", gap: 8 }}>
+                        {Array.from(new Map(productsList.filter((product) => product.status === "ACTIVE").map((product) => [product.fuelType, product])).values()).map((product) => (
+                          <label key={product.fuelType} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={vehicleForm.assignedFuelTypes.includes(product.fuelType)}
+                              onChange={() => toggleVehicleFuelType(product.fuelType)}
+                            />
+                            <span>{product.productName} ({product.fuelType})</span>
+                          </label>
+                        ))}
+                        {productsList.filter((product) => product.status === "ACTIVE").length === 0 && (
+                          <span style={{ color: "var(--feftms-danger)" }}>No active fuel products have been configured by Finance.</span>
+                        )}
+                      </div>
                     </div>
                     <div className="fef-field">
                       <label className="fef-label">Fleet Status</label>
                       <select className="fef-select" value={vehicleForm.currentStatus} onChange={(e) => setVehicleForm({ ...vehicleForm, currentStatus: e.target.value })}>
-                        <option value="AVAILABLE">Available</option><option value="MAINTENANCE">Maintenance</option><option value="OUT_OF_SERVICE">Out of Service</option>
+                        <option value="AVAILABLE">Available</option><option value="ASSIGNED">Assigned</option><option value="MAINTENANCE">Maintenance</option><option value="OUT_OF_SERVICE">Out of Service</option>
                       </select>
                     </div>
                   </div>
                   <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
                     <button type="submit" className="fef-btn fef-btn-primary">
-                      Register
+                      {editingVehicle ? "Save Changes" : "Register"}
                     </button>
                     <button
                       type="button"
                       className="fef-btn fef-btn-outline"
-                      onClick={() => setShowVehicleModal(false)}
+                      onClick={() => { setShowVehicleModal(false); setEditingVehicle(null); }}
                     >
                       Cancel
                     </button>
@@ -1951,8 +2021,10 @@ function OpsDash() {
                   <tr>
                     <th>Plate Number</th>
                     <th>Capacity</th>
+                    <th>Supported Fuel Products</th>
                     <th>Assigned Driver</th>
                     <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1962,10 +2034,12 @@ function OpsDash() {
                         <strong>{v.plateNumber}</strong>
                       </td>
                       <td>{v.capacity?.toLocaleString()} L</td>
-                      <td>{v.driverName || "—"}</td>
+                      <td>{v.assignedFuelTypes?.length ? v.assignedFuelTypes.join(", ") : "Not configured"}</td>
+                      <td>{v.driver ? `${v.driver.firstName} ${v.driver.lastName}` : "—"}</td>
                       <td>
                         <span className="fef-badge fef-badge-approved">{v.currentStatus}</span>
                       </td>
+                      <td><button className="fef-btn fef-btn-outline" onClick={() => openVehicleEditor(v)}>Edit</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -2245,6 +2319,24 @@ function OpsDash() {
             </div>,
             document.body,
           )}
+
+        {completionTarget && typeof window !== "undefined" && createPortal(
+          <div className="fef-modal-backdrop" onClick={() => setCompletionTarget(null)}>
+            <div className="fef-modal-window" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
+              <button className="fef-modal-close" onClick={() => setCompletionTarget(null)}><FiX /></button>
+              <div className="fef-detail-modal-header"><h2 className="fef-detail-modal-title">Complete Detailed Loading</h2><p>Record the actual measurements for truck {completionTarget.truckNumber}. This creates the Loading Report and delivery documents.</p></div>
+              <form onSubmit={submitDetailedCompletion} style={{ marginTop: 18 }}>
+                {completionError && <div className="fef-alert fef-alert-danger" style={{ marginBottom: 14 }}><FiAlertCircle style={{ marginRight: 6 }} />{completionError}</div>}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  {[['Meter start', 'meterStart'], ['Meter end', 'meterEnd'], ['Bay number', 'bayNumber'], ['Pump number', 'pumpNumber'], ['Compartment capacity (L)', 'capacity'], ['Ambient volume (L)', 'ambientVolume'], ['Temperature (°C)', 'temperature'], ['Density', 'density']].map(([label, key]) => <div className="fef-field" key={key}><label className="fef-label">{label}</label><input className="fef-input" required type={["bayNumber","pumpNumber"].includes(key) ? "text" : "number"} min={key === "temperature" ? "0" : "0"} step="0.01" value={completionForm[key]} onChange={(e) => setCompletionForm({ ...completionForm, [key]: e.target.value })} /></div>)}
+                  <div className="fef-field" style={{ gridColumn: "1 / -1" }}><label className="fef-label">Fuel product</label><select required className="fef-input" value={completionForm.productId} onChange={(e) => setCompletionForm({ ...completionForm, productId: e.target.value })}><option value="">Select product</option>{productsList.map(p => <option key={p.id} value={p.id}>{p.productName}</option>)}</select></div>
+                  <div className="fef-field" style={{ gridColumn: "1 / -1" }}><label className="fef-label">Remarks</label><textarea className="fef-input" value={completionForm.remarks} onChange={(e) => setCompletionForm({ ...completionForm, remarks: e.target.value })} /></div>
+                </div>
+                <div className="fef-alert fef-alert-info" style={{ marginTop: 14, marginBottom: 0, fontSize: 12 }}>Meter difference: <strong>{((Number(completionForm.meterEnd) || 0) - (Number(completionForm.meterStart) || 0)).toLocaleString()} L</strong> · Ambient volume: <strong>{(Number(completionForm.ambientVolume) || 0).toLocaleString()} L</strong>. They must match within 0.5%.</div>
+                <div className="fef-detail-actions" style={{ marginTop: 22 }}><button type="button" className="fef-btn fef-btn-outline" onClick={() => setCompletionTarget(null)}>Cancel</button><button type="submit" className="fef-btn fef-btn-primary">Complete Loading Report</button></div>
+              </form>
+            </div>
+          </div>, document.body)}
       </DashboardLayout>
     </RouteGuard>
   );

@@ -17,6 +17,9 @@ public class DeliveryResponse {
     
     private Long loadingOrderId;
     private String loadingOrderNumber;
+    private Long invoiceId;
+    private String invoiceNumber;
+    private String customerName;
     private Long loadingActivityId;
     private Long deliveryNoteId;
     private String deliveryNoteNumber;
@@ -41,10 +44,6 @@ public class DeliveryResponse {
     private LocalDateTime updatedAt;
 
     // Helper methods for backward compatibility
-    public String getCustomerName() {
-        return destination;
-    }
-
     public String getOrderNumber() {
         return loadingOrderNumber;
     }

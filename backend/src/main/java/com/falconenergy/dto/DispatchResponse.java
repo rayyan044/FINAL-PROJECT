@@ -13,6 +13,9 @@ public class DispatchResponse {
     private String dispatchNumber;
     private Long loadingOrderId;
     private String loadingOrderNumber;
+    private Long invoiceId;
+    private String invoiceNumber;
+    private String customerName;
     private Long loadingActivityId;
     private Long deliveryNoteId;
     private String deliveryNoteNumber;

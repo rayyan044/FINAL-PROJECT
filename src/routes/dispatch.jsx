@@ -23,13 +23,12 @@ import { OperatorWorkflowProgress } from "../components/OperatorWorkflowProgress
 import { listDrivers } from "../services/driverService";
 import { listVehicles } from "../services/vehicleService";
 import { listLoadingOrders } from "../services/loadingOrderService";
-import { getDeliveryNote, getTruckInvoice } from "../services/deliveryDocumentService";
 import {
-  createDispatch,
   getDispatchByActivityId,
   releaseTruck,
   startTransit,
 } from "../services/dispatchService";
+import { getDeliveryNote, getPaymentReceiptForOrder, getTransportReleaseForm } from "../services/deliveryDocumentService";
 
 export const Route = createFileRoute("/dispatch")({
   head: () => ({ meta: [{ title: "Dispatcher Workspace — FEFTMS" }] }),
@@ -56,6 +55,8 @@ function DispatchDash() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   // Details modal
   const [selectedActDetails, setSelectedActDetails] = useState(null);
@@ -83,6 +84,9 @@ function DispatchDash() {
                 if (activity.status === "COMPLETED" || activity.status === "DISPATCHED" || activity.status === "IN_TRANSIT") {
                   completedActs.push({
                     ...activity,
+                    customerName: order.customerName,
+                    customerOrderNumber: order.customerOrderNumber,
+                    orderId: order.orderId,
                     loadingOrderNumber: order.loadingOrderNumber,
                     loadingOrderId: order.id,
                     loadingTerminal: order.loadingTerminal,
@@ -107,19 +111,14 @@ function DispatchDash() {
     const statuses = {};
     await Promise.all(
       acts.map(async (act) => {
-        statuses[act.id] = { dn: null, inv: null, dispatch: null, loading: true };
-        try {
-          const dnRes = await getDeliveryNote(act.id);
-          statuses[act.id].dn = dnRes || null;
-        } catch (e) {}
-        try {
-          const invRes = await getTruckInvoice(act.id);
-          statuses[act.id].inv = invRes || null;
-        } catch (e) {}
+        statuses[act.id] = { dn: null, receipt: null, release: null, dispatch: null, loading: true };
         try {
           const dispRes = await getDispatchByActivityId(act.id);
           statuses[act.id].dispatch = dispRes || null;
         } catch (e) {}
+        try { statuses[act.id].dn = await getDeliveryNote(act.id); } catch (e) {}
+        try { statuses[act.id].release = await getTransportReleaseForm(act.id); } catch (e) {}
+        try { statuses[act.id].receipt = await getPaymentReceiptForOrder(act.orderId); } catch (e) {}
         statuses[act.id].loading = false;
       })
     );
@@ -129,18 +128,6 @@ function DispatchDash() {
   useEffect(() => {
     loadData();
   }, []);
-
-  const handleCreateDispatch = async (activityId) => {
-    setError("");
-    setSuccess("");
-    try {
-      const res = await createDispatch(activityId);
-      setSuccess(`Dispatch record ${res.dispatchNumber} created successfully!`);
-      loadData();
-    } catch (err) {
-      setError(err?.message || "Failed to initiate dispatch.");
-    }
-  };
 
   const handleReleaseTruck = async (dispatchId) => {
     setError("");
@@ -168,13 +155,10 @@ function DispatchDash() {
 
   const activeFleet = vehicles.length;
   
-  // Ready queue displays COMPLETED activities where Delivery Note status is HANDED_TO_DRIVER and Invoice exists
-  const queueActivities = completedActivities.filter((act) => {
-    const state = dispatchStatusMap[act.id];
-    return state && state.dn && state.dn.status === "HANDED_TO_DRIVER" && state.inv;
-  });
-  const readyToCreateDispatch = queueActivities.filter((activity) => !dispatchStatusMap[activity.id]?.dispatch);
+  const queueActivities = completedActivities.filter((act) => dispatchStatusMap[act.id]?.dispatch);
+  const readyToCreateDispatch = queueActivities.filter((activity) => dispatchStatusMap[activity.id]?.dispatch?.dispatchStatus === "READY");
   const releasedOrInTransit = queueActivities.filter((activity) => dispatchStatusMap[activity.id]?.dispatch);
+  const displayedQueue = queueActivities.filter((act) => { const dispatch = dispatchStatusMap[act.id]?.dispatch; const haystack = `${act.customerName} ${act.customerOrderNumber} ${act.truckNumber} ${act.driverName} ${dispatch?.dispatchNumber}`.toLowerCase(); return (statusFilter === "ALL" || dispatch?.dispatchStatus === statusFilter) && haystack.includes(search.toLowerCase()); });
 
   return (
     <RouteGuard allowedRoles={["DISPATCHER", "OPERATIONS", "ADMIN", "OPERATOR"]}>
@@ -214,7 +198,7 @@ function DispatchDash() {
             tone="primary"
           />
           <StatCard
-            label="Ready to Create Dispatch"
+            label="Ready for Release"
             value={loading ? "…" : String(readyToCreateDispatch.length)}
             icon={FiMapPin}
             tone="secondary"
@@ -244,7 +228,7 @@ function DispatchDash() {
                     <strong>{vehicles.length}</strong> vehicles in fleet.
                   </p>
                   <p style={{ marginTop: 10 }}>
-                    Create and release eligible dispatches here. A truck becomes eligible only after its Delivery Note is handed to the driver and its Truck Invoice is generated.
+                    Dispatch records are created automatically after detailed loading completion and its loading report generation. Confirm the READY dispatch to release the truck.
                   </p>
                 </div>
               )}
@@ -257,44 +241,40 @@ function DispatchDash() {
           <div className="fef-panel" style={{ marginTop: 24 }}>
             <div className="fef-panel-head">
               <h3>Operations Terminal Release Queue</h3>
+              <div style={{ display: "flex", gap: 8 }}><input className="fef-input" placeholder="Search customer, order, truck…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 210, height: 32 }} /><select className="fef-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ height: 32 }}><option value="ALL">All statuses</option><option value="READY">READY</option><option value="DISPATCHED">DISPATCHED</option><option value="IN_TRANSIT">IN TRANSIT</option></select></div>
             </div>
             <div className="fef-table-wrap">
               <table className="fef-table">
                 <thead>
                   <tr>
-                    <th>Order Ref / Loading #</th>
+                    <th>Customer / Order</th>
+                    <th>Dispatch / Documents</th>
                     <th>Truck Number</th>
                     <th>Driver Name</th>
                     <th>Destination</th>
-                    <th>Document Status</th>
+                    <th>Loading Status</th>
                     <th>Dispatch Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {queueActivities.map((act) => {
+                  {displayedQueue.map((act) => {
                     const state = dispatchStatusMap[act.id] || { dn: null, inv: null, dispatch: null, loading: true };
                     
                     return (
                       <tr key={act.id}>
                         <td>
-                          <strong>{act.loadingOrderNumber}</strong>
+                          <strong>{act.customerName}</strong>
                           <div style={{ fontSize: 11, color: "var(--feftms-text-muted)" }}>
-                            Activity ID: {act.id}
+                            {act.customerOrderNumber} · {act.loadingOrderNumber}
                           </div>
                         </td>
+                        <td><strong>{state.dispatch?.dispatchNumber || "Creating"}</strong><div style={{ fontSize: 11, color: "var(--feftms-text-muted)" }}>DN: {state.dn?.deliveryNoteNumber || "Missing"} · Report: {act.reports?.[0]?.reportNumber || "Missing"}</div></td>
                         <td>{act.truckNumber}</td>
                         <td>{act.driverName}</td>
                         <td>{act.destination}</td>
                         <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                            <span className="fef-badge fef-badge-success" style={{ fontSize: 10 }}>
-                              DN: HANDED OVER
-                            </span>
-                            <span className="fef-badge fef-badge-success" style={{ fontSize: 10 }}>
-                              INV: {state.inv?.invoiceStatus}
-                            </span>
-                          </div>
+                          <span className="fef-badge fef-badge-success" style={{ fontSize: 10 }}>LOADING REPORT COMPLETED</span>
                         </td>
                         <td>
                           {state.loading ? (
@@ -303,28 +283,16 @@ function DispatchDash() {
                             <span className={`fef-badge fef-badge-${state.dispatch.dispatchStatus === "IN_TRANSIT" ? "secondary" : state.dispatch.dispatchStatus === "DISPATCHED" ? "success" : "warning"}`}>
                               {state.dispatch.dispatchStatus}
                             </span>
-                          ) : (
-                            <span className="fef-badge fef-badge-pending">NOT READY</span>
-                          )}
+                          ) : <span className="fef-badge fef-badge-pending">CREATING</span>}
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: 6 }}>
-                            {!state.dispatch && (
-                              <button
-                                className="fef-btn fef-btn-primary"
-                                style={{ padding: "4px 8px", fontSize: 11 }}
-                                onClick={() => handleCreateDispatch(act.id)}
-                              >
-                                Create Dispatch
-                              </button>
-                            )}
-
                             {state.dispatch && (
                               <>
                                 <button
                                   className="fef-btn fef-btn-outline"
                                   style={{ padding: "4px 8px", fontSize: 11 }}
-                                  onClick={() => setSelectedActDetails({ ...act, dispatch: state.dispatch, dn: state.dn, inv: state.inv })}
+                                  onClick={() => setSelectedActDetails({ ...act, dispatch: state.dispatch, dn: state.dn, receipt: state.receipt, release: state.release })}
                                 >
                                   Details
                                 </button>
@@ -353,11 +321,11 @@ function DispatchDash() {
                       </tr>
                     );
                   })}
-                  {queueActivities.length === 0 && !loading && (
+                  {displayedQueue.length === 0 && !loading && (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: "center", color: "var(--feftms-text-muted)", padding: 25 }}>
+                    <td colSpan="8" style={{ textAlign: "center", color: "var(--feftms-text-muted)", padding: 25 }}>
                         <FiInfo size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
-                        <p>No trucks are ready for dispatch. Complete loading, generate and print both delivery documents, then hand the Delivery Note to the driver.</p>
+                        <p>No completed loading reports are waiting for dispatch.</p>
                       </td>
                     </tr>
                   )}
@@ -454,9 +422,13 @@ function DispatchDash() {
 
                 <div style={{ marginTop: 25, borderTop: "1px solid #E5E7EB", paddingTop: 15 }}>
                   <h4 style={{ margin: "0 0 10px 0", color: "#F97316" }}><FiFileText style={{ verticalAlign: "-2px", marginRight: 6 }} /> Associated Documents</h4>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 6 }}>
-                    <p style={{ margin: 0, fontSize: 13 }}><strong>Delivery Note:</strong> {selectedActDetails.dn?.deliveryNoteNumber || "N/A"}</p>
-                    <p style={{ margin: 0, fontSize: 13 }}><strong>Truck Invoice:</strong> {selectedActDetails.inv?.invoiceNumber || "N/A"}</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 6 }}>
+                    <p style={{ margin: 0, fontSize: 13 }}><strong>Customer:</strong> {selectedActDetails.customerName}</p>
+                    <p style={{ margin: 0, fontSize: 13 }}><strong>Customer Order:</strong> {selectedActDetails.customerOrderNumber}</p>
+                    <p style={{ margin: 0, fontSize: 13 }}><strong>Delivery Note:</strong> {selectedActDetails.dn?.deliveryNoteNumber || "Missing"}</p>
+                    <p style={{ margin: 0, fontSize: 13 }}><strong>Payment Receipt:</strong> {selectedActDetails.receipt?.receiptNumber || "Missing"}</p>
+                    <p style={{ margin: 0, fontSize: 13 }}><strong>Loading Report:</strong> {selectedActDetails.reports?.[0]?.reportNumber || "Missing"}</p>
+                    <p style={{ margin: 0, fontSize: 13 }}><strong>Transport Release Form:</strong> {selectedActDetails.release?.releaseFormNumber || "Missing"}</p>
                   </div>
                 </div>
 

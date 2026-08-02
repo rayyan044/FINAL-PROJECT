@@ -2,6 +2,7 @@ package com.falconenergy.service.impl;
 
 import com.falconenergy.dto.DeliveryNoteResponse;
 import com.falconenergy.dto.TruckInvoiceResponse;
+import com.falconenergy.dto.TransportReleaseFormResponse;
 import com.falconenergy.entity.*;
 import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.exception.ResourceNotFoundException;
@@ -33,6 +34,7 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
     private final FuelOrderRepository fuelOrderRepository;
     private final UserRepository userRepository;
     private final SystemSettingService systemSettingService;
+    private final TransportReleaseFormRepository transportReleaseFormRepository;
 
     @Override
     public DeliveryNoteResponse generateDeliveryNote(Long activityId) {
@@ -54,7 +56,7 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
 
         LoadingOrder loadingOrder = activity.getLoadingOrder();
         FuelOrder fuelOrder = loadingOrder != null ? loadingOrder.getOrder() : null;
-        Customer customer = fuelOrder != null ? fuelOrder.getCustomer() : null;
+        Customer customer = com.falconenergy.util.BuyerNameResolver.resolveCustomer(fuelOrder);
         FuelProduct product = fuelOrder != null ? fuelOrder.getProduct() : null;
 
         String username = resolveCurrentUser();
@@ -93,6 +95,43 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
     }
 
     @Override
+    public void generateDocumentsForCompletedLoading(LoadingActivity activity, LoadingReport report) {
+        if (activity.getStatus() != LoadingActivityStatus.COMPLETED) {
+            throw new BadRequestException("Delivery documents can only be generated after detailed loading completion.");
+        }
+        DeliveryNote note = deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElseGet(() -> {
+            LoadingOrder loadingOrder = activity.getLoadingOrder();
+            FuelOrder order = loadingOrder != null ? loadingOrder.getOrder() : null;
+            String username = resolveCurrentUser();
+            DeliveryNote created = DeliveryNote.builder()
+                    .deliveryNoteNumber(generateDeliveryNoteNumber()).loadingOrder(loadingOrder).loadingActivity(activity)
+                    .loadingReport(report).customer(com.falconenergy.util.BuyerNameResolver.resolveCustomer(order)).product(order != null ? order.getProduct() : null)
+                    .truckNumber(activity.getTruckNumber()).driverName(activity.getDriverName()).driverLicenseNumber(activity.getDriverLicenceNumber())
+                    .transportCompany(activity.getTransportCompany()).truckCapacity(activity.getVehicle() != null ? activity.getVehicle().getCapacity() : null)
+                    .transportCharge(activity.getTransportCharge()).ambientVolume(activity.getAmbientVolume()).standardVolume(activity.getStandardVolume())
+                    .destination(activity.getDestination()).status("PREPARED").preparedBy(username).preparedAt(LocalDateTime.now()).build();
+            created.setCreatedBy(username); created.setUpdatedBy(username);
+            return deliveryNoteRepository.save(created);
+        });
+        if (transportReleaseFormRepository.findByLoadingActivityId(activity.getId()).isEmpty()) {
+            String username = resolveCurrentUser();
+            TransportReleaseForm form = TransportReleaseForm.builder().releaseFormNumber(generateReleaseFormNumber())
+                    .loadingActivity(activity).loadingReport(report).deliveryNote(note).releaseStatus("PREPARED")
+                    .preparedAt(LocalDateTime.now()).preparedBy(username).build();
+            form.setCreatedBy(username); form.setUpdatedBy(username);
+            transportReleaseFormRepository.save(form);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TransportReleaseFormResponse getTransportReleaseFormByActivity(Long activityId) {
+        TransportReleaseForm form = transportReleaseFormRepository.findByLoadingActivityId(activityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transport Release Form not found for loading activity id: " + activityId));
+        return toTransportReleaseFormResponse(form);
+    }
+
+    @Override
     public TruckInvoiceResponse generateTruckInvoice(Long activityId) {
         log.info("Generating truck invoice for loading activity: {}", activityId);
 
@@ -112,7 +151,7 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
 
         LoadingOrder loadingOrder = activity.getLoadingOrder();
         FuelOrder fuelOrder = loadingOrder != null ? loadingOrder.getOrder() : null;
-        Customer customer = fuelOrder != null ? fuelOrder.getCustomer() : null;
+        Customer customer = com.falconenergy.util.BuyerNameResolver.resolveCustomer(fuelOrder);
         FuelProduct product = fuelOrder != null ? fuelOrder.getProduct() : null;
 
         BigDecimal quantity = activity.getStandardVolume();
@@ -280,6 +319,13 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
         }
     }
 
+    private synchronized String generateReleaseFormNumber() {
+        String prefix = "TRF-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+        String max = transportReleaseFormRepository.findMaxReleaseFormNumberWithPrefix(prefix);
+        int sequence = max == null ? 1 : Integer.parseInt(max.substring(prefix.length())) + 1;
+        return prefix + String.format("%04d", sequence);
+    }
+
     private void checkAndUpdateToDocumentsReady(LoadingOrder loadingOrder) {
         if (loadingOrder == null) return;
         List<LoadingActivity> activities = loadingActivityRepository.findByLoadingOrderId(loadingOrder.getId());
@@ -386,5 +432,14 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .invoiceStatus(ti.getInvoiceStatus())
                 .createdAt(ti.getCreatedAt())
                 .build();
+    }
+
+    private TransportReleaseFormResponse toTransportReleaseFormResponse(TransportReleaseForm form) {
+        LoadingActivity activity = form.getLoadingActivity();
+        return TransportReleaseFormResponse.builder().id(form.getId()).releaseFormNumber(form.getReleaseFormNumber())
+                .loadingActivityId(activity.getId()).loadingReportNumber(form.getLoadingReport().getReportNumber())
+                .deliveryNoteNumber(form.getDeliveryNote().getDeliveryNoteNumber()).truckNumber(activity.getTruckNumber())
+                .driverName(activity.getDriverName()).destination(activity.getDestination()).releaseStatus(form.getReleaseStatus())
+                .preparedAt(form.getPreparedAt()).preparedBy(form.getPreparedBy()).build();
     }
 }
