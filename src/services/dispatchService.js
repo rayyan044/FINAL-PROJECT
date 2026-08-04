@@ -20,6 +20,10 @@ export async function releaseTruck(id) {
   return api.post(`/dispatch/${id}/release`).then((r) => r.data);
 }
 
+export async function cancelDispatch(id, payload = {}) {
+  return api.post(`/dispatch/${id}/cancel`, payload).then((r) => r.data);
+}
+
 export async function startTransit(id) {
   return api.post(`/dispatch/${id}/start-transit`).then((r) => r.data);
 }

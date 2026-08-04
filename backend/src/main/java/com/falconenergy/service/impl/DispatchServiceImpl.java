@@ -41,7 +41,6 @@ public class DispatchServiceImpl implements DispatchService {
     private final TruckInvoiceRepository truckInvoiceRepository;
     private final LoadingOrderRepository loadingOrderRepository;
     private final PaymentReceiptRepository paymentReceiptRepository;
-    private final TransportReleaseFormRepository transportReleaseFormRepository;
     private final AuditLogService auditLogService;
 
     @Override
@@ -53,7 +52,11 @@ public class DispatchServiceImpl implements DispatchService {
         return activities.stream()
                 .filter(act -> act.getStatus() == LoadingActivityStatus.COMPLETED)
                 .filter(act -> loadingReportRepository.findByLoadingActivityId(act.getId()).isPresent())
-                .filter(act -> dispatchRepository.existsByLoadingActivityId(act.getId()))
+                .filter(act -> deliveryNoteRepository.findByLoadingActivityId(act.getId())
+                        .map(note -> "HANDED_TO_DRIVER".equals(note.getStatus()))
+                        .orElse(false))
+                .filter(act -> truckInvoiceRepository.existsByLoadingActivityId(act.getId()))
+                .filter(act -> !dispatchRepository.existsByLoadingActivityId(act.getId()))
                 .map(this::toLoadingActivityResponse)
                 .collect(Collectors.toList());
     }
@@ -67,12 +70,8 @@ public class DispatchServiceImpl implements DispatchService {
             throw new BadRequestException("A completed Loading Report is required before creating a Dispatch.");
         }
         LoadingOrder loadingOrder = activity.getLoadingOrder();
-        Invoice invoice = loadingOrder != null && loadingOrder.getOrder() != null ? loadingOrder.getOrder().getInvoice() : null;
-        if (invoice == null || !"PAID".equalsIgnoreCase(invoice.getPaymentStatus()) || !paymentReceiptRepository.existsByInvoiceId(invoice.getId())) {
-            throw new BadRequestException("A confirmed payment and Payment Receipt are required before creating a Dispatch.");
-        }
-        if (!deliveryNoteRepository.existsByLoadingActivityId(activity.getId()) || transportReleaseFormRepository.findByLoadingActivityId(activity.getId()).isEmpty()) {
-            throw new BadRequestException("Delivery Note and Transport Release Form are required before creating a Dispatch.");
+        if (!deliveryNoteRepository.existsByLoadingActivityId(activity.getId())) {
+            throw new BadRequestException("Delivery Note is required before creating a Dispatch.");
         }
         if (dispatchRepository.existsByLoadingActivityId(activity.getId())) {
             return toDispatchResponse(dispatchRepository.findByLoadingActivityId(activity.getId()).orElseThrow());
@@ -178,16 +177,18 @@ public class DispatchServiceImpl implements DispatchService {
         }
 
         LoadingActivity releaseActivity = dispatch.getLoadingActivity();
-        if (releaseActivity == null || !deliveryNoteRepository.existsByLoadingActivityId(releaseActivity.getId())) {
-            throw new BadRequestException("Truck cannot be released: the Delivery Note has not been generated.");
+        if (releaseActivity == null) {
+            throw new BadRequestException("Truck cannot be released: the loading activity is missing.");
+        }
+        DeliveryNote deliveryNote = deliveryNoteRepository.findByLoadingActivityId(releaseActivity.getId())
+                .orElseThrow(() -> new BadRequestException("Truck cannot be released: the Delivery Note has not been generated."));
+        if (!"HANDED_TO_DRIVER".equals(deliveryNote.getStatus())) {
+            throw new BadRequestException("Truck cannot be released: the Delivery Note must be handed to the driver first.");
         }
         LoadingOrder releaseOrder = dispatch.getLoadingOrder();
         Invoice customerInvoice = releaseOrder != null && releaseOrder.getOrder() != null ? releaseOrder.getOrder().getInvoice() : null;
         if (customerInvoice == null || !paymentReceiptRepository.existsByInvoiceId(customerInvoice.getId())) {
             throw new BadRequestException("Truck cannot be released: the Payment Receipt has not been generated.");
-        }
-        if (transportReleaseFormRepository.findByLoadingActivityId(releaseActivity.getId()).isEmpty()) {
-            throw new BadRequestException("Truck cannot be released: the Transport Release Form has not been generated.");
         }
         LoadingReport releaseReport = loadingReportRepository.findByLoadingActivityId(releaseActivity.getId())
                 .orElseThrow(() -> new BadRequestException("Truck cannot be released: the Loading Report is missing."));
@@ -228,6 +229,28 @@ public class DispatchServiceImpl implements DispatchService {
 
         Dispatch saved = dispatchRepository.save(dispatch);
         auditLogService.log("TRUCK_RELEASED", "DISPATCH", saved.getId(), username, "Truck released for dispatch.", DispatchStatus.READY.name(), DispatchStatus.DISPATCHED.name());
+        return toDispatchResponse(saved);
+    }
+
+    @Override
+    public DispatchResponse cancelDispatch(Long id, DispatchRequest request) {
+        Dispatch dispatch = dispatchRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Dispatch record not found with id: " + id));
+
+        if (dispatch.getDispatchStatus() != DispatchStatus.READY) {
+            throw new BadRequestException("Only a READY dispatch can be cancelled. Current status: " + dispatch.getDispatchStatus());
+        }
+
+        String username = resolveCurrentUser();
+        dispatch.setDispatchStatus(DispatchStatus.CANCELLED);
+        dispatch.setRemarks(request != null && request.getRemarks() != null && !request.getRemarks().isBlank()
+                ? request.getRemarks()
+                : "Cancelled before truck release.");
+        dispatch.setUpdatedBy(username);
+
+        Dispatch saved = dispatchRepository.save(dispatch);
+        auditLogService.log("DISPATCH_CANCELLED", "DISPATCH", saved.getId(), username,
+                "Dispatch cancelled before truck release.", DispatchStatus.READY.name(), DispatchStatus.CANCELLED.name());
         return toDispatchResponse(saved);
     }
 
@@ -332,9 +355,6 @@ public class DispatchServiceImpl implements DispatchService {
                 .temperature(act.getTemperature())
                 .density(act.getDensity())
                 .standardVolume(act.getStandardVolume())
-                .meterStart(act.getMeterStart())
-                .meterEnd(act.getMeterEnd())
-                .meterDifference(act.getMeterDifference())
                 .remarks(act.getRemarks())
                 .completedAt(act.getCompletedAt())
                 .reports(reportsList)

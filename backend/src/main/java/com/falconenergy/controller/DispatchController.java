@@ -57,6 +57,16 @@ public class DispatchController {
         return ResponseEntity.ok(ApiResponse.success("Truck released successfully", response));
     }
 
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_OPERATIONS', 'ROLE_OPERATOR', 'ROLE_DISPATCHER')")
+    public ResponseEntity<ApiResponse<DispatchResponse>> cancelDispatch(
+            @PathVariable Long id,
+            @RequestBody(required = false) DispatchRequest request
+    ) {
+        DispatchResponse response = dispatchService.cancelDispatch(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Dispatch cancelled successfully", response));
+    }
+
     @PostMapping("/{id}/start-transit")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_OPERATIONS', 'ROLE_OPERATOR', 'ROLE_DISPATCHER')")
     public ResponseEntity<ApiResponse<DispatchResponse>> startTransit(@PathVariable Long id) {

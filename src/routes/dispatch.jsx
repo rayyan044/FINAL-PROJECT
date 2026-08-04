@@ -26,9 +26,10 @@ import { listLoadingOrders } from "../services/loadingOrderService";
 import {
   getDispatchByActivityId,
   releaseTruck,
+  cancelDispatch,
   startTransit,
 } from "../services/dispatchService";
-import { getDeliveryNote, getPaymentReceiptForOrder, getTransportReleaseForm } from "../services/deliveryDocumentService";
+import { getDeliveryNote, getPaymentReceiptForOrder } from "../services/deliveryDocumentService";
 
 export const Route = createFileRoute("/dispatch")({
   head: () => ({ meta: [{ title: "Dispatcher Workspace — FEFTMS" }] }),
@@ -111,13 +112,12 @@ function DispatchDash() {
     const statuses = {};
     await Promise.all(
       acts.map(async (act) => {
-        statuses[act.id] = { dn: null, receipt: null, release: null, dispatch: null, loading: true };
+        statuses[act.id] = { dn: null, receipt: null, dispatch: null, loading: true };
         try {
           const dispRes = await getDispatchByActivityId(act.id);
           statuses[act.id].dispatch = dispRes || null;
         } catch (e) {}
         try { statuses[act.id].dn = await getDeliveryNote(act.id); } catch (e) {}
-        try { statuses[act.id].release = await getTransportReleaseForm(act.id); } catch (e) {}
         try { statuses[act.id].receipt = await getPaymentReceiptForOrder(act.orderId); } catch (e) {}
         statuses[act.id].loading = false;
       })
@@ -153,12 +153,30 @@ function DispatchDash() {
     }
   };
 
+  const handleCancelDispatch = async (dispatchId) => {
+    if (!window.confirm("Cancel this READY dispatch? The truck will not be released.")) return;
+    setError("");
+    setSuccess("");
+    try {
+      const res = await cancelDispatch(dispatchId);
+      setSuccess(`Dispatch ${res.dispatchNumber} has been cancelled.`);
+      setSelectedActDetails(null);
+      loadData();
+    } catch (err) {
+      setError(err?.message || "Failed to cancel dispatch.");
+    }
+  };
+
   const activeFleet = vehicles.length;
+  const getDispatchCustomerName = (activity) => {
+    const isEmergencyRequest = activity.customerName === "Stranded Drivers (Emergency Requests)" || activity.customerName === "Customer Fuel Requests";
+    return isEmergencyRequest && activity.consignee ? activity.consignee : activity.customerName;
+  };
   
   const queueActivities = completedActivities.filter((act) => dispatchStatusMap[act.id]?.dispatch);
   const readyToCreateDispatch = queueActivities.filter((activity) => dispatchStatusMap[activity.id]?.dispatch?.dispatchStatus === "READY");
-  const releasedOrInTransit = queueActivities.filter((activity) => dispatchStatusMap[activity.id]?.dispatch);
-  const displayedQueue = queueActivities.filter((act) => { const dispatch = dispatchStatusMap[act.id]?.dispatch; const haystack = `${act.customerName} ${act.customerOrderNumber} ${act.truckNumber} ${act.driverName} ${dispatch?.dispatchNumber}`.toLowerCase(); return (statusFilter === "ALL" || dispatch?.dispatchStatus === statusFilter) && haystack.includes(search.toLowerCase()); });
+  const releasedOrInTransit = queueActivities.filter((activity) => ["DISPATCHED", "IN_TRANSIT"].includes(dispatchStatusMap[activity.id]?.dispatch?.dispatchStatus));
+  const displayedQueue = queueActivities.filter((act) => { const dispatch = dispatchStatusMap[act.id]?.dispatch; const haystack = `${getDispatchCustomerName(act)} ${act.customerOrderNumber} ${act.truckNumber} ${act.driverName} ${dispatch?.dispatchNumber}`.toLowerCase(); return (statusFilter === "ALL" || dispatch?.dispatchStatus === statusFilter) && haystack.includes(search.toLowerCase()); });
 
   return (
     <RouteGuard allowedRoles={["DISPATCHER", "OPERATIONS", "ADMIN", "OPERATOR"]}>
@@ -241,7 +259,7 @@ function DispatchDash() {
           <div className="fef-panel" style={{ marginTop: 24 }}>
             <div className="fef-panel-head">
               <h3>Operations Terminal Release Queue</h3>
-              <div style={{ display: "flex", gap: 8 }}><input className="fef-input" placeholder="Search customer, order, truck…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 210, height: 32 }} /><select className="fef-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ height: 32 }}><option value="ALL">All statuses</option><option value="READY">READY</option><option value="DISPATCHED">DISPATCHED</option><option value="IN_TRANSIT">IN TRANSIT</option></select></div>
+              <div style={{ display: "flex", gap: 8 }}><input className="fef-input" placeholder="Search customer, order, truck…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 210, height: 32 }} /><select className="fef-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ height: 32 }}><option value="ALL">All statuses</option><option value="READY">READY</option><option value="DISPATCHED">DISPATCHED</option><option value="IN_TRANSIT">IN TRANSIT</option><option value="CANCELLED">CANCELLED</option></select></div>
             </div>
             <div className="fef-table-wrap">
               <table className="fef-table">
@@ -264,7 +282,7 @@ function DispatchDash() {
                     return (
                       <tr key={act.id}>
                         <td>
-                          <strong>{act.customerName}</strong>
+                          <strong>{getDispatchCustomerName(act)}</strong>
                           <div style={{ fontSize: 11, color: "var(--feftms-text-muted)" }}>
                             {act.customerOrderNumber} · {act.loadingOrderNumber}
                           </div>
@@ -297,13 +315,10 @@ function DispatchDash() {
                                   Details
                                 </button>
                                 {state.dispatch.dispatchStatus === "READY" && (
-                                  <button
-                                    className="fef-btn fef-btn-success"
-                                    style={{ padding: "4px 8px", fontSize: 11 }}
-                                    onClick={() => handleReleaseTruck(state.dispatch.id)}
-                                  >
-                                    <FiUserCheck style={{ marginRight: 4 }} /> Release Truck
-                                  </button>
+                                  <>
+                                    <button className="fef-btn fef-btn-success" style={{ padding: "4px 8px", fontSize: 11 }} onClick={() => handleReleaseTruck(state.dispatch.id)}><FiUserCheck style={{ marginRight: 4 }} /> Release Truck</button>
+                                    <button className="fef-btn fef-btn-outline" style={{ padding: "4px 8px", fontSize: 11 }} onClick={() => handleCancelDispatch(state.dispatch.id)}>Cancel</button>
+                                  </>
                                 )}
                                 {state.dispatch.dispatchStatus === "DISPATCHED" && (
                                   <button
@@ -428,7 +443,6 @@ function DispatchDash() {
                     <p style={{ margin: 0, fontSize: 13 }}><strong>Delivery Note:</strong> {selectedActDetails.dn?.deliveryNoteNumber || "Missing"}</p>
                     <p style={{ margin: 0, fontSize: 13 }}><strong>Payment Receipt:</strong> {selectedActDetails.receipt?.receiptNumber || "Missing"}</p>
                     <p style={{ margin: 0, fontSize: 13 }}><strong>Loading Report:</strong> {selectedActDetails.reports?.[0]?.reportNumber || "Missing"}</p>
-                    <p style={{ margin: 0, fontSize: 13 }}><strong>Transport Release Form:</strong> {selectedActDetails.release?.releaseFormNumber || "Missing"}</p>
                   </div>
                 </div>
 
@@ -447,9 +461,10 @@ function DispatchDash() {
 
                 <div style={{ display: "flex", justifyContent: "end", gap: 10, marginTop: 30, borderTop: "1px solid #E5E7EB", paddingTop: 15 }}>
                   {selectedActDetails.dispatch.dispatchStatus === "READY" && (
-                    <button className="fef-btn fef-btn-success" onClick={() => { handleReleaseTruck(selectedActDetails.dispatch.id); setSelectedActDetails(null); }}>
-                      Release Truck
-                    </button>
+                    <>
+                      <button className="fef-btn fef-btn-success" onClick={() => { handleReleaseTruck(selectedActDetails.dispatch.id); setSelectedActDetails(null); }}>Release Truck</button>
+                      <button className="fef-btn fef-btn-outline" onClick={() => handleCancelDispatch(selectedActDetails.dispatch.id)}>Cancel Dispatch</button>
+                    </>
                   )}
                   {selectedActDetails.dispatch.dispatchStatus === "DISPATCHED" && (
                     <button className="fef-btn fef-btn-outline" onClick={() => { handleStartTransit(selectedActDetails.dispatch.id); setSelectedActDetails(null); }}>

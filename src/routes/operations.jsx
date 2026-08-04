@@ -120,7 +120,7 @@ function OpsDash() {
   const [selectedLoadingOrder, setSelectedLoadingOrder] = useState(null);
   const [completionTarget, setCompletionTarget] = useState(null);
   const [completionError, setCompletionError] = useState("");
-  const [completionForm, setCompletionForm] = useState({ meterStart: "", meterEnd: "", bayNumber: "", pumpNumber: "", remarks: "", compartmentNumber: "1", capacity: "", productId: "", ambientVolume: "", temperature: "20", density: "" });
+  const [completionForm, setCompletionForm] = useState({ bayNumber: "", pumpNumber: "", remarks: "", compartmentNumber: "1", capacity: "", productId: "", ambientVolume: "", temperature: "20", density: "" });
 
   const handlePrintLO = () => {
     const printContent = document.getElementById("printable-loading-order");
@@ -223,6 +223,19 @@ function OpsDash() {
     setShowCreateLOForm(true);
   };
 
+  // Emergency requests use a shared placeholder customer record.  The
+  // consignee is the actual requester saved with the loading order, so show it
+  // in the customer column once the loading order has been created.
+  const getLoadingOrderCustomerName = (loadingOrder) => {
+    const isEmergencyRequest =
+      loadingOrder.customerName === "Stranded Drivers (Emergency Requests)" ||
+      loadingOrder.customerName === "Customer Fuel Requests";
+
+    return isEmergencyRequest && loadingOrder.consignee
+      ? loadingOrder.consignee
+      : loadingOrder.customerName;
+  };
+
   const handleCreateLOSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -321,25 +334,20 @@ function OpsDash() {
   };
 
   const openDetailedCompletion = (activity) => {
-    const product = productsList.find((p) => p.productName === activity.product || p.fuelType === activity.product);
+    const product = productsList.find((p) => p.productName === selectedLoadingOrder?.product || p.fuelType === selectedLoadingOrder?.product || p.productName === activity.product || p.fuelType === activity.product);
+    const vehicle = vehiclesList.find((v) => v.id === activity.vehicleId);
     setCompletionTarget(activity);
     setCompletionError("");
-    setCompletionForm({ meterStart: "", meterEnd: "", bayNumber: activity.bayNumber || "", pumpNumber: activity.pumpNumber || "", remarks: "", compartmentNumber: "1", capacity: activity.allocatedQuantity || "", productId: product?.id || "", ambientVolume: activity.allocatedQuantity || "", temperature: "20", density: product?.density || "" });
+    setCompletionForm({ bayNumber: activity.bayNumber || "", pumpNumber: activity.pumpNumber || "", remarks: "", compartmentNumber: "1", capacity: vehicle?.capacity || activity.allocatedQuantity || "", productId: product?.id || "", ambientVolume: activity.allocatedQuantity || "", temperature: "20", density: product?.density || "" });
   };
 
   const submitDetailedCompletion = async (e) => {
     e.preventDefault();
     if (!completionTarget || !selectedLoadingOrder) return;
     setError(""); setSuccess(""); setCompletionError("");
-    const meterDifference = Number(completionForm.meterEnd) - Number(completionForm.meterStart);
-    const ambientVolume = Number(completionForm.ambientVolume);
-    if (Math.abs(meterDifference - ambientVolume) > ambientVolume * 0.005) {
-      setCompletionError(`Cannot complete loading: Meter End − Meter Start is ${meterDifference.toLocaleString()} L, but the compartment ambient volume is ${ambientVolume.toLocaleString()} L. These must match within 0.5%.`);
-      return;
-    }
     try {
       await completeLoadingActivity(selectedLoadingOrder.id, completionTarget.id, {
-        meterStart: Number(completionForm.meterStart), meterEnd: Number(completionForm.meterEnd), bayNumber: completionForm.bayNumber, pumpNumber: completionForm.pumpNumber, remarks: completionForm.remarks,
+        bayNumber: completionForm.bayNumber, pumpNumber: completionForm.pumpNumber, ambientVolume: Number(completionForm.ambientVolume), remarks: completionForm.remarks,
         compartments: [{ compartmentNumber: completionForm.compartmentNumber, capacity: Number(completionForm.capacity), productId: Number(completionForm.productId), ambientVolume: Number(completionForm.ambientVolume), temperature: Number(completionForm.temperature), density: Number(completionForm.density), sealNumber: "N/A" }],
       });
       setSuccess("Detailed loading completion recorded. Loading Report and delivery documents were generated.");
@@ -347,7 +355,18 @@ function OpsDash() {
       const refreshed = await getLoadingOrderById(selectedLoadingOrder.id);
       setSelectedLoadingOrder(refreshed);
       loadData();
-    } catch (err) { const message = err?.response?.data?.message || err?.message || "Failed to complete detailed loading."; setError(message); setCompletionError(message); }
+    } catch (err) {
+      const message = err?.response?.data?.message || err?.message || "Failed to complete detailed loading.";
+      const isMeasurementMismatch = /ambient volume loaded exceeds/i.test(message);
+      const isDispatchPaymentMessage = /payment receipt|confirmed payment.*dispatch/i.test(message);
+      const displayMessage = isMeasurementMismatch
+        ? "The loaded quantity exceeds the allowed order quantity. Please verify the loading slip before completing the loading."
+        : isDispatchPaymentMessage
+          ? "Unable to complete the loading report. Please verify the loading information and try again."
+          : message;
+      setError(displayMessage);
+      setCompletionError(displayMessage);
+    }
   };
 
   const handleOpenEditLO = (lo) => {
@@ -1338,7 +1357,7 @@ function OpsDash() {
                         <tr key={lo.id}>
                           <td><strong>{lo.loadingOrderNumber}</strong></td>
                           <td>{lo.customerOrderNumber}</td>
-                          <td>{lo.customerName}</td>
+                          <td>{getLoadingOrderCustomerName(lo)}</td>
                           <td>{lo.loadingDate}</td>
                           <td>{lo.loadingTerminal}</td>
                           <td>{lo.numberOfTrucks}</td>
@@ -2322,17 +2341,55 @@ function OpsDash() {
 
         {completionTarget && typeof window !== "undefined" && createPortal(
           <div className="fef-modal-backdrop" onClick={() => setCompletionTarget(null)}>
-            <div className="fef-modal-window" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
+            <div className="fef-modal-window" style={{ maxWidth: 760 }} onClick={(e) => e.stopPropagation()}>
               <button className="fef-modal-close" onClick={() => setCompletionTarget(null)}><FiX /></button>
               <div className="fef-detail-modal-header"><h2 className="fef-detail-modal-title">Complete Detailed Loading</h2><p>Record the actual measurements for truck {completionTarget.truckNumber}. This creates the Loading Report and delivery documents.</p></div>
               <form onSubmit={submitDetailedCompletion} style={{ marginTop: 18 }}>
                 {completionError && <div className="fef-alert fef-alert-danger" style={{ marginBottom: 14 }}><FiAlertCircle style={{ marginRight: 6 }} />{completionError}</div>}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                  {[['Meter start', 'meterStart'], ['Meter end', 'meterEnd'], ['Bay number', 'bayNumber'], ['Pump number', 'pumpNumber'], ['Compartment capacity (L)', 'capacity'], ['Ambient volume (L)', 'ambientVolume'], ['Temperature (°C)', 'temperature'], ['Density', 'density']].map(([label, key]) => <div className="fef-field" key={key}><label className="fef-label">{label}</label><input className="fef-input" required type={["bayNumber","pumpNumber"].includes(key) ? "text" : "number"} min={key === "temperature" ? "0" : "0"} step="0.01" value={completionForm[key]} onChange={(e) => setCompletionForm({ ...completionForm, [key]: e.target.value })} /></div>)}
-                  <div className="fef-field" style={{ gridColumn: "1 / -1" }}><label className="fef-label">Fuel product</label><select required className="fef-input" value={completionForm.productId} onChange={(e) => setCompletionForm({ ...completionForm, productId: e.target.value })}><option value="">Select product</option>{productsList.map(p => <option key={p.id} value={p.id}>{p.productName}</option>)}</select></div>
-                  <div className="fef-field" style={{ gridColumn: "1 / -1" }}><label className="fef-label">Remarks</label><textarea className="fef-input" value={completionForm.remarks} onChange={(e) => setCompletionForm({ ...completionForm, remarks: e.target.value })} /></div>
-                </div>
-                <div className="fef-alert fef-alert-info" style={{ marginTop: 14, marginBottom: 0, fontSize: 12 }}>Meter difference: <strong>{((Number(completionForm.meterEnd) || 0) - (Number(completionForm.meterStart) || 0)).toLocaleString()} L</strong> · Ambient volume: <strong>{(Number(completionForm.ambientVolume) || 0).toLocaleString()} L</strong>. They must match within 0.5%.</div>
+                {(() => {
+                  const product = productsList.find((p) => p.id === Number(completionForm.productId));
+                  const ambientVolume = Number(completionForm.ambientVolume) || 0;
+                  const temperature = Number(completionForm.temperature) || 0;
+                  const alpha = Number(product?.thermalExpansionCoefficient) || 0;
+                  const standardVolume = ambientVolume * (1 - alpha * (temperature - 20));
+                  const scheduledQuantity = Number(completionTarget.allocatedQuantity) || 0;
+                  const quantityVariance = scheduledQuantity - standardVolume;
+                  const vehicle = vehiclesList.find((v) => v.id === completionTarget.vehicleId);
+                  const isEmergencyPlaceholder = ["Stranded Drivers (Emergency Requests)", "Customer Fuel Requests"].includes(selectedLoadingOrder?.customerName);
+                  const customerName = isEmergencyPlaceholder
+                    ? selectedLoadingOrder?.consignee || "Buyer name not available"
+                    : selectedLoadingOrder?.customerName || "Buyer name not available";
+                  const orderedQuantity = selectedLoadingOrder?.approvedQuantity ?? selectedLoadingOrder?.activities?.reduce((total, activity) => total + (Number(activity.allocatedQuantity) || 0), 0);
+                  const readOnly = [
+                    ["Customer Name", customerName], ["Customer Order Number", selectedLoadingOrder?.customerOrderNumber],
+                    ["Loading Order Number", selectedLoadingOrder?.loadingOrderNumber], ["Destination", completionTarget.destination],
+                    ["Truck Registration", completionTarget.truckNumber], ["Driver Name", completionTarget.driverName],
+                    ["Vehicle Capacity", vehicle?.capacity != null ? `${Number(vehicle.capacity).toLocaleString()} L` : "Not available"], ["Compartment Capacity", completionForm.capacity !== "" ? `${Number(completionForm.capacity).toLocaleString()} L` : "Not available"],
+                    ["Carrier", completionTarget.transportCompany || "Not available"],
+                    ["Fuel Product", selectedLoadingOrder?.product || completionTarget.product], ["Ordered Quantity", orderedQuantity != null ? `${Number(orderedQuantity).toLocaleString()} L` : "Not available"],
+                    ["Scheduled Quantity", `${scheduledQuantity.toLocaleString()} L`], ["Loading Bay", completionForm.bayNumber || "Not assigned"],
+                    ["Loading Date", selectedLoadingOrder?.loadingDate || "Not available"],
+                  ];
+                  const calculated = [
+                    ["Standard Volume @20°C", `${standardVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })} L`], ["Quantity Loaded", `${standardVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })} L`],
+                    ["Quantity Variance", `${quantityVariance.toLocaleString(undefined, { maximumFractionDigits: 2 })} L`],
+                  ];
+                  return <>
+                    <h4 className="fef-detail-section-title" style={{ marginTop: 0 }}>Loading Information</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 20 }}>
+                      {readOnly.map(([label, value]) => <div key={label} className="fef-field"><label className="fef-label">{label}</label><input className="fef-input" value={value || "Not available"} readOnly /></div>)}
+                    </div>
+                    <h4 className="fef-detail-section-title">Loading Measurements</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      {[['Ambient Volume Loaded (L)', 'ambientVolume'], ['Temperature (°C)', 'temperature'], ['Pump Number (Optional)', 'pumpNumber']].map(([label, key]) => <div className="fef-field" key={key}><label className="fef-label">{label}</label><input className="fef-input" required={key !== "pumpNumber"} type={key === "pumpNumber" ? "text" : "number"} min={key === "temperature" ? "0" : "0"} step="0.01" value={completionForm[key]} onChange={(e) => setCompletionForm({ ...completionForm, [key]: e.target.value })} /></div>)}
+                      <div className="fef-field" style={{ gridColumn: "1 / -1" }}><label className="fef-label">Remarks</label><textarea className="fef-input" value={completionForm.remarks} onChange={(e) => setCompletionForm({ ...completionForm, remarks: e.target.value })} /></div>
+                    </div>
+                    <h4 className="fef-detail-section-title" style={{ marginTop: 20 }}>Automatically Calculated</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                      {calculated.map(([label, value]) => <div key={label} className="fef-field"><label className="fef-label">{label}</label><input className="fef-input" value={value} readOnly /></div>)}
+                    </div>
+                  </>;
+                })()}
                 <div className="fef-detail-actions" style={{ marginTop: 22 }}><button type="button" className="fef-btn fef-btn-outline" onClick={() => setCompletionTarget(null)}>Cancel</button><button type="submit" className="fef-btn fef-btn-primary">Complete Loading Report</button></div>
               </form>
             </div>

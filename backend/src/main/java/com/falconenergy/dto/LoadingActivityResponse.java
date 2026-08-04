@@ -35,9 +35,6 @@ public class LoadingActivityResponse {
     private BigDecimal temperature;
     private BigDecimal density;
     private BigDecimal standardVolume;
-    private BigDecimal meterStart;
-    private BigDecimal meterEnd;
-    private BigDecimal meterDifference;
     private String remarks;
     private Long completedById;
     private String completedByName;

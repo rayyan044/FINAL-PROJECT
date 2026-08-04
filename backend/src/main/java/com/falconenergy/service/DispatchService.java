@@ -14,5 +14,6 @@ public interface DispatchService {
     DispatchResponse getDispatchById(Long id);
     DispatchResponse getDispatchByActivityId(Long activityId);
     DispatchResponse releaseTruck(Long id);
+    DispatchResponse cancelDispatch(Long id, DispatchRequest request);
     DispatchResponse startTransit(Long id);
 }

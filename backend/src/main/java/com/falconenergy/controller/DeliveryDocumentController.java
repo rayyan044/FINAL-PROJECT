@@ -4,7 +4,6 @@ import com.falconenergy.dto.ApiResponse;
 import com.falconenergy.dto.DeliveryNoteResponse;
 import com.falconenergy.dto.TruckInvoiceResponse;
 import com.falconenergy.dto.PaymentReceiptResponse;
-import com.falconenergy.dto.TransportReleaseFormResponse;
 import com.falconenergy.service.DeliveryDocumentService;
 import com.falconenergy.service.PaymentReceiptService;
 import com.falconenergy.repository.InvoiceRepository;
@@ -41,12 +40,6 @@ public class DeliveryDocumentController {
                 ? paymentReceiptService.generateForPaidInvoice(invoice)
                 : paymentReceiptService.getByInvoiceId(invoice.getId());
         return ResponseEntity.ok(ApiResponse.success("Payment Receipt retrieved successfully", receipt));
-    }
-
-    @GetMapping("/transport-release-forms/loading-activity/{activityId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_FINANCE', 'ROLE_SALES_OFFICER', 'ROLE_OPERATIONS', 'ROLE_OPERATOR')")
-    public ResponseEntity<ApiResponse<TransportReleaseFormResponse>> getTransportReleaseForm(@PathVariable Long activityId) {
-        return ResponseEntity.ok(ApiResponse.success("Transport Release Form retrieved successfully", deliveryDocumentService.getTransportReleaseFormByActivity(activityId)));
     }
 
     @PostMapping("/delivery-notes/loading-activity/{activityId}")

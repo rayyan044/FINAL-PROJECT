@@ -170,30 +170,14 @@ public class DispatchServiceTest {
             dispatchService.createDispatch(activity.getId(), null);
         });
 
-        // 5. Release Truck
-        DispatchResponse releasedRes = dispatchService.releaseTruck(dispatchResponse.getId());
-        Assertions.assertEquals("DISPATCHED", releasedRes.getDispatchStatus());
-        Assertions.assertNotNull(releasedRes.getReleasedBy());
-        Assertions.assertNotNull(releasedRes.getReleasedAt());
-        Assertions.assertEquals("dispatch_officer", releasedRes.getReleasedBy());
+        // 5. A READY dispatch cannot release a truck until all release prerequisites exist.
+        Assertions.assertThrows(BadRequestException.class, () ->
+                dispatchService.releaseTruck(dispatchResponse.getId()));
 
-        // Verify LoadingActivity status updated to DISPATCHED
-        LoadingActivity updatedActivity = loadingActivityRepository.findById(activity.getId()).orElseThrow();
-        Assertions.assertEquals(LoadingActivityStatus.DISPATCHED, updatedActivity.getStatus());
-
-        // Verify LoadingOrder status updated to DISPATCHED
-        LoadingOrder updatedOrder = loadingOrderRepository.findById(loadingOrder.getId()).orElseThrow();
-        Assertions.assertEquals(LoadingOrderStatus.DISPATCHED, updatedOrder.getStatus());
-
-        // 6. Start Transit
-        DispatchResponse transitRes = dispatchService.startTransit(dispatchResponse.getId());
-        Assertions.assertEquals("IN_TRANSIT", transitRes.getDispatchStatus());
-
-        // Verify LoadingActivity and LoadingOrder status updated to IN_TRANSIT
-        LoadingActivity transitActivity = loadingActivityRepository.findById(activity.getId()).orElseThrow();
-        Assertions.assertEquals(LoadingActivityStatus.IN_TRANSIT, transitActivity.getStatus());
-
-        LoadingOrder transitOrder = loadingOrderRepository.findById(loadingOrder.getId()).orElseThrow();
-        Assertions.assertEquals(LoadingOrderStatus.IN_TRANSIT, transitOrder.getStatus());
+        // 6. The dispatcher can cancel an unreleased dispatch.
+        DispatchResponse cancelledRes = dispatchService.cancelDispatch(dispatchResponse.getId(),
+                DispatchRequest.builder().remarks("Customer cancelled before departure").build());
+        Assertions.assertEquals("CANCELLED", cancelledRes.getDispatchStatus());
+        Assertions.assertEquals("Customer cancelled before departure", cancelledRes.getRemarks());
     }
 }

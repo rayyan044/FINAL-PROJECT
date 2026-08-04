@@ -2,7 +2,6 @@ package com.falconenergy.service;
 
 import com.falconenergy.dto.DeliveryNoteResponse;
 import com.falconenergy.dto.TruckInvoiceResponse;
-import com.falconenergy.dto.TransportReleaseFormResponse;
 import com.falconenergy.entity.LoadingActivity;
 import com.falconenergy.entity.LoadingReport;
 import java.util.List;
@@ -17,5 +16,4 @@ public interface DeliveryDocumentService {
     DeliveryNoteResponse markHandedToDriver(Long noteId);
     List<DeliveryNoteResponse> getPendingDocumentationNotes();
     void generateDocumentsForCompletedLoading(LoadingActivity activity, LoadingReport report);
-    TransportReleaseFormResponse getTransportReleaseFormByActivity(Long activityId);
 }

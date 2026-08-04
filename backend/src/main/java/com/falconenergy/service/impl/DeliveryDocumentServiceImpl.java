@@ -2,7 +2,6 @@ package com.falconenergy.service.impl;
 
 import com.falconenergy.dto.DeliveryNoteResponse;
 import com.falconenergy.dto.TruckInvoiceResponse;
-import com.falconenergy.dto.TransportReleaseFormResponse;
 import com.falconenergy.entity.*;
 import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.exception.ResourceNotFoundException;
@@ -34,7 +33,6 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
     private final FuelOrderRepository fuelOrderRepository;
     private final UserRepository userRepository;
     private final SystemSettingService systemSettingService;
-    private final TransportReleaseFormRepository transportReleaseFormRepository;
 
     @Override
     public DeliveryNoteResponse generateDeliveryNote(Long activityId) {
@@ -99,7 +97,7 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
         if (activity.getStatus() != LoadingActivityStatus.COMPLETED) {
             throw new BadRequestException("Delivery documents can only be generated after detailed loading completion.");
         }
-        DeliveryNote note = deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElseGet(() -> {
+        deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElseGet(() -> {
             LoadingOrder loadingOrder = activity.getLoadingOrder();
             FuelOrder order = loadingOrder != null ? loadingOrder.getOrder() : null;
             String username = resolveCurrentUser();
@@ -113,22 +111,6 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
             created.setCreatedBy(username); created.setUpdatedBy(username);
             return deliveryNoteRepository.save(created);
         });
-        if (transportReleaseFormRepository.findByLoadingActivityId(activity.getId()).isEmpty()) {
-            String username = resolveCurrentUser();
-            TransportReleaseForm form = TransportReleaseForm.builder().releaseFormNumber(generateReleaseFormNumber())
-                    .loadingActivity(activity).loadingReport(report).deliveryNote(note).releaseStatus("PREPARED")
-                    .preparedAt(LocalDateTime.now()).preparedBy(username).build();
-            form.setCreatedBy(username); form.setUpdatedBy(username);
-            transportReleaseFormRepository.save(form);
-        }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public TransportReleaseFormResponse getTransportReleaseFormByActivity(Long activityId) {
-        TransportReleaseForm form = transportReleaseFormRepository.findByLoadingActivityId(activityId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transport Release Form not found for loading activity id: " + activityId));
-        return toTransportReleaseFormResponse(form);
     }
 
     @Override
@@ -319,13 +301,6 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
         }
     }
 
-    private synchronized String generateReleaseFormNumber() {
-        String prefix = "TRF-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
-        String max = transportReleaseFormRepository.findMaxReleaseFormNumberWithPrefix(prefix);
-        int sequence = max == null ? 1 : Integer.parseInt(max.substring(prefix.length())) + 1;
-        return prefix + String.format("%04d", sequence);
-    }
-
     private void checkAndUpdateToDocumentsReady(LoadingOrder loadingOrder) {
         if (loadingOrder == null) return;
         List<LoadingActivity> activities = loadingActivityRepository.findByLoadingOrderId(loadingOrder.getId());
@@ -434,12 +409,4 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .build();
     }
 
-    private TransportReleaseFormResponse toTransportReleaseFormResponse(TransportReleaseForm form) {
-        LoadingActivity activity = form.getLoadingActivity();
-        return TransportReleaseFormResponse.builder().id(form.getId()).releaseFormNumber(form.getReleaseFormNumber())
-                .loadingActivityId(activity.getId()).loadingReportNumber(form.getLoadingReport().getReportNumber())
-                .deliveryNoteNumber(form.getDeliveryNote().getDeliveryNoteNumber()).truckNumber(activity.getTruckNumber())
-                .driverName(activity.getDriverName()).destination(activity.getDestination()).releaseStatus(form.getReleaseStatus())
-                .preparedAt(form.getPreparedAt()).preparedBy(form.getPreparedBy()).build();
-    }
 }

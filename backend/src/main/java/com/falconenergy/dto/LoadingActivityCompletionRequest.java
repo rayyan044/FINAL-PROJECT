@@ -12,8 +12,7 @@ import java.util.List;
 public class LoadingActivityCompletionRequest {
     private String bayNumber;
     private String pumpNumber;
-    private BigDecimal meterStart;
-    private BigDecimal meterEnd;
+    private BigDecimal ambientVolume;
     private String remarks;
     private List<LoadingCompartmentRequest> compartments;
 }

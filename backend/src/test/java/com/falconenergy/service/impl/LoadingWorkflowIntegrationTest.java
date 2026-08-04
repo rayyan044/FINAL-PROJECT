@@ -145,8 +145,7 @@ public class LoadingWorkflowIntegrationTest {
         LoadingActivityCompletionRequest completionReq = LoadingActivityCompletionRequest.builder()
                 .bayNumber("BAY-2")
                 .pumpNumber("PUMP-3")
-                .meterStart(new BigDecimal("100000.00"))
-                .meterEnd(new BigDecimal("120000.00")) // meter difference of 20000.00 equals sum of ambient volumes
+                .ambientVolume(new BigDecimal("20000.00"))
                 .remarks("E2E Loading completed successfully")
                 .compartments(List.of(comp1, comp2))
                 .build();

@@ -505,13 +505,6 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
             throw new BadRequestException("At least one compartment entry is required.");
         }
 
-        BigDecimal meterStart = request.getMeterStart() != null ? request.getMeterStart() : BigDecimal.ZERO;
-        BigDecimal meterEnd = request.getMeterEnd() != null ? request.getMeterEnd() : BigDecimal.ZERO;
-        if (meterEnd.compareTo(meterStart) < 0) {
-            throw new BadRequestException("Meter end reading cannot be less than meter start reading.");
-        }
-        BigDecimal meterDifference = meterEnd.subtract(meterStart);
-
         if (request.getBayNumber() != null && !request.getBayNumber().trim().isEmpty()) {
             activity.setBayNumber(request.getBayNumber());
         }
@@ -568,16 +561,22 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
             sumDensity = sumDensity.add(req.getDensity());
         }
 
-        // Validations
-        if (totalStandard.compareTo(activity.getAllocatedQuantity()) > 0) {
-            throw new BadRequestException("Loaded standard volume (" + totalStandard + ") exceeds allocated quantity (" + activity.getAllocatedQuantity() + ").");
+        BigDecimal reportedAmbientVolume = request.getAmbientVolume();
+        if (reportedAmbientVolume == null || reportedAmbientVolume.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Ambient volume loaded is required.");
         }
 
-        // Meter difference vs ambient volume validation (within 0.5% tolerance)
-        BigDecimal difference = totalAmbient.subtract(meterDifference).abs();
-        BigDecimal tolerance = meterDifference.multiply(new BigDecimal("0.005"));
-        if (difference.compareTo(tolerance) > 0) {
-            throw new BadRequestException("Meter difference (" + meterDifference + ") does not match sum of compartment ambient volumes (" + totalAmbient + ") within 0.5% tolerance.");
+        BigDecimal compartmentTolerance = reportedAmbientVolume.multiply(new BigDecimal("0.005"));
+        if (totalAmbient.subtract(reportedAmbientVolume).abs().compareTo(compartmentTolerance) > 0) {
+            throw new BadRequestException("The ambient volume loaded must match the total compartment volume within the allowed tolerance.");
+        }
+
+        // The loading slip's ambient volume is the physical loaded quantity.
+        // Allow 0.5% above the assigned quantity for normal measurement variation.
+        BigDecimal allowedAmbientVolume = activity.getAllocatedQuantity()
+                .multiply(new BigDecimal("1.005"));
+        if (reportedAmbientVolume.compareTo(allowedAmbientVolume) > 0) {
+            throw new BadRequestException("Ambient volume loaded exceeds the assigned loading quantity. Please verify the loaded quantity before completing the loading.");
         }
 
         // Concurrency-locked stock updates and inventory logging
@@ -623,9 +622,6 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
         activity.setStandardVolume(totalStandard);
         activity.setTemperature(avgTemp);
         activity.setDensity(avgDensity);
-        activity.setMeterStart(meterStart);
-        activity.setMeterEnd(meterEnd);
-        activity.setMeterDifference(meterDifference);
         activity.setRemarks(request.getRemarks());
         activity.setCompletedBy(currentUser);
         activity.setCompletedAt(LocalDateTime.now());
