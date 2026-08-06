@@ -10,6 +10,7 @@ import com.falconenergy.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.security.Principal;
 
 @RestController
 @RequestMapping({"/api/v1/auth", "/api/auth"})
@@ -45,5 +46,10 @@ public class AuthController {
             userService.logout(authHeader.substring(7));
         }
         return ResponseEntity.ok(ApiResponse.success("Logout successful"));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> me(Principal principal) {
+        return ResponseEntity.ok(ApiResponse.success("Current user profile retrieved", userService.getSelfProfile(principal.getName())));
     }
 }

@@ -16,6 +16,13 @@ public interface DispatchRepository extends JpaRepository<Dispatch, Long> {
     List<Dispatch> findByDispatchStatus(DispatchStatus status);
     boolean existsByLoadingActivityId(Long loadingActivityId);
 
+    @Query("""
+            SELECT COUNT(d) FROM Dispatch d
+            WHERE d.loadingActivity.vehicle.driver.id = :driverId
+              AND d.dispatchStatus IN :statuses
+            """)
+    long countPendingMobileDeliveries(@Param("driverId") Long driverId, @Param("statuses") java.util.Collection<DispatchStatus> statuses);
+
     @Query("SELECT MAX(d.dispatchNumber) FROM Dispatch d WHERE d.dispatchNumber LIKE :prefix%")
     String findMaxDispatchNumberWithPrefix(@Param("prefix") String prefix);
 }

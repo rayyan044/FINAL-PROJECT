@@ -2,12 +2,17 @@ package com.falconenergy.service.impl;
 
 import com.falconenergy.entity.FuelOrder;
 import com.falconenergy.entity.FuelProduct;
+import com.falconenergy.entity.TransportPriceRange;
+import com.falconenergy.entity.FuelPriceRange;
 import com.falconenergy.entity.StorageTank;
 import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.StorageTankRepository;
 import com.falconenergy.repository.VehicleRepository;
 import com.falconenergy.repository.TruckPricingRepository;
+import com.falconenergy.repository.TransportPriceRangeRepository;
+import com.falconenergy.repository.FuelPriceRangeRepository;
+import com.falconenergy.repository.CustomerRepository;
 import com.falconenergy.service.FuelOrderService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -33,6 +38,9 @@ public class FuelOrderIntegrationTest {
     private FuelOrderRepository orderRepository;
     @Autowired private VehicleRepository vehicleRepository;
     @Autowired private TruckPricingRepository truckPricingRepository;
+    @Autowired private TransportPriceRangeRepository transportPriceRangeRepository;
+    @Autowired private FuelPriceRangeRepository fuelPriceRangeRepository;
+    @Autowired private CustomerRepository customerRepository;
 
     @Test
     @Transactional
@@ -47,6 +55,23 @@ public class FuelOrderIntegrationTest {
         product.setAvailableQuantity(new BigDecimal("1000"));
         product.setStatus("ACTIVE");
         product = productRepository.save(product);
+
+        transportPriceRangeRepository.save(TransportPriceRange.builder()
+                .fuelProduct(product)
+                .minLitres(new BigDecimal("0.01"))
+                .maxLitres(new BigDecimal("1000000"))
+                .transportPrice(new BigDecimal("1.00"))
+                .effectiveDate(java.time.LocalDate.now())
+                .status("ACTIVE")
+                .build());
+        fuelPriceRangeRepository.save(FuelPriceRange.builder()
+                .fuelProduct(product)
+                .minLitres(new BigDecimal("0.01"))
+                .maxLitres(new BigDecimal("1000000"))
+                .pricePerLitre(new BigDecimal("1.00"))
+                .effectiveDate(java.time.LocalDate.now())
+                .status("ACTIVE")
+                .build());
 
         StorageTank tank = new StorageTank();
         tank.setTankName("TANK-TEST");
@@ -67,7 +92,9 @@ public class FuelOrderIntegrationTest {
         // Create order DTO via repository for brevity then approve via service
         com.falconenergy.dto.FuelOrderRequest req = new com.falconenergy.dto.FuelOrderRequest();
         req.setOrderNumber("TST-ORD-001");
-        req.setCustomerId(1L); // may need seeded customer; tests may require adjustments
+        req.setCustomerId(customerRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Database bootstrap did not create a customer"))
+                .getId());
         req.setProductId(product.getId());
         req.setQuantity(new BigDecimal("100"));
 

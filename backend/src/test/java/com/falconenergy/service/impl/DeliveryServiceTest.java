@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -61,6 +62,21 @@ public class DeliveryServiceTest {
     @Autowired
     private DeliveryRepository deliveryRepository;
 
+    @Autowired
+    private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private PaymentReceiptRepository paymentReceiptRepository;
+
+    @Autowired
+    private VehicleRepository vehicleRepository;
+
+    @Autowired
+    private DriverRepository driverRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
     @Test
     @Transactional
     @WithMockUser(username = "delivery_officer", authorities = {"ROLE_DISPATCHER", "ROLE_OPERATIONS"})
@@ -85,6 +101,23 @@ public class DeliveryServiceTest {
                 .currency("USD")
                 .build());
 
+        Driver driver = driverRepository.save(Driver.builder()
+                .firstName("Dan")
+                .lastName("Driver")
+                .phone("255700000777")
+                .licenseNumber("LIC-DEL-777")
+                .status("AVAILABLE")
+                .build());
+        Vehicle vehicle = vehicleRepository.save(Vehicle.builder()
+                .truckNumber("T-DEL-777")
+                .plateNumber("DEL-777")
+                .capacity(new BigDecimal("20000"))
+                .currentStatus("ASSIGNED")
+                .active(true)
+                .driver(driver)
+                .assignedFuelTypes(new java.util.HashSet<>(java.util.Set.of("AGO")))
+                .build());
+
         FuelOrder order = fuelOrderRepository.save(FuelOrder.builder()
                 .orderNumber("ORD-DEL-001")
                 .customer(customer)
@@ -105,6 +138,7 @@ public class DeliveryServiceTest {
 
         LoadingActivity activity = loadingActivityRepository.save(LoadingActivity.builder()
                 .loadingOrder(loadingOrder)
+                .vehicle(vehicle)
                 .truckNumber("T-DEL-777")
                 .driverName("Dan Driver")
                 .driverLicenceNumber("LIC-DEL-777")
@@ -138,6 +172,30 @@ public class DeliveryServiceTest {
         deliveryDocumentService.printDeliveryNote(dnResponse.getId());
         deliveryDocumentService.printTruckInvoice(invoiceResponse.getId());
         deliveryDocumentService.markHandedToDriver(dnResponse.getId());
+
+        Invoice invoice = invoiceRepository.save(Invoice.builder()
+                .invoiceNumber("INV-DEL-001")
+                .invoiceDate(LocalDateTime.now())
+                .order(order)
+                .subtotal(new BigDecimal("17000.00"))
+                .tax(BigDecimal.ZERO)
+                .grandTotal(new BigDecimal("17000.00"))
+                .paymentStatus("PAID")
+                .financeApprovedBy("delivery_officer")
+                .financeApprovedAt(LocalDateTime.now())
+                .build());
+        order.setInvoice(invoice);
+        fuelOrderRepository.save(order);
+        paymentReceiptRepository.save(PaymentReceipt.builder()
+                .receiptNumber("PR-DEL-001")
+                .invoice(invoice)
+                .receiptStatus("PAID")
+                .receivedAmount(invoice.getGrandTotal())
+                .receivedAt(LocalDateTime.now())
+                .confirmedBy("delivery_officer")
+                .build());
+        entityManager.flush();
+        entityManager.refresh(loadingOrder);
 
         // Create Dispatch
         DispatchResponse dispatchResponse = dispatchService.createDispatch(activity.getId(), null);

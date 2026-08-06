@@ -3,6 +3,9 @@ package com.falconenergy.controller;
 import com.falconenergy.dto.ApiResponse;
 import com.falconenergy.dto.DriverRequest;
 import com.falconenergy.dto.DriverResponse;
+import com.falconenergy.dto.DriverAccountCreateRequest;
+import com.falconenergy.dto.DriverAccountResponse;
+import com.falconenergy.dto.DriverPasswordResetResponse;
 import com.falconenergy.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -31,6 +34,7 @@ public class DriverController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS')")
     public ResponseEntity<ApiResponse<DriverResponse>> getDriverById(@PathVariable Long id) {
         DriverResponse response = driverService.getDriverById(id);
         return ResponseEntity.ok(ApiResponse.success("Driver retrieved successfully", response));
@@ -54,6 +58,7 @@ public class DriverController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OPERATOR', 'OPERATIONS')")
     public ResponseEntity<ApiResponse<Page<DriverResponse>>> getAllDrivers(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
@@ -66,5 +71,43 @@ public class DriverController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sortField));
         Page<DriverResponse> drivers = driverService.getAllDrivers(search, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Drivers list retrieved successfully", drivers));
+    }
+
+    @PostMapping("/{driverId}/account")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATIONS')")
+    public ResponseEntity<ApiResponse<DriverAccountResponse>> createMobileAccount(
+            @PathVariable Long driverId,
+            @Valid @RequestBody DriverAccountCreateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success("Driver mobile account created successfully",
+                driverService.createMobileAccount(driverId, request)));
+    }
+
+    @PostMapping("/{driverId}/account/reset-password")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATIONS')")
+    public ResponseEntity<ApiResponse<DriverPasswordResetResponse>> resetMobileAccountPassword(@PathVariable Long driverId) {
+        return ResponseEntity.ok(ApiResponse.success("Driver password reset successfully",
+                driverService.resetMobileAccountPassword(driverId)));
+    }
+
+    @PatchMapping("/{driverId}/account/enable")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATIONS')")
+    public ResponseEntity<ApiResponse<DriverAccountResponse>> enableMobileAccount(@PathVariable Long driverId) {
+        return ResponseEntity.ok(ApiResponse.success("Driver mobile account enabled successfully",
+                driverService.setMobileAccountEnabled(driverId, true)));
+    }
+
+    @PatchMapping("/{driverId}/account/disable")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATIONS')")
+    public ResponseEntity<ApiResponse<DriverAccountResponse>> disableMobileAccount(@PathVariable Long driverId) {
+        return ResponseEntity.ok(ApiResponse.success("Driver mobile account disabled successfully",
+                driverService.setMobileAccountEnabled(driverId, false)));
+    }
+
+    @GetMapping("/{driverId}/account")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATIONS')")
+    public ResponseEntity<ApiResponse<DriverAccountResponse>> getMobileAccountStatus(@PathVariable Long driverId) {
+        return ResponseEntity.ok(ApiResponse.success("Driver mobile account status retrieved successfully",
+                driverService.getMobileAccountStatus(driverId)));
     }
 }

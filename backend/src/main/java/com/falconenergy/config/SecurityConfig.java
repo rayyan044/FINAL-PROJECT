@@ -5,6 +5,7 @@ import com.falconenergy.security.JwtAuthenticationEntryPoint;
 import com.falconenergy.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Arrays;
 
 @Configuration
+@EnableScheduling
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -58,13 +60,15 @@ public class SecurityConfig {
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/refresh",
+                                "/api/auth/register",
+                                "/api/auth/login",
+                                "/api/auth/refresh",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/**", "/api/v1/fuel-products/**", "/api/products/**", "/api/fuel-products/**", "/api/v1/customers", "/api/customers", "/api/v1/customers/**", "/api/customers/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/order-pricing/preview", "/api/order-pricing/preview").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/orders", "/api/orders").permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

@@ -36,7 +36,6 @@ import {
 } from "../services/userService";
 import { getAdminDashboardStats } from "../services/dashboardService";
 import { listAuditLogs } from "../services/auditService";
-import { checkAndSeedDatabase } from "../services/seedService";
 import { listRequests } from "../services/requestService";
 import { listInvoices } from "../services/invoiceService";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -169,9 +168,7 @@ function AdminDash() {
     setLoading(true);
     setError("");
 
-    checkAndSeedDatabase()
-      .then(() => {
-        return Promise.all([
+    Promise.all([
           getAdminDashboardStats(),
           listUsers({
             search,
@@ -182,8 +179,7 @@ function AdminDash() {
             sort: "id,asc",
           }),
           listRequests({ size: 100 }),
-        ]);
-      })
+        ])
       .then(([statsData, usersPage, requestsPage]) => {
         setStats({
           customers: statsData.customers || 0,

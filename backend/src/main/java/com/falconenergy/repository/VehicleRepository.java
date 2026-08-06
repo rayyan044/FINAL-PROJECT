@@ -13,5 +13,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long>, JpaSpec
     boolean existsByPlateNumber(String plateNumber);
     boolean existsByTruckNumber(String truckNumber);
     Optional<Vehicle> findByTruckNumber(String truckNumber);
+    Optional<Vehicle> findByDriverId(Long driverId);
     java.util.List<Vehicle> findByActiveTrueAndCurrentStatusIgnoreCase(String currentStatus);
 }

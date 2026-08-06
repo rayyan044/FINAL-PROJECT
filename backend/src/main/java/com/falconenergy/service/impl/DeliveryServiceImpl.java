@@ -156,6 +156,20 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     @Override
+    public DeliveryResponse cancelDelivery(Long deliveryId, String remarks) {
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
+        if (delivery.getDeliveryStatus() == DeliveryStatus.DELIVERED
+                || delivery.getDeliveryStatus() == DeliveryStatus.CANCELLED) {
+            throw new BadRequestException("A completed or cancelled delivery cannot be cancelled");
+        }
+        delivery.setDeliveryStatus(DeliveryStatus.CANCELLED);
+        delivery.setRemarks(remarks);
+        delivery.setUpdatedBy(resolveCurrentUser());
+        return deliveryMapper.toResponse(deliveryRepository.save(delivery));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<DeliveryResponse> getDeliveryHistory() {
         log.info("Fetching delivery history");

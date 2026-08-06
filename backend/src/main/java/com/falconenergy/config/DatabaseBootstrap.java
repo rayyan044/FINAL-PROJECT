@@ -21,10 +21,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import org.springframework.beans.factory.annotation.Value;
 
 @Component
 @Slf4j
 public class DatabaseBootstrap implements CommandLineRunner {
+
+    @Value("${application.bootstrap.admin-password}")
+    private String bootstrapAdminPassword;
 
     private final UserRepository userRepository;
     private final CustomerRepository customerRepository;
@@ -88,7 +92,7 @@ public class DatabaseBootstrap implements CommandLineRunner {
                     .email("admin@falconenergy.com")
                     .username("admin")
                     .phone("+254700000000")
-                    .password(passwordEncoder.encode("ChangeMe123!"))
+                    .password(passwordEncoder.encode(bootstrapAdminPassword))
                     .roleEntity(adminRole)
                     .status(UserStatus.ACTIVE)
                     .passwordChanged(false)

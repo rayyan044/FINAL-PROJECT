@@ -11,5 +11,6 @@ public interface DeliveryService {
     DeliveryResponse getDeliveryById(Long id);
     DeliveryResponse markArrived(Long deliveryId, DeliveryArrivalRequest request);
     DeliveryResponse completeDelivery(Long deliveryId, DeliveryCompleteRequest request);
+    DeliveryResponse cancelDelivery(Long deliveryId, String remarks);
     List<DeliveryResponse> getDeliveryHistory();
 }

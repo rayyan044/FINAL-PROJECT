@@ -20,4 +20,5 @@ public class TokenResponse {
     private String firstName;
     private String lastName;
     private Long driverId;
+    private String driverName;
 }

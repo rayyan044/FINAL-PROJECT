@@ -17,6 +17,7 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import com.falconenergy.security.CustomUserDetails;
 import com.falconenergy.security.JwtTokenProvider;
+import com.falconenergy.security.RefreshTokenRevocationService;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class UserServiceImpl implements UserService {
     private final AuthenticationManager authenticationManager;
     private final AuditLogService auditLogService;
     private final DriverRepository driverRepository;
+    private final RefreshTokenRevocationService refreshTokenRevocationService;
 
     public UserServiceImpl(
             UserRepository userRepository,
@@ -53,7 +55,8 @@ public class UserServiceImpl implements UserService {
             JwtTokenProvider jwtTokenProvider,
             AuthenticationManager authenticationManager,
             AuditLogService auditLogService,
-            DriverRepository driverRepository
+            DriverRepository driverRepository,
+            RefreshTokenRevocationService refreshTokenRevocationService
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -63,6 +66,7 @@ public class UserServiceImpl implements UserService {
         this.authenticationManager = authenticationManager;
         this.auditLogService = auditLogService;
         this.driverRepository = driverRepository;
+        this.refreshTokenRevocationService = refreshTokenRevocationService;
     }
 
     @Override
@@ -102,6 +106,7 @@ public class UserServiceImpl implements UserService {
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .driverId(user.getDriver() != null ? user.getDriver().getId() : null)
+                .driverName(driverName(user))
                 .build();
     }
 
@@ -152,11 +157,17 @@ public class UserServiceImpl implements UserService {
     @Override
     public TokenResponse refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
+        if (refreshTokenRevocationService.isRevoked(refreshToken)) {
+            throw new BadRequestException("Invalid refresh token");
+        }
         String username = jwtTokenProvider.extractUsername(refreshToken);
 
         if (username != null) {
             User user = userRepository.findByEmail(username)
                     .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            if (user.getStatus() != UserStatus.ACTIVE) {
+                throw new DisabledException("Account is inactive");
+            }
             UserDetails userDetails = new CustomUserDetails(user);
 
             if (jwtTokenProvider.isTokenValid(refreshToken, userDetails)) {
@@ -172,6 +183,7 @@ public class UserServiceImpl implements UserService {
                         .firstName(user.getFirstName())
                         .lastName(user.getLastName())
                         .driverId(user.getDriver() != null ? user.getDriver().getId() : null)
+                        .driverName(driverName(user))
                         .build();
             }
         }
@@ -180,7 +192,19 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void logout(String token) {
-        log.info("User logout requested");
+        try {
+            refreshTokenRevocationService.revoke(token);
+            log.info("Refresh token revoked on logout");
+        } catch (Exception exception) {
+            log.warn("Logout received an invalid token; no token was revoked");
+        }
+    }
+
+    private String driverName(User user) {
+        if (user.getDriver() == null) {
+            return null;
+        }
+        return user.getDriver().getFirstName() + " " + user.getDriver().getLastName();
     }
 
     @Override
@@ -444,6 +468,15 @@ public class UserServiceImpl implements UserService {
         );
 
         return userMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponse getSelfProfile(String currentUserEmailOrUsername) {
+        User user = userRepository.findByEmail(currentUserEmailOrUsername)
+                .or(() -> userRepository.findByUsername(currentUserEmailOrUsername))
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + currentUserEmailOrUsername));
+        return userMapper.toResponse(user);
     }
 
     @Override

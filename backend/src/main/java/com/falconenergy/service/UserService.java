@@ -15,6 +15,7 @@ public interface UserService {
     UserResponse updateStatus(Long id, StatusUpdateRequest request);
     UserResponse resetPassword(Long id, PasswordResetRequest request);
     UserResponse updateSelfProfile(String currentUserEmailOrUsername, SelfProfileUpdateRequest request);
+    UserResponse getSelfProfile(String currentUserEmailOrUsername);
     void deleteUser(Long id);
     Page<UserResponse> getAllUsers(String search, String role, String status, Pageable pageable);
 }

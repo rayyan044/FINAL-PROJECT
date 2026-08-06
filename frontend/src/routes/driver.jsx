@@ -5,7 +5,6 @@ import {
   FiNavigation,
   FiMapPin,
   FiFileText,
-  FiPlay,
   FiFlag,
   FiCheckCircle,
   FiHome,
@@ -13,7 +12,6 @@ import {
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { listDeliveries, updateDeliveryStatus } from "../services/deliveryService";
-import { listDrivers } from "../services/driverService";
 import { useAuth } from "../context/AuthContext";
 import { RouteGuard } from "../components/RouteGuard";
 import "../styles/forms.css";
@@ -28,23 +26,10 @@ const SIDE = [{ key: "dash", label: "Driver Console", icon: FiHome }];
 function DriverDash() {
   const { user: currentLoggedUser } = useAuth();
   const driverId = currentLoggedUser?.driverId;
-  const [driverProfile, setDriverProfile] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  useEffect(() => {
-    if (driverId) {
-      listDrivers({ size: 100 })
-        .then((res) => {
-          const list = res.content || [];
-          const profile = list.find((d) => d.id === parseInt(driverId));
-          setDriverProfile(profile);
-        })
-        .catch((err) => console.error("Error loading driver profile:", err));
-    }
-  }, [driverId]);
 
   const loadDeliveries = () => {
     if (!driverId) {
@@ -83,15 +68,12 @@ function DriverDash() {
 
   const activeTrip = deliveries.find(
     (d) =>
-      d.deliveryStatus === "PENDING" ||
-      d.deliveryStatus === "EN_ROUTE" ||
-      d.deliveryStatus === "ARRIVED",
+      d.deliveryStatus === "IN_TRANSIT" ||
+      d.deliveryStatus === "ARRIVED_AT_DESTINATION",
   );
   const upcomingTrips = deliveries.filter((d) => d.id !== activeTrip?.id);
 
-  const driverName = driverProfile
-    ? `${driverProfile.firstName} ${driverProfile.lastName}`
-    : currentLoggedUser
+  const driverName = currentLoggedUser
       ? `${currentLoggedUser.firstName || ""} ${currentLoggedUser.lastName || ""}`.trim() ||
         currentLoggedUser.username
       : "Driver";
@@ -198,23 +180,15 @@ function DriverDash() {
                     borderTop: "1px solid var(--feftms-border)",
                   }}
                 >
-                  {activeTrip.deliveryStatus === "PENDING" && (
+                  {activeTrip.deliveryStatus === "IN_TRANSIT" && (
                     <button
                       className="fef-btn fef-btn-primary"
-                      onClick={() => handleUpdateStatus(activeTrip.id, "EN_ROUTE")}
-                    >
-                      <FiPlay style={{ marginRight: 6 }} /> Start Delivery (En Route)
-                    </button>
-                  )}
-                  {activeTrip.deliveryStatus === "EN_ROUTE" && (
-                    <button
-                      className="fef-btn fef-btn-accent"
-                      onClick={() => handleUpdateStatus(activeTrip.id, "ARRIVED")}
+                      onClick={() => handleUpdateStatus(activeTrip.id, "ARRIVED_AT_DESTINATION")}
                     >
                       <FiMapPin style={{ marginRight: 6 }} /> Arrived at Destination
                     </button>
                   )}
-                  {activeTrip.deliveryStatus === "ARRIVED" && (
+                  {activeTrip.deliveryStatus === "ARRIVED_AT_DESTINATION" && (
                     <button
                       className="fef-btn fef-btn-success"
                       onClick={() => handleUpdateStatus(activeTrip.id, "DELIVERED")}
@@ -222,9 +196,8 @@ function DriverDash() {
                       <FiCheckCircle style={{ marginRight: 6 }} /> Complete Delivery (Delivered)
                     </button>
                   )}
-                  {(activeTrip.deliveryStatus === "PENDING" ||
-                    activeTrip.deliveryStatus === "EN_ROUTE" ||
-                    activeTrip.deliveryStatus === "ARRIVED") && (
+                  {(activeTrip.deliveryStatus === "IN_TRANSIT" ||
+                    activeTrip.deliveryStatus === "ARRIVED_AT_DESTINATION") && (
                     <button
                       className="fef-btn fef-btn-danger"
                       onClick={() => handleUpdateStatus(activeTrip.id, "CANCELLED")}

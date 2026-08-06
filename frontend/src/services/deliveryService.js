@@ -20,24 +20,38 @@ export async function completeDelivery(id, payload) {
   return api.post(`/deliveries/${id}/complete`, payload).then((r) => r.data);
 }
 
+export async function cancelDelivery(id, remarks) {
+  return api.post(`/deliveries/${id}/cancel`, null, { params: { remarks } }).then((r) => r.data);
+}
+
 export async function getDeliveryHistory() {
   return api.get("/deliveries/history").then((r) => r.data);
 }
 
-// Keep stubs for backwards compatibility if needed
-export async function listDeliveries(params = {}) {
-  return api.get("/deliveries/active").then((r) => r.data);
+export async function listDeliveries() {
+  // Driver workspace data is scoped by the JWT on the mobile endpoint.
+  return api.get("/mobile/deliveries").then((r) => ({
+    content: (r.data || []).map((delivery) => ({
+      ...delivery,
+      id: delivery.deliveryId,
+      deliveryStatus: delivery.currentStatus,
+      order: {
+        customerName: delivery.customerName,
+        productName: delivery.fuelProduct,
+        quantity: delivery.quantity,
+      },
+    })),
+  }));
 }
 export async function updateDeliveryStatus(id, status) {
-  if (status === "ARRIVED") {
+  if (status === "ARRIVED_AT_DESTINATION") {
     return recordArrival(id, { receivedBy: "operations", remarks: "Updated trip status" });
   } else if (status === "DELIVERED") {
     return completeDelivery(id, { completedBy: "operations", remarks: "Updated trip status" });
+  } else if (status === "CANCELLED") {
+    return cancelDelivery(id, "Updated trip status");
   }
-  return api.patch(`/deliveries/${id}/status`, null, { params: { status } }).then((r) => r.data);
+  throw new Error(`Unsupported delivery status transition: ${status}`);
 }
 
 export const createDelivery = createDeliveryRecord;
-export async function updateDelivery(id, payload) {
-  return api.put(`/deliveries/${id}`, payload).then((r) => r.data);
-}

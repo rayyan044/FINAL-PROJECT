@@ -61,6 +61,15 @@ public class DeliveryController {
         return ResponseEntity.ok(ApiResponse.success("Delivery completed successfully", response));
     }
 
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_OPERATOR', 'ROLE_OPERATIONS', 'ROLE_DISPATCHER', 'ROLE_DRIVER')")
+    public ResponseEntity<ApiResponse<DeliveryResponse>> cancelDelivery(
+            @PathVariable Long id,
+            @RequestParam(required = false) String remarks
+    ) {
+        return ResponseEntity.ok(ApiResponse.success("Delivery cancelled successfully", deliveryService.cancelDelivery(id, remarks)));
+    }
+
     @GetMapping("/history")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OPERATOR', 'ROLE_OPERATIONS', 'ROLE_DISPATCHER')")
     public ResponseEntity<ApiResponse<List<DeliveryResponse>>> getDeliveryHistory() {

@@ -18,12 +18,22 @@ import {
   FiFileText,
   FiTrendingUp,
   FiClipboard,
+  FiKey,
+  FiEye,
+  FiEyeOff,
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
 import { listRequests } from "../services/requestService";
 import { listDeliveries, createDelivery } from "../services/deliveryService";
-import { listDrivers, createDriver } from "../services/driverService";
+import {
+  listDrivers,
+  createDriver,
+  createDriverMobileAccount,
+  getDriverAccountStatus,
+  resetDriverMobilePassword,
+  setDriverMobileAccountEnabled,
+} from "../services/driverService";
 import { listVehicles, createVehicle, updateVehicle } from "../services/vehicleService";
 import {
   listProducts,
@@ -96,6 +106,12 @@ function OpsDash() {
     phone: "",
     licenseNumber: "",
   });
+  const [selectedDriverForAccount, setSelectedDriverForAccount] = useState(null);
+  const [driverAccount, setDriverAccount] = useState(null);
+  const [driverAccountLoading, setDriverAccountLoading] = useState(false);
+  const [driverAccountForm, setDriverAccountForm] = useState({ username: "", temporaryPassword: "" });
+  const [newTemporaryPassword, setNewTemporaryPassword] = useState("");
+  const [showTemporaryPassword, setShowTemporaryPassword] = useState(false);
 
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [vehicleForm, setVehicleForm] = useState({ truckNumber: "", plateNumber: "", capacity: "", driverId: "", assignedFuelTypes: [], currentStatus: "AVAILABLE" });
@@ -625,6 +641,62 @@ function OpsDash() {
       loadData();
     } catch (err) {
       setError(err?.message || "Failed to register driver. Ensure license number is unique.");
+    }
+  };
+
+  const openDriverAccount = async (driver) => {
+    setSelectedDriverForAccount(driver);
+    setDriverAccount(null);
+    setNewTemporaryPassword("");
+    setShowTemporaryPassword(false);
+    setDriverAccountForm({ username: "", temporaryPassword: "" });
+    setDriverAccountLoading(true);
+    setError("");
+    try {
+      setDriverAccount(await getDriverAccountStatus(driver.id));
+    } catch (err) {
+      // A 404 means this driver has not received an account yet.
+      if (err?.status !== 404) setError(err?.message || "Failed to load the driver mobile account.");
+    } finally {
+      setDriverAccountLoading(false);
+    }
+  };
+
+  const createMobileAccount = async (event) => {
+    event.preventDefault();
+    if (!selectedDriverForAccount) return;
+    setError("");
+    try {
+      const account = await createDriverMobileAccount(selectedDriverForAccount.id, driverAccountForm);
+      setDriverAccount(account);
+      setSuccess(`Mobile account created for ${account.driverName}. Give the temporary password to the driver securely.`);
+      setDriverAccountForm({ username: "", temporaryPassword: "" });
+    } catch (err) {
+      setError(err?.message || "Failed to create the driver mobile account.");
+    }
+  };
+
+  const resetMobilePassword = async () => {
+    if (!selectedDriverForAccount) return;
+    setError("");
+    try {
+      const result = await resetDriverMobilePassword(selectedDriverForAccount.id);
+      setNewTemporaryPassword(result.temporaryPassword);
+      setSuccess(`A new temporary password was generated for ${result.username}.`);
+    } catch (err) {
+      setError(err?.message || "Failed to reset the driver password.");
+    }
+  };
+
+  const changeMobileAccountStatus = async (enabled) => {
+    if (!selectedDriverForAccount) return;
+    setError("");
+    try {
+      const account = await setDriverMobileAccountEnabled(selectedDriverForAccount.id, enabled);
+      setDriverAccount(account);
+      setSuccess(`Mobile account ${enabled ? "enabled" : "disabled"} for ${account.driverName}.`);
+    } catch (err) {
+      setError(err?.message || "Failed to update the driver account status.");
     }
   };
 
@@ -1896,6 +1968,64 @@ function OpsDash() {
               </div>
             )}
 
+            {selectedDriverForAccount && (
+              <div className="fef-card" style={{ padding: 20, marginBottom: 24, background: "rgba(255,255,255,0.05)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center" }}>
+                  <div>
+                    <h4 style={{ margin: 0 }}>Driver Mobile Account</h4>
+                    <div style={{ marginTop: 4, color: "var(--feftms-text-muted)" }}>
+                      {selectedDriverForAccount.firstName} {selectedDriverForAccount.lastName}
+                    </div>
+                  </div>
+                  <button className="fef-btn fef-btn-outline" onClick={() => setSelectedDriverForAccount(null)}>
+                    <FiX /> Close
+                  </button>
+                </div>
+
+                {driverAccountLoading ? (
+                  <p style={{ marginTop: 18 }}>Loading account status…</p>
+                ) : driverAccount ? (
+                  <div style={{ marginTop: 18 }}>
+                    <p style={{ margin: "0 0 12px" }}>
+                      Username: <strong>{driverAccount.username}</strong>{" · "}
+                      Status: <span className={`fef-badge fef-badge-${driverAccount.enabled ? "approved" : "progress"}`}>{driverAccount.accountStatus}</span>
+                    </p>
+                    {newTemporaryPassword && (
+                      <div className="fef-alert fef-alert-success" style={{ marginBottom: 14 }}>
+                        New temporary password: <strong>{newTemporaryPassword}</strong>. Copy it now and give it to the driver securely.
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <button className="fef-btn fef-btn-outline" onClick={resetMobilePassword}><FiKey /> Reset Password</button>
+                      <button className={`fef-btn ${driverAccount.enabled ? "fef-btn-danger" : "fef-btn-primary"}`} onClick={() => changeMobileAccountStatus(!driverAccount.enabled)}>
+                        {driverAccount.enabled ? "Disable Account" : "Enable Account"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={createMobileAccount} style={{ marginTop: 18 }}>
+                    <p style={{ marginTop: 0, color: "var(--feftms-text-muted)" }}>This driver does not have a mobile account yet.</p>
+                    <div className="fef-form-grid">
+                      <div className="fef-field">
+                        <label className="fef-label">Mobile Username</label>
+                        <input required minLength="3" maxLength="50" className="fef-input" value={driverAccountForm.username} onChange={(e) => setDriverAccountForm({ ...driverAccountForm, username: e.target.value })} placeholder="e.g. peter.driver" />
+                      </div>
+                      <div className="fef-field">
+                        <label className="fef-label">Temporary Password</label>
+                        <div style={{ position: "relative" }}>
+                          <input required type={showTemporaryPassword ? "text" : "password"} minLength="6" className="fef-input" style={{ paddingRight: 46 }} value={driverAccountForm.temporaryPassword} onChange={(e) => setDriverAccountForm({ ...driverAccountForm, temporaryPassword: e.target.value })} placeholder="At least 6 characters" />
+                          <button type="button" onClick={() => setShowTemporaryPassword((visible) => !visible)} aria-label={showTemporaryPassword ? "Hide temporary password" : "Show temporary password"} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", color: "var(--feftms-text-muted)", cursor: "pointer", padding: 4 }}>
+                            {showTemporaryPassword ? <FiEyeOff /> : <FiEye />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="submit" className="fef-btn fef-btn-primary" style={{ marginTop: 16 }}><FiKey /> Create Mobile Account</button>
+                  </form>
+                )}
+              </div>
+            )}
+
             <div className="fef-table-wrap">
               <table className="fef-table">
                 <thead>
@@ -1904,6 +2034,7 @@ function OpsDash() {
                     <th>Phone</th>
                     <th>License Number</th>
                     <th>Duty Status</th>
+                    <th>Mobile Account</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1920,6 +2051,11 @@ function OpsDash() {
                         >
                           {d.status}
                         </span>
+                      </td>
+                      <td>
+                        <button className="fef-btn fef-btn-outline" style={{ padding: "7px 11px" }} onClick={() => openDriverAccount(d)}>
+                          <FiKey /> Mobile Account
+                        </button>
                       </td>
                     </tr>
                   ))}

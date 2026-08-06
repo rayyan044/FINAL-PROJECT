@@ -7,14 +7,24 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Local secrets and environment files
+.env
+backend/.env
+falcon-driver-mobile-app/.env
+
+# Frontend build artifacts and local dependencies (located in frontend/).
 node_modules
 dist
 dist-ssr
 .output
 .vinxi
-.tanstack/**
+.tanstack/
+.vite/
 .nitro
 *.local
+
+# Expo caches are generated independently by the driver mobile application.
+.expo/
 
 # Wrangler / Cloudflare
 .wrangler/

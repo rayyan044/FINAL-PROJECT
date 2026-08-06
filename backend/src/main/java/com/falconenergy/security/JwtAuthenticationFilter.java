@@ -50,7 +50,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-            if (jwtTokenProvider.isTokenValid(jwt, userDetails)) {
+            // Re-check the current account status for every request. This makes
+            // disabling a driver account effective immediately, even when the
+            // driver still has an unexpired JWT.
+            if (userDetails.isEnabled() && jwtTokenProvider.isTokenValid(jwt, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
