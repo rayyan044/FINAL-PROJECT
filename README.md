@@ -20,6 +20,9 @@ set -a; source .env; set +a
 ./mvnw spring-boot:run
 ```
 
+Alternatively, use `./run-local.sh`; it loads `.env` and reports all missing
+required variables before invoking Maven.
+
 The backend intentionally fails fast when `DB_USERNAME`, `DB_PASSWORD`,
 `JWT_SECRET`, `BOOTSTRAP_ADMIN_PASSWORD`, or `CORS_ALLOWED_ORIGINS` is absent.
 Do not commit `backend/.env`; use a secret manager in production. Generate a
@@ -42,8 +45,12 @@ Start the driver client:
 ```bash
 cd falcon-driver-mobile-app
 npm install
-EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:8081/api npx expo start
+# If .env does not exist, copy .env.example to .env and set the URL to this computer's LAN IP.
+npx expo start --clear
 ```
+
+Expo embeds `EXPO_PUBLIC_API_URL` when Metro starts. Restart Metro with
+`--clear` after changing `.env`; never use `localhost` on a physical phone.
 
 For Expo Go on a physical device, the phone and computer must share a network. Never use `localhost` as the mobile API host: on the phone it means the phone itself.
 
