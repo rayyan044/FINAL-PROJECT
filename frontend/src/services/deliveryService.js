@@ -29,19 +29,31 @@ export async function getDeliveryHistory() {
 }
 
 export async function listDeliveries() {
-  // Driver workspace data is scoped by the JWT on the mobile endpoint.
-  return api.get("/mobile/deliveries").then((r) => ({
-    content: (r.data || []).map((delivery) => ({
-      ...delivery,
-      id: delivery.deliveryId,
-      deliveryStatus: delivery.currentStatus,
-      order: {
-        customerName: delivery.customerName,
-        productName: delivery.fuelProduct,
-        quantity: delivery.quantity,
-      },
-    })),
-  }));
+  const storedUser = sessionStorage.getItem("feftms_user");
+  const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+  const isDriver = parsedUser?.role === "DRIVER";
+
+  if (isDriver) {
+    // Driver workspace data is scoped by the JWT on the mobile endpoint.
+    return api.get("/mobile/deliveries").then((r) => ({
+      content: (r.data || []).map((delivery) => ({
+        ...delivery,
+        id: delivery.deliveryId,
+        deliveryStatus: delivery.currentStatus,
+        order: {
+          customerName: delivery.customerName,
+          productName: delivery.fuelProduct,
+          quantity: delivery.quantity,
+        },
+      })),
+    }));
+  } else {
+    // For operations, dispatcher, manager, admin, etc.
+    return api.get("/deliveries/active").then((r) => ({
+      content: r.data || [],
+      totalElements: (r.data || []).length,
+    }));
+  }
 }
 export async function updateDeliveryStatus(id, status) {
   if (status === "ARRIVED_AT_DESTINATION") {
