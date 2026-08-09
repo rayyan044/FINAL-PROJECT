@@ -55,6 +55,13 @@ public class MobileDashboardResponse {
         private String destination;
         private String currentStatus;
         private LocalDate scheduledDeliveryDate;
+        private Double startLatitude;
+        private Double startLongitude;
+        private Double podLatitude;
+        private Double podLongitude;
+        private String podPhotoPath;
+        private String podNotes;
+        private java.time.LocalDateTime podUploadedAt;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

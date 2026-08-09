@@ -138,3 +138,12 @@ export async function getCurrentProfile() {
   }
   return envelope.data;
 }
+
+export async function getDriverProfile() {
+  const response = await api.get("/mobile/profile");
+  const envelope = response.data;
+  if (!envelope?.data || typeof envelope.data !== "object") {
+    throw new Error("The profile service returned an unexpected response.");
+  }
+  return envelope.data;
+}

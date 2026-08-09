@@ -16,7 +16,7 @@ function getErrorMessage(error) {
   const message = error.response.data?.message || error.response.data?.error;
   return typeof message === "string" && message.trim()
     ? message
-    : "We could not load your deliveries. Please try again.";
+    : "We could not update your delivery. Please try again.";
 }
 
 function valueFrom(delivery, ...keys) {
@@ -40,8 +40,6 @@ function normalizeDelivery(delivery) {
 
 export async function getMyDeliveries() {
   try {
-    // The authenticated Axios interceptor attaches the JWT. The driver identity
-    // is intentionally determined by the server; no driver ID is sent here.
     const response = await api.get("/mobile/deliveries");
     const envelope = response.data;
     const deliveries = Array.isArray(envelope?.data)
@@ -75,6 +73,69 @@ export async function getMyDelivery(deliveryId) {
     return normalizeDelivery(response.data.data);
   } catch (error) {
     if (error.message === "The delivery service returned an unexpected response.") throw error;
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function acceptDelivery(deliveryId) {
+  try {
+    const response = await api.post(`/mobile/deliveries/${deliveryId}/accept`);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function startTrip(deliveryId, latitude, longitude) {
+  try {
+    const response = await api.post(`/mobile/deliveries/${deliveryId}/start`, {
+      latitude,
+      longitude,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function markArrived(deliveryId, receivedBy, remarks) {
+  try {
+    const response = await api.post(`/mobile/deliveries/${deliveryId}/arrive`, {
+      receivedBy,
+      remarks,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function uploadProofOfDelivery(deliveryId, fileData, latitude, longitude, notes) {
+  try {
+    const formData = new FormData();
+    formData.append("file", fileData);
+
+    let url = `/mobile/deliveries/${deliveryId}/proof?latitude=${latitude}&longitude=${longitude}`;
+    if (notes) {
+      url += `&notes=${encodeURIComponent(notes)}`;
+    }
+
+    const response = await api.post(url, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+export async function completeDelivery(deliveryId) {
+  try {
+    const response = await api.post(`/mobile/deliveries/${deliveryId}/complete`);
+    return response.data;
+  } catch (error) {
     throw new Error(getErrorMessage(error));
   }
 }

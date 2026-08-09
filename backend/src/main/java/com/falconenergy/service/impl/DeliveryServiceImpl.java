@@ -36,10 +36,10 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Override
     @Transactional(readOnly = true)
     public List<DeliveryResponse> getActiveDeliveries() {
-        log.info("Fetching active deliveries (IN_TRANSIT or ARRIVED_AT_DESTINATION)");
+        log.info("Fetching active deliveries");
         return deliveryRepository.findAll().stream()
-                .filter(d -> d.getDeliveryStatus() == DeliveryStatus.IN_TRANSIT 
-                        || d.getDeliveryStatus() == DeliveryStatus.ARRIVED_AT_DESTINATION)
+                .filter(d -> d.getDeliveryStatus() != DeliveryStatus.COMPLETED 
+                        && d.getDeliveryStatus() != DeliveryStatus.CANCELLED)
                 .map(deliveryMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -58,8 +58,15 @@ public class DeliveryServiceImpl implements DeliveryService {
         Dispatch dispatch = dispatchRepository.findById(dispatchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dispatch record not found with id: " + dispatchId));
 
-        if (dispatch.getDispatchStatus() != DispatchStatus.IN_TRANSIT) {
-            throw new BadRequestException("Dispatch status must be IN_TRANSIT before starting a delivery. Current status: " + dispatch.getDispatchStatus());
+        if (dispatch.getDispatchStatus() != DispatchStatus.DISPATCHED && 
+            dispatch.getDispatchStatus() != DispatchStatus.IN_TRANSIT) {
+            throw new BadRequestException("Dispatch status must be DISPATCHED or IN_TRANSIT before creating a delivery. Current status: " + dispatch.getDispatchStatus());
+        }
+
+        // Verify driver is assigned
+        var activity = dispatch.getLoadingActivity();
+        if (activity == null || activity.getVehicle() == null || activity.getVehicle().getDriver() == null) {
+            throw new BadRequestException("Cannot create delivery: no driver is assigned to this dispatch.");
         }
 
         String username = resolveCurrentUser();
@@ -76,8 +83,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                 .driverName(dispatch.getDriverName())
                 .transportCompany(dispatch.getTransportCompany())
                 .destination(dispatch.getDestination())
-                .deliveryStatus(DeliveryStatus.IN_TRANSIT)
-                .dispatchedAt(LocalDateTime.now())
+                .deliveryStatus(DeliveryStatus.ASSIGNED)
                 .build();
 
         delivery.setCreatedBy(username);
@@ -124,12 +130,17 @@ public class DeliveryServiceImpl implements DeliveryService {
         Delivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
 
-        if (delivery.getDeliveryStatus() != DeliveryStatus.ARRIVED_AT_DESTINATION) {
-            throw new BadRequestException("Delivery can only be completed if the status is ARRIVED_AT_DESTINATION. Current status: " + delivery.getDeliveryStatus());
+        if (delivery.getDeliveryStatus() != DeliveryStatus.DELIVERED) {
+            throw new BadRequestException("Delivery can only be completed if the status is DELIVERED. Current status: " + delivery.getDeliveryStatus());
+        }
+
+        // Verify POD exists
+        if (delivery.getPodPhotoPath() == null || delivery.getPodPhotoPath().isEmpty()) {
+            throw new BadRequestException("Cannot complete delivery: Proof of Delivery has not been uploaded.");
         }
 
         String username = resolveCurrentUser();
-        delivery.setDeliveryStatus(DeliveryStatus.DELIVERED);
+        delivery.setDeliveryStatus(DeliveryStatus.COMPLETED);
         delivery.setDeliveredAt(LocalDateTime.now());
         delivery.setCompletedBy(request != null ? request.getCompletedBy() : "operations");
         if (request != null && request.getRemarks() != null) {
@@ -159,7 +170,7 @@ public class DeliveryServiceImpl implements DeliveryService {
     public DeliveryResponse cancelDelivery(Long deliveryId, String remarks) {
         Delivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
-        if (delivery.getDeliveryStatus() == DeliveryStatus.DELIVERED
+        if (delivery.getDeliveryStatus() == DeliveryStatus.COMPLETED
                 || delivery.getDeliveryStatus() == DeliveryStatus.CANCELLED) {
             throw new BadRequestException("A completed or cancelled delivery cannot be cancelled");
         }
@@ -174,7 +185,7 @@ public class DeliveryServiceImpl implements DeliveryService {
     public List<DeliveryResponse> getDeliveryHistory() {
         log.info("Fetching delivery history");
         return deliveryRepository.findAll().stream()
-                .filter(d -> d.getDeliveryStatus() == DeliveryStatus.DELIVERED 
+                .filter(d -> d.getDeliveryStatus() == DeliveryStatus.COMPLETED 
                         || d.getDeliveryStatus() == DeliveryStatus.CANCELLED)
                 .map(deliveryMapper::toResponse)
                 .collect(Collectors.toList());

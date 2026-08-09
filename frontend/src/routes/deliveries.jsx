@@ -160,7 +160,7 @@ function DeliveryDash() {
           />
           <StatCard
             label="Total Delivered (All Time)"
-            value={loading ? "…" : String(historyDeliveries.filter(d => d.deliveryStatus === "DELIVERED").length)}
+            value={loading ? "…" : String(historyDeliveries.filter(d => d.deliveryStatus === "COMPLETED" || d.deliveryStatus === "DELIVERED").length)}
             icon={FiCheckCircle}
             tone="success"
           />
@@ -319,7 +319,7 @@ function DeliveryDash() {
                         {d.deliveredAt ? new Date(d.deliveredAt).toLocaleString() : "—"}
                       </td>
                       <td>
-                        <span className={`fef-badge fef-badge-${d.deliveryStatus === "DELIVERED" ? "success" : "danger"}`}>
+                        <span className={`fef-badge fef-badge-${(d.deliveryStatus === "COMPLETED" || d.deliveryStatus === "DELIVERED") ? "success" : "danger"}`}>
                           {d.deliveryStatus}
                         </span>
                       </td>
@@ -357,7 +357,7 @@ function DeliveryDash() {
                   <FiX />
                 </button>
                 <div className="fef-detail-modal-header" style={{ borderBottom: "1px solid #E5E7EB", paddingBottom: 15 }}>
-                  <span className={`fef-badge fef-badge-${selectedDeliveryDetails.deliveryStatus === "DELIVERED" ? "success" : selectedDeliveryDetails.deliveryStatus === "ARRIVED_AT_DESTINATION" ? "warning" : "secondary"}`} style={{ marginBottom: 8, display: "inline-block" }}>
+                  <span className={`fef-badge fef-badge-${(selectedDeliveryDetails.deliveryStatus === "COMPLETED" || selectedDeliveryDetails.deliveryStatus === "DELIVERED") ? "success" : selectedDeliveryDetails.deliveryStatus === "ARRIVED_AT_DESTINATION" ? "warning" : "secondary"}`} style={{ marginBottom: 8, display: "inline-block" }}>
                     {selectedDeliveryDetails.deliveryStatus}
                   </span>
                   <h2>Delivery Tracking Metadata</h2>

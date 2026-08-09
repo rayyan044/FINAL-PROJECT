@@ -77,4 +77,25 @@ public class Delivery extends BaseEntity {
 
     @Column(name = "remarks", columnDefinition = "TEXT")
     private String remarks;
+
+    @Column(name = "start_latitude")
+    private Double startLatitude;
+
+    @Column(name = "start_longitude")
+    private Double startLongitude;
+
+    @Column(name = "pod_latitude")
+    private Double podLatitude;
+
+    @Column(name = "pod_longitude")
+    private Double podLongitude;
+
+    @Column(name = "pod_photo_path", length = 255)
+    private String podPhotoPath;
+
+    @Column(name = "pod_notes", columnDefinition = "TEXT")
+    private String podNotes;
+
+    @Column(name = "pod_uploaded_at")
+    private LocalDateTime podUploadedAt;
 }

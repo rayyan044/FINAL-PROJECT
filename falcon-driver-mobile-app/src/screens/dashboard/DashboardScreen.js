@@ -73,6 +73,11 @@ export default function DashboardScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Quick actions</Text>
           <View style={styles.quickActions}>
             <QuickActionButton icon={<Ionicons color={colors.primary} name="list-outline" size={19} />} label="My Deliveries" onPress={() => navigation.navigate("Deliveries")} />
+            <QuickActionButton 
+              icon={<Ionicons color={colors.primary} name="notifications-outline" size={19} />} 
+              label={dashboard.notifications?.unreadCount > 0 ? `Notifications (${dashboard.notifications.unreadCount})` : "Notifications"} 
+              onPress={() => navigation.navigate("Notifications")} 
+            />
             <QuickActionButton icon={<Ionicons color={colors.primary} name="person-outline" size={19} />} label="Profile" onPress={() => navigation.navigate("Profile")} />
           </View>
           <Text style={styles.sectionTitle}>Recent deliveries</Text>

@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import colors from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
 import DashboardScreen from "../screens/dashboard/DashboardScreen";
+import NotificationsScreen from "../screens/dashboard/NotificationsScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import DeliveryDetailsScreen from "../screens/deliveries/DeliveryDetailsScreen";
 import MyDeliveriesScreen from "../screens/deliveries/MyDeliveriesScreen";
@@ -34,6 +35,7 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Dashboard" component={DashboardScreen} />
             <Stack.Screen name="Deliveries" component={MyDeliveriesScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true, title: "Notifications" }} />
             <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: true, title: "Profile" }} />
             <Stack.Screen name="DeliveryDetails" component={DeliveryDetailsScreen} options={{ headerShown: true, title: "Delivery Details" }} />
           </>

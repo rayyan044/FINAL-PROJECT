@@ -234,10 +234,18 @@ public class DeliveryServiceTest {
             deliveryService.markArrived(delivery.getId(), null);
         });
 
+        // Simulate driver uploading POD (which transitions status to DELIVERED)
+        Delivery currentDelivery = deliveryRepository.findById(delivery.getId()).orElseThrow();
+        currentDelivery.setPodPhotoPath("pod-photo.jpg");
+        currentDelivery.setPodLatitude(-6.123);
+        currentDelivery.setPodLongitude(39.456);
+        currentDelivery.setDeliveryStatus(DeliveryStatus.DELIVERED);
+        deliveryRepository.save(currentDelivery);
+
         // 4. Complete Delivery
         DeliveryResponse deliveredRes = deliveryService.completeDelivery(delivery.getId(),
                 DeliveryCompleteRequest.builder().completedBy("Alice Receiver").remarks("Quantity matches perfectly").build());
-        Assertions.assertEquals("DELIVERED", deliveredRes.getDeliveryStatus());
+        Assertions.assertEquals("COMPLETED", deliveredRes.getDeliveryStatus());
         Assertions.assertEquals("Alice Receiver", deliveredRes.getCompletedBy());
 
         // Verify LoadingActivity status updated to DELIVERED

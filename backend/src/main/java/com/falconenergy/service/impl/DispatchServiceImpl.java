@@ -42,6 +42,10 @@ public class DispatchServiceImpl implements DispatchService {
     private final LoadingOrderRepository loadingOrderRepository;
     private final PaymentReceiptRepository paymentReceiptRepository;
     private final AuditLogService auditLogService;
+    
+    private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
+    private final DeliveryRepository deliveryRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -229,6 +233,19 @@ public class DispatchServiceImpl implements DispatchService {
 
         Dispatch saved = dispatchRepository.save(dispatch);
         auditLogService.log("TRUCK_RELEASED", "DISPATCH", saved.getId(), username, "Truck released for dispatch.", DispatchStatus.READY.name(), DispatchStatus.DISPATCHED.name());
+
+        if (vehicle.getDriver() != null) {
+            deliveryService.createDelivery(saved.getId());
+
+            userRepository.findByDriverId(vehicle.getDriver().getId()).ifPresent(user -> {
+                notificationRepository.save(Notification.builder()
+                        .user(user)
+                        .title("New Delivery Assigned")
+                        .message("You have been assigned delivery " + (saved.getDeliveryNote() != null ? saved.getDeliveryNote().getDeliveryNoteNumber() : "note pending") + " to " + saved.getDestination() + ".")
+                        .build());
+            });
+        }
+
         return toDispatchResponse(saved);
     }
 
@@ -251,6 +268,23 @@ public class DispatchServiceImpl implements DispatchService {
         Dispatch saved = dispatchRepository.save(dispatch);
         auditLogService.log("DISPATCH_CANCELLED", "DISPATCH", saved.getId(), username,
                 "Dispatch cancelled before truck release.", DispatchStatus.READY.name(), DispatchStatus.CANCELLED.name());
+
+        deliveryRepository.findByDispatchId(saved.getId()).ifPresent(delivery -> {
+            deliveryService.cancelDelivery(delivery.getId(), "Dispatch cancelled.");
+        });
+
+        var driver = dispatch.getLoadingActivity() != null && dispatch.getLoadingActivity().getVehicle() != null
+                ? dispatch.getLoadingActivity().getVehicle().getDriver() : null;
+        if (driver != null) {
+            userRepository.findByDriverId(driver.getId()).ifPresent(user -> {
+                notificationRepository.save(Notification.builder()
+                        .user(user)
+                        .title("Delivery Cancelled")
+                        .message("Delivery for dispatch " + dispatch.getDispatchNumber() + " has been cancelled.")
+                        .build());
+            });
+        }
+
         return toDispatchResponse(saved);
     }
 
@@ -282,9 +316,18 @@ public class DispatchServiceImpl implements DispatchService {
         Dispatch saved = dispatchRepository.save(dispatch);
         auditLogService.log("TRANSIT_STARTED", "DISPATCH", saved.getId(), username, "Truck transit started.", DispatchStatus.DISPATCHED.name(), DispatchStatus.IN_TRANSIT.name());
 
-        // This method is transactional: failure to create the matching delivery
-        // rolls back the transition to IN_TRANSIT and avoids an orphan dispatch.
-        deliveryService.createDelivery(saved.getId());
+        deliveryRepository.findByDispatchId(saved.getId()).ifPresentOrElse(delivery -> {
+            delivery.setDeliveryStatus(DeliveryStatus.IN_TRANSIT);
+            delivery.setDispatchedAt(LocalDateTime.now());
+            deliveryRepository.save(delivery);
+        }, () -> {
+            deliveryService.createDelivery(saved.getId());
+            deliveryRepository.findByDispatchId(saved.getId()).ifPresent(delivery -> {
+                delivery.setDeliveryStatus(DeliveryStatus.IN_TRANSIT);
+                delivery.setDispatchedAt(LocalDateTime.now());
+                deliveryRepository.save(delivery);
+            });
+        });
 
         return toDispatchResponse(saved);
     }
