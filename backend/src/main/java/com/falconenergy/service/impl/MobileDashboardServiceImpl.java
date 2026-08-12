@@ -40,14 +40,16 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
     private final DispatchRepository dispatchRepository;
     private final NotificationRepository notificationRepository;
     private final ProofOfDeliveryStorageService proofOfDeliveryStorageService;
-
+    private final com.falconenergy.repository.DeliveryNoteRepository deliveryNoteRepository;
+ 
     private final DeliveryService deliveryService;
     private final DispatchService dispatchService;
-
+ 
     public MobileDashboardServiceImpl(UserRepository userRepository, VehicleRepository vehicleRepository,
                                       DeliveryRepository deliveryRepository, DispatchRepository dispatchRepository,
                                       NotificationRepository notificationRepository,
                                       ProofOfDeliveryStorageService proofOfDeliveryStorageService,
+                                      com.falconenergy.repository.DeliveryNoteRepository deliveryNoteRepository,
                                       @Lazy DeliveryService deliveryService,
                                       @Lazy DispatchService dispatchService) {
         this.userRepository = userRepository;
@@ -56,6 +58,7 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         this.dispatchRepository = dispatchRepository;
         this.notificationRepository = notificationRepository;
         this.proofOfDeliveryStorageService = proofOfDeliveryStorageService;
+        this.deliveryNoteRepository = deliveryNoteRepository;
         this.deliveryService = deliveryService;
         this.dispatchService = dispatchService;
     }
@@ -134,8 +137,20 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         if (user.getRole() != UserRole.DRIVER || user.getDriver() == null) {
             throw new AccessDeniedException("Only linked driver accounts can access mobile deliveries");
         }
-        Delivery delivery = deliveryRepository.findForMobileDriver(deliveryId, user.getDriver().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found for this driver"));
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
+        
+        Driver assignedDriver = delivery.getLoadingActivity() != null && delivery.getLoadingActivity().getVehicle() != null
+                ? delivery.getLoadingActivity().getVehicle().getDriver() : null;
+                
+        if (assignedDriver == null || !assignedDriver.getId().equals(user.getDriver().getId())) {
+            throw new AccessDeniedException("This delivery is no longer assigned to you.");
+        }
+        
+        if (delivery.getDeliveryStatus() == DeliveryStatus.CANCELLED) {
+            throw new BadRequestException("This delivery has been cancelled.");
+        }
+        
         return toRecentDelivery(delivery);
     }
 
@@ -146,8 +161,35 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         if (user.getRole() != UserRole.DRIVER || user.getDriver() == null) {
             throw new AccessDeniedException("Only linked driver accounts can accept deliveries");
         }
-        Delivery delivery = deliveryRepository.findForMobileDriver(deliveryId, user.getDriver().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found for this driver"));
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
+
+        Driver assignedDriver = delivery.getLoadingActivity() != null && delivery.getLoadingActivity().getVehicle() != null
+                ? delivery.getLoadingActivity().getVehicle().getDriver() : null;
+
+        if (assignedDriver == null || !assignedDriver.getId().equals(user.getDriver().getId())) {
+            throw new BadRequestException("This delivery is no longer assigned to you.");
+        }
+
+        if (delivery.getDeliveryStatus() == DeliveryStatus.CANCELLED) {
+            throw new BadRequestException("This delivery has been cancelled.");
+        }
+
+        if (delivery.getDeliveryStatus() == DeliveryStatus.ACCEPTED) {
+            throw new BadRequestException("This delivery has already been accepted.");
+        }
+
+        if (delivery.getDeliveryStatus() == DeliveryStatus.IN_TRANSIT) {
+            throw new BadRequestException("This delivery is already in transit.");
+        }
+
+        if (delivery.getDeliveryStatus() == DeliveryStatus.ARRIVED_AT_DESTINATION || delivery.getDeliveryStatus() == DeliveryStatus.DELIVERED) {
+            throw new BadRequestException("This delivery has already been delivered.");
+        }
+
+        if (delivery.getDeliveryStatus() == DeliveryStatus.COMPLETED) {
+            throw new BadRequestException("This delivery has already been completed.");
+        }
 
         if (delivery.getDeliveryStatus() != DeliveryStatus.ASSIGNED) {
             throw new BadRequestException("Delivery can only be accepted if the status is ASSIGNED. Current status: " + delivery.getDeliveryStatus());
@@ -165,8 +207,26 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         if (user.getRole() != UserRole.DRIVER || user.getDriver() == null) {
             throw new AccessDeniedException("Only linked driver accounts can start trips");
         }
-        Delivery delivery = deliveryRepository.findForMobileDriver(deliveryId, user.getDriver().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found for this driver"));
+        if (latitude == null || longitude == null) {
+            throw new BadRequestException("Start coordinates (latitude and longitude) are required.");
+        }
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
+
+        Driver assignedDriver = delivery.getLoadingActivity() != null && delivery.getLoadingActivity().getVehicle() != null
+                ? delivery.getLoadingActivity().getVehicle().getDriver() : null;
+
+        if (assignedDriver == null || !assignedDriver.getId().equals(user.getDriver().getId())) {
+            throw new BadRequestException("This delivery is no longer assigned to you.");
+        }
+
+        if (delivery.getDeliveryStatus() == DeliveryStatus.CANCELLED) {
+            throw new BadRequestException("This delivery has been cancelled.");
+        }
+
+        if (delivery.getDeliveryStatus() == DeliveryStatus.IN_TRANSIT) {
+            throw new BadRequestException("Trip has already been started.");
+        }
 
         if (delivery.getDeliveryStatus() != DeliveryStatus.ACCEPTED) {
             throw new BadRequestException("Trip can only be started if the status is ACCEPTED. Current status: " + delivery.getDeliveryStatus());
@@ -289,11 +349,132 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         List<Notification> notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
         return notifications.stream().map(n -> NotificationResponse.builder()
                 .id(n.getId())
+                .driverId(n.getUser() != null ? n.getUser().getId() : null)
+                .deliveryId(n.getDelivery() != null ? n.getDelivery().getId() : null)
+                .type(n.getType())
                 .title(n.getTitle())
                 .message(n.getMessage())
-                .isRead(n.isRead())
+                .read(n.isRead())
                 .createdAt(n.getCreatedAt())
                 .build()).toList();
+    }
+ 
+    @Override
+    public NotificationResponse getNotificationById(Long id) {
+        User user = getAuthenticatedUser();
+        Notification n = notificationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found with id: " + id));
+        if (!n.getUser().getId().equals(user.getId())) {
+            throw new AccessDeniedException("Access denied. You do not own this notification.");
+        }
+        return NotificationResponse.builder()
+                .id(n.getId())
+                .driverId(n.getUser() != null ? n.getUser().getId() : null)
+                .deliveryId(n.getDelivery() != null ? n.getDelivery().getId() : null)
+                .type(n.getType())
+                .title(n.getTitle())
+                .message(n.getMessage())
+                .read(n.isRead())
+                .createdAt(n.getCreatedAt())
+                .build();
+    }
+ 
+    @Override
+    public com.falconenergy.dto.DeliveryNoteResponse getDeliveryNoteForDelivery(Long deliveryId) {
+        User user = getAuthenticatedUser();
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
+ 
+        verifyDeliveryOwnership(delivery, user);
+ 
+        DeliveryNote dn = delivery.getDeliveryNote();
+        if (dn == null) {
+            throw new BadRequestException("Delivery note is not available yet.");
+        }
+ 
+        return toDeliveryNoteResponse(dn, deliveryId);
+    }
+ 
+    @Override
+    public byte[] getDeliveryNotePdf(Long deliveryId) {
+        User user = getAuthenticatedUser();
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
+ 
+        verifyDeliveryOwnership(delivery, user);
+ 
+        DeliveryNote dn = delivery.getDeliveryNote();
+        if (dn == null) {
+            throw new BadRequestException("Delivery note is not available yet.");
+        }
+ 
+        return com.falconenergy.util.DeliveryNotePdfGenerator.generate(delivery);
+    }
+ 
+    @Override
+    public String getDeliveryNoteNumber(Long deliveryId) {
+        User user = getAuthenticatedUser();
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery record not found with id: " + deliveryId));
+ 
+        verifyDeliveryOwnership(delivery, user);
+ 
+        DeliveryNote dn = delivery.getDeliveryNote();
+        if (dn == null) {
+            throw new BadRequestException("Delivery note is not available yet.");
+        }
+ 
+        return dn.getDeliveryNoteNumber();
+    }
+ 
+    private void verifyDeliveryOwnership(Delivery delivery, User user) {
+        if (user.getRole() != UserRole.DRIVER || user.getDriver() == null) {
+            throw new AccessDeniedException("Access denied. Only driver accounts can access deliveries.");
+        }
+ 
+        Driver driver = user.getDriver();
+        var deliveryDriver = delivery.getLoadingActivity() != null && delivery.getLoadingActivity().getVehicle() != null
+                ? delivery.getLoadingActivity().getVehicle().getDriver() : null;
+ 
+        if (deliveryDriver == null || !deliveryDriver.getId().equals(driver.getId())) {
+            throw new AccessDeniedException("Access denied. You do not own this delivery.");
+        }
+    }
+ 
+    private com.falconenergy.dto.DeliveryNoteResponse toDeliveryNoteResponse(DeliveryNote dn, Long deliveryId) {
+        String customerName = null;
+        if (dn.getLoadingOrder() != null && dn.getLoadingOrder().getOrder() != null) {
+            customerName = com.falconenergy.util.BuyerNameResolver.resolveName(dn.getLoadingOrder().getOrder());
+        } else if (dn.getCustomer() != null) {
+            customerName = dn.getCustomer().getCompanyName();
+        }
+        return com.falconenergy.dto.DeliveryNoteResponse.builder()
+                .id(dn.getId())
+                .deliveryNoteNumber(dn.getDeliveryNoteNumber())
+                .loadingOrderId(dn.getLoadingOrder() != null ? dn.getLoadingOrder().getId() : null)
+                .loadingActivityId(dn.getLoadingActivity() != null ? dn.getLoadingActivity().getId() : null)
+                .loadingReportId(dn.getLoadingReport() != null ? dn.getLoadingReport().getId() : null)
+                .customerId(dn.getCustomer() != null ? dn.getCustomer().getId() : null)
+                .customerName(customerName)
+                .productId(dn.getProduct() != null ? dn.getProduct().getId() : null)
+                .productName(dn.getProduct() != null ? dn.getProduct().getProductName() : null)
+                .truckNumber(dn.getTruckNumber())
+                .driverName(dn.getDriverName())
+                .driverLicenseNumber(dn.getDriverLicenseNumber())
+                .transportCompany(dn.getTransportCompany())
+                .truckCapacity(dn.getTruckCapacity())
+                .transportCharge(dn.getTransportCharge())
+                .ambientVolume(dn.getAmbientVolume())
+                .standardVolume(dn.getStandardVolume())
+                .destination(dn.getDestination())
+                .status(dn.getStatus())
+                .preparedBy(dn.getPreparedBy())
+                .preparedAt(dn.getPreparedAt())
+                .printedBy(dn.getPrintedBy())
+                .printedAt(dn.getPrintedAt())
+                .createdAt(dn.getCreatedAt())
+                .deliveryId(deliveryId)
+                .build();
     }
 
     @Override

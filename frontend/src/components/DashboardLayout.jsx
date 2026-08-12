@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { FiBell, FiLogOut, FiMenu, FiX } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
@@ -14,8 +14,22 @@ export function DashboardLayout({
   children,
 }) {
   const [open, setOpen] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const displayEmail = user?.email || "";
 
@@ -120,16 +134,45 @@ export function DashboardLayout({
               <FiBell />
               <span className="fef-icon-dot" />
             </button>
-            <div className="fef-profile">
-              <div className="fef-avatar">{initials}</div>
-              <div className="fef-profile-text">
-                <div className="fef-profile-name">{displayName}</div>
-                <div className="fef-profile-role">{displayRoleText}</div>
+            <div className="fef-profile-container" ref={dropdownRef}>
+              <div
+                className="fef-profile"
+                onClick={() => setShowProfileMenu((prev) => !prev)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setShowProfileMenu((prev) => !prev);
+                  }
+                }}
+                aria-haspopup="true"
+                aria-expanded={showProfileMenu}
+              >
+                <div className="fef-avatar">{initials}</div>
+                <div className="fef-profile-text">
+                  <div className="fef-profile-name">{displayName}</div>
+                  <div className="fef-profile-role">{displayRoleText}</div>
+                </div>
               </div>
+              {showProfileMenu && (
+                <div className="fef-profile-dropdown">
+                  <div className="fef-dropdown-header">
+                    <div className="fef-dropdown-avatar">{initials}</div>
+                    <div className="fef-dropdown-user-info">
+                      <div className="fef-dropdown-name">{displayName}</div>
+                      <div className="fef-dropdown-email">{displayEmail}</div>
+                      <div className="fef-dropdown-role">{displayRoleText}</div>
+                    </div>
+                  </div>
+                  <div className="fef-dropdown-divider"></div>
+                  <button className="fef-dropdown-item logout" onClick={handleLogout}>
+                    <FiLogOut size={16} />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
             </div>
-            <button className="fef-icon-btn" aria-label="Logout" onClick={handleLogout}>
-              <FiLogOut />
-            </button>
           </div>
         </header>
 

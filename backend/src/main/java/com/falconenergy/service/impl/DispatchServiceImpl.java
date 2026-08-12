@@ -236,14 +236,6 @@ public class DispatchServiceImpl implements DispatchService {
 
         if (vehicle.getDriver() != null) {
             deliveryService.createDelivery(saved.getId());
-
-            userRepository.findByDriverId(vehicle.getDriver().getId()).ifPresent(user -> {
-                notificationRepository.save(Notification.builder()
-                        .user(user)
-                        .title("New Delivery Assigned")
-                        .message("You have been assigned delivery " + (saved.getDeliveryNote() != null ? saved.getDeliveryNote().getDeliveryNoteNumber() : "note pending") + " to " + saved.getDestination() + ".")
-                        .build());
-            });
         }
 
         return toDispatchResponse(saved);

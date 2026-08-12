@@ -8,5 +8,70 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
  @Transactional(readOnly=true) public PaymentReceiptResponse getByInvoiceId(Long id) { return map(repository.findByInvoiceId(id).orElseThrow(() -> new ResourceNotFoundException("Payment Receipt not found for customer invoice id: " + id))); }
  @Transactional(readOnly=true) public boolean existsForInvoiceId(Long id) { return repository.existsByInvoiceId(id); }
  private synchronized String nextNumber() { String prefix="PR-"+LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)+"-"; String max=repository.findMaxReceiptNumberWithPrefix(prefix); int n=max==null?1:Integer.parseInt(max.substring(prefix.length()))+1; return prefix+String.format("%04d",n); }
- private PaymentReceiptResponse map(PaymentReceipt r) { Invoice i=invoiceRepository.findDetailedById(r.getInvoice().getId()).orElseThrow(); FuelOrder order=i.getOrder(); Customer customer=com.falconenergy.util.BuyerNameResolver.resolveCustomer(order); CompanySettings company=companySettingsRepository.findFirstByOrderByIdAsc().orElse(null); LoadingOrder loadingOrder=loadingOrderRepository.findByOrderId(order.getId()).orElse(null); LoadingActivity activity=loadingOrder != null && loadingOrder.getActivities()!=null && !loadingOrder.getActivities().isEmpty() ? loadingOrder.getActivities().get(0) : null; LoadingReport report=activity == null ? null : loadingReportRepository.findByLoadingActivityId(activity.getId()).orElse(null); DeliveryNote note=activity == null ? null : deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElse(null); String paymentMethod=i.getPaymentMethod() != null && !i.getPaymentMethod().isBlank() ? i.getPaymentMethod() : order.getPaymentMethod(); return PaymentReceiptResponse.builder().id(r.getId()).receiptNumber(r.getReceiptNumber()).companyName(company != null ? company.getCompanyName() : "FALCON ENERGY LTD.").companyAddress(company != null ? company.getOfficeAddress() : "Company address not configured").companyPhone(company != null ? company.getPhoneNumber() : "Company contact not configured").companyEmail(company != null ? company.getEmail() : "Company email not configured").companyLogo(company != null ? company.getLogo() : null).invoiceId(i.getId()).invoiceNumber(i.getInvoiceNumber()).invoiceDate(i.getInvoiceDate()).customerOrderNumber(order.getOrderNumber()).customerName(customer != null ? customer.getCompanyName() : null).customerCompany(customer != null ? customer.getCompanyName() : null).customerContactPerson(customer != null ? customer.getContactPerson() : null).customerContact(customer != null && customer.getPhone() != null ? customer.getPhone() : "Customer contact not captured").customerEmail(customer != null && customer.getEmail() != null ? customer.getEmail() : "Customer email not captured").productName(order.getProduct().getProductName()).fuelQuantity(order.getQuantity()).currency(order.getCurrency()).paymentMethod(paymentMethod != null ? paymentMethod : "Payment method not captured").paymentReference("Not captured during Finance payment confirmation").bankName(i.getBankName() != null ? i.getBankName() : "Not applicable / not captured").fuelSupplyAmount(i.getSubtotal()).transportChargeAmount(i.getTransportCharges() == null ? BigDecimal.ZERO : i.getTransportCharges()).receivedAmount(r.getReceivedAmount()).receivedAt(r.getReceivedAt()).paymentConfirmedAt(i.getFinanceApprovedAt()).financeOfficerName(i.getFinanceApprovedBy() != null ? i.getFinanceApprovedBy() : "Finance officer not captured").receivedBy(i.getFinanceApprovedBy() != null ? i.getFinanceApprovedBy() : "Finance officer not captured").confirmedBy(r.getConfirmedBy()).receiptStatus("PAID").loadingOrderNumber(loadingOrder == null ? "Loading order not yet created" : loadingOrder.getLoadingOrderNumber()).loadingReportNumber(report == null ? "Loading report not yet available" : report.getReportNumber()).deliveryNoteNumber(note == null ? "Delivery Note not yet generated" : note.getDeliveryNoteNumber()).generatedAt(r.getCreatedAt()).build(); }
+    private PaymentReceiptResponse map(PaymentReceipt r) {
+        Invoice i = invoiceRepository.findDetailedById(r.getInvoice().getId()).orElseThrow();
+        FuelOrder order = i.getOrder();
+        Customer customer = com.falconenergy.util.BuyerNameResolver.resolveCustomer(order);
+        CompanySettings company = companySettingsRepository.findFirstByOrderByIdAsc().orElse(null);
+        LoadingOrder loadingOrder = loadingOrderRepository.findByOrderId(order.getId()).orElse(null);
+        LoadingActivity activity = loadingOrder != null && loadingOrder.getActivities() != null && !loadingOrder.getActivities().isEmpty() ? loadingOrder.getActivities().get(0) : null;
+        LoadingReport report = activity == null ? null : loadingReportRepository.findByLoadingActivityId(activity.getId()).orElse(null);
+        DeliveryNote note = activity == null ? null : deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElse(null);
+        String paymentMethod = i.getPaymentMethod() != null && !i.getPaymentMethod().isBlank() ? i.getPaymentMethod() : order.getPaymentMethod();
+
+        boolean isEmergency = customer != null && (
+                "EMERGENCY".equalsIgnoreCase(customer.getCustomerCode()) ||
+                "Stranded Drivers (Emergency Requests)".equalsIgnoreCase(customer.getCompanyName()) ||
+                "Customer Fuel Requests".equalsIgnoreCase(customer.getCompanyName())
+        );
+
+        String resolvedCustomerName = isEmergency && order.getDriverName() != null && !order.getDriverName().trim().isEmpty()
+                ? order.getDriverName() : (customer != null ? customer.getCompanyName() : null);
+
+        String finalContactPerson = isEmergency ? "Emergency Operator" : (customer != null ? customer.getContactPerson() : null);
+
+        String finalContactPhone = isEmergency && order.getDriverPhone() != null && !order.getDriverPhone().trim().isEmpty()
+                ? order.getDriverPhone() : (customer != null && customer.getPhone() != null ? customer.getPhone() : "Customer contact not captured");
+
+        String finalContactEmail = isEmergency && order.getDriverEmail() != null && !order.getDriverEmail().trim().isEmpty()
+                ? order.getDriverEmail() : (customer != null && customer.getEmail() != null ? customer.getEmail() : "Customer email not captured");
+
+        return PaymentReceiptResponse.builder()
+                .id(r.getId())
+                .receiptNumber(r.getReceiptNumber())
+                .companyName(company != null ? company.getCompanyName() : "FALCON ENERGY LTD.")
+                .companyAddress(company != null ? company.getOfficeAddress() : "Company address not configured")
+                .companyPhone(company != null ? company.getPhoneNumber() : "Company contact not configured")
+                .companyEmail(company != null ? company.getEmail() : "Company email not configured")
+                .companyLogo(company != null ? company.getLogo() : null)
+                .invoiceId(i.getId())
+                .invoiceNumber(i.getInvoiceNumber())
+                .invoiceDate(i.getInvoiceDate())
+                .customerOrderNumber(order.getOrderNumber())
+                .customerName(resolvedCustomerName)
+                .customerCompany(resolvedCustomerName)
+                .customerContactPerson(finalContactPerson)
+                .customerContact(finalContactPhone)
+                .customerEmail(finalContactEmail)
+                .productName(order.getProduct().getProductName())
+                .fuelQuantity(order.getQuantity())
+                .currency(order.getCurrency())
+                .paymentMethod(paymentMethod != null ? paymentMethod : "Payment method not captured")
+                .paymentReference("Not captured during Finance payment confirmation")
+                .bankName(i.getBankName() != null ? i.getBankName() : "Not applicable / not captured")
+                .fuelSupplyAmount(i.getSubtotal())
+                .transportChargeAmount(i.getTransportCharges() == null ? BigDecimal.ZERO : i.getTransportCharges())
+                .receivedAmount(r.getReceivedAmount())
+                .receivedAt(r.getReceivedAt())
+                .paymentConfirmedAt(i.getFinanceApprovedAt())
+                .financeOfficerName(i.getFinanceApprovedBy() != null ? i.getFinanceApprovedBy() : "Finance officer not captured")
+                .receivedBy(i.getFinanceApprovedBy() != null ? i.getFinanceApprovedBy() : "Finance officer not captured")
+                .confirmedBy(r.getConfirmedBy())
+                .receiptStatus("PAID")
+                .loadingOrderNumber(loadingOrder == null ? "Loading order not yet created" : loadingOrder.getLoadingOrderNumber())
+                .loadingReportNumber(report == null ? "Loading report not yet available" : report.getReportNumber())
+                .deliveryNoteNumber(note == null ? "Delivery Note not yet generated" : note.getDeliveryNoteNumber())
+                .generatedAt(r.getCreatedAt())
+                .build();
+    }
 }

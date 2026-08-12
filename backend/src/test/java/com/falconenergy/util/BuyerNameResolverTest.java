@@ -31,4 +31,48 @@ class BuyerNameResolverTest {
 
         assertEquals("Stranded Drivers (Emergency Requests)", BuyerNameResolver.resolveName(emergencyOrder));
     }
+
+    @Test
+    void normalCustomerDisplaysRegisteredCompanyName() {
+        Customer registeredCustomer = Customer.builder().companyName("Acme Logistics Ltd").customerCode("CUST-001").build();
+        FuelOrder order = FuelOrder.builder().customer(registeredCustomer).driverName("John Doe").build();
+        assertEquals("Acme Logistics Ltd", BuyerNameResolver.resolveName(order));
+    }
+
+    @Test
+    void emergencyCustomerWithEnteredCompanyNameDisplaysDriverName() {
+        Customer emergencyCustomer = Customer.builder().companyName("Customer Fuel Requests").customerCode("EMERGENCY").build();
+        FuelOrder order = FuelOrder.builder().customer(emergencyCustomer).driverName("ABC Trading Company Ltd").build();
+        assertEquals("ABC Trading Company Ltd", BuyerNameResolver.resolveName(order));
+    }
+
+    @Test
+    void emergencyCustomerWithNullDriverNameFallsBackToCustomerName() {
+        Customer emergencyCustomer = Customer.builder().companyName("Customer Fuel Requests").customerCode("EMERGENCY").build();
+        FuelOrder order = FuelOrder.builder().customer(emergencyCustomer).driverName(null).build();
+        assertEquals("Customer Fuel Requests", BuyerNameResolver.resolveName(order));
+    }
+
+    @Test
+    void emergencyCustomerWithEmptyDriverNameFallsBackToCustomerName() {
+        Customer emergencyCustomer = Customer.builder().companyName("Customer Fuel Requests").customerCode("EMERGENCY").build();
+        FuelOrder order = FuelOrder.builder().customer(emergencyCustomer).driverName("").build();
+        assertEquals("Customer Fuel Requests", BuyerNameResolver.resolveName(order));
+    }
+
+    @Test
+    void emergencyCustomerWithWhitespaceDriverNameFallsBackToCustomerName() {
+        Customer emergencyCustomer = Customer.builder().companyName("Customer Fuel Requests").customerCode("EMERGENCY").build();
+        FuelOrder order = FuelOrder.builder().customer(emergencyCustomer).driverName("   ").build();
+        assertEquals("Customer Fuel Requests", BuyerNameResolver.resolveName(order));
+    }
+
+    @Test
+    void emergencyOrdersResolveIndependently() {
+        Customer emergencyCustomer = Customer.builder().companyName("Customer Fuel Requests").customerCode("EMERGENCY").build();
+        FuelOrder order1 = FuelOrder.builder().customer(emergencyCustomer).driverName("ABC Trading Company Ltd").build();
+        FuelOrder order2 = FuelOrder.builder().customer(emergencyCustomer).driverName("XYZ Petroleum Ltd").build();
+        assertEquals("ABC Trading Company Ltd", BuyerNameResolver.resolveName(order1));
+        assertEquals("XYZ Petroleum Ltd", BuyerNameResolver.resolveName(order2));
+    }
 }

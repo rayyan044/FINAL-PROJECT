@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class DeliveryServiceImpl implements DeliveryService {
-
     private final DeliveryRepository deliveryRepository;
     private final DispatchRepository dispatchRepository;
     private final LoadingActivityRepository loadingActivityRepository;
@@ -32,7 +31,8 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final FuelOrderRepository fuelOrderRepository;
     private final VehicleRepository vehicleRepository;
     private final DeliveryMapper deliveryMapper;
-
+    private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
     @Override
     @Transactional(readOnly = true)
     public List<DeliveryResponse> getActiveDeliveries() {
@@ -90,6 +90,10 @@ public class DeliveryServiceImpl implements DeliveryService {
         delivery.setUpdatedBy(username);
 
         Delivery saved = deliveryRepository.save(delivery);
+        var vehicle = activity.getVehicle();
+        if (vehicle != null && vehicle.getDriver() != null) {
+            sendDeliveryAssignedNotification(saved, vehicle.getDriver());
+        }
         return deliveryMapper.toResponse(saved);
     }
 
@@ -231,5 +235,38 @@ public class DeliveryServiceImpl implements DeliveryService {
     private String resolveCurrentUser() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         return (auth != null && auth.isAuthenticated()) ? auth.getName() : "system";
+    }
+
+    @Override
+    @Transactional
+    public void sendDeliveryAssignedNotification(Delivery delivery, Driver driver) {
+        userRepository.findByDriverId(driver.getId()).ifPresent(user -> {
+            boolean exists = notificationRepository.existsByUserIdAndDeliveryIdAndType(
+                    user.getId(), delivery.getId(), "DELIVERY_ASSIGNED");
+            if (!exists) {
+                String deliveryRef = delivery.getDeliveryNote() != null ? delivery.getDeliveryNote().getDeliveryNoteNumber() : delivery.getDeliveryNumber();
+                String message = String.format("Delivery %s has been assigned to you. Please review and confirm the delivery before starting your journey.", deliveryRef);
+                
+                notificationRepository.save(Notification.builder()
+                        .user(user)
+                        .delivery(delivery)
+                        .type("DELIVERY_ASSIGNED")
+                        .title("New Delivery Assigned")
+                        .message(message)
+                        .isRead(false)
+                        .createdAt(LocalDateTime.now())
+                        .build());
+            }
+
+            // Clean up unread notifications for this delivery belonging to other drivers
+            List<Notification> otherDriversNotifications = notificationRepository.findByDeliveryIdAndUserIdNotAndIsReadFalse(
+                    delivery.getId(), user.getId());
+            if (!otherDriversNotifications.isEmpty()) {
+                for (Notification notif : otherDriversNotifications) {
+                    notif.setRead(true);
+                }
+                notificationRepository.saveAll(otherDriversNotifications);
+            }
+        });
     }
 }

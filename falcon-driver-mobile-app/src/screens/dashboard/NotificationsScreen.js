@@ -5,7 +5,7 @@ import { ActivityIndicator, FlatList, Pressable, SafeAreaView, StyleSheet, Text,
 import colors from "../../constants/colors";
 import { getNotifications, markAsRead } from "../../services/notificationService";
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -27,42 +27,51 @@ export default function NotificationsScreen() {
     loadNotifications();
   }, [loadNotifications]);
 
-  const handleMarkAsRead = async (id) => {
-    try {
-      await markAsRead(id);
-      // Update local state to mark it as read
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
-    } catch (err) {
-      console.error("Failed to mark notification as read", err);
+  const handleNotificationPress = async (item) => {
+    const isRead = item.read !== undefined ? item.read : item.isRead;
+    if (!isRead) {
+      try {
+        await markAsRead(item.id);
+        // Update local state to mark it as read
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === item.id ? { ...n, read: true, isRead: true } : n))
+        );
+      } catch (err) {
+        console.error("Failed to mark notification as read", err);
+      }
+    }
+    if (item.type === "DELIVERY_ASSIGNED" && item.deliveryId) {
+      navigation.navigate("DeliveryDetails", { deliveryId: item.deliveryId });
     }
   };
 
-  const renderItem = ({ item }) => (
-    <Pressable
-      onPress={() => !item.isRead && handleMarkAsRead(item.id)}
-      style={[styles.notificationCard, !item.isRead && styles.unreadCard]}
-    >
-      <View style={styles.iconContainer}>
-        <Ionicons
-          color={item.isRead ? colors.gray : colors.primary}
-          name={item.isRead ? "mail-open-outline" : "mail-unread-outline"}
-          size={24}
-        />
-      </View>
-      <View style={styles.textContainer}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.title, !item.isRead && styles.unreadText]}>{item.title}</Text>
-          {!item.isRead && <View style={styles.badge} />}
+  const renderItem = ({ item }) => {
+    const isRead = item.read !== undefined ? item.read : item.isRead;
+    return (
+      <Pressable
+        onPress={() => handleNotificationPress(item)}
+        style={[styles.notificationCard, !isRead && styles.unreadCard]}
+      >
+        <View style={styles.iconContainer}>
+          <Ionicons
+            color={isRead ? colors.gray : colors.primary}
+            name={isRead ? "mail-open-outline" : "mail-unread-outline"}
+            size={24}
+          />
         </View>
-        <Text style={styles.message}>{item.message}</Text>
-        <Text style={styles.date}>
-          {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
-        </Text>
-      </View>
-    </Pressable>
-  );
+        <View style={styles.textContainer}>
+          <View style={styles.headerRow}>
+            <Text style={[styles.title, !isRead && styles.unreadText]}>{item.title}</Text>
+            {!isRead && <View style={styles.badge} />}
+          </View>
+          <Text style={styles.message}>{item.message}</Text>
+          <Text style={styles.date}>
+            {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>

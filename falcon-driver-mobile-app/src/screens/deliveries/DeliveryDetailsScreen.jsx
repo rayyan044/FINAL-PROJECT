@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -42,6 +43,9 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
   const [photoUri, setPhotoUri] = useState(null);
   const [podNotes, setPodNotes] = useState("");
 
+  // Custom Alert Modal state
+  const [alertConfig, setAlertConfig] = useState({ visible: false, title: "", message: "" });
+
   const load = useCallback(async () => {
     try {
       setError("");
@@ -68,11 +72,7 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
   }, [load]);
 
   const showAlert = (title, message) => {
-    if (Platform.OS === "web") {
-      window.alert(`${title}: ${message}`);
-    } else {
-      Alert.alert(title, message);
-    }
+    setAlertConfig({ visible: true, title, message });
   };
 
   const handleAccept = async () => {
@@ -434,6 +434,54 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={alertConfig.visible}
+        onRequestClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Ionicons
+                name={
+                  alertConfig.title.toLowerCase().includes("error")
+                    ? "close-circle"
+                    : alertConfig.title.toLowerCase().includes("success")
+                    ? "checkmark-circle"
+                    : "information-circle"
+                }
+                size={40}
+                color={
+                  alertConfig.title.toLowerCase().includes("error")
+                    ? colors.danger
+                    : alertConfig.title.toLowerCase().includes("success")
+                    ? colors.success
+                    : colors.primary
+                }
+              />
+              <Text style={styles.modalTitle}>{alertConfig.title}</Text>
+            </View>
+            <Text style={styles.modalMessage}>{alertConfig.message}</Text>
+            <Pressable
+              onPress={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+              style={[
+                styles.modalButton,
+                {
+                  backgroundColor: alertConfig.title.toLowerCase().includes("error")
+                    ? colors.danger
+                    : alertConfig.title.toLowerCase().includes("success")
+                    ? colors.success
+                    : colors.primary
+                }
+              ]}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -696,5 +744,55 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 13,
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    padding: 24,
+    width: "100%",
+    maxWidth: 340,
+    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.text,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: colors.gray,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  modalButton: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    width: "100%",
+    alignItems: "center",
+  },
+  modalButtonText: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

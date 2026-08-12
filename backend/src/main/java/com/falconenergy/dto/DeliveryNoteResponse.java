@@ -34,4 +34,5 @@ public class DeliveryNoteResponse {
     private String printedBy;
     private LocalDateTime printedAt;
     private LocalDateTime createdAt;
+    private Long deliveryId;
 }

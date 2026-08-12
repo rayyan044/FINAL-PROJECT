@@ -26,7 +26,7 @@ export async function getNotifications() {
 
 export async function markAsRead(notificationId) {
   try {
-    const response = await api.post(`/mobile/notifications/${notificationId}/read`);
+    const response = await api.patch(`/mobile/notifications/${notificationId}/read`);
     return response.data;
   } catch (error) {
     throw new Error(getErrorMessage(error));

@@ -197,10 +197,13 @@ public class ReportingServiceImpl implements ReportingService {
                             .build();
                 }).collect(Collectors.toList());
 
-        // Group by customer
+        // Group by customer using resolved customer name
         Map<String, List<FuelOrder>> ordersByCustomer = orders.stream()
                 .filter(o -> o.getCustomer() != null)
-                .collect(Collectors.groupingBy(o -> o.getCustomer().getCompanyName()));
+                .collect(Collectors.groupingBy(o -> {
+                    String resolvedName = com.falconenergy.util.BuyerNameResolver.resolveName(o);
+                    return resolvedName != null ? resolvedName : o.getCustomer().getCompanyName();
+                }));
 
         List<SalesReportResponse.CustomerSalesDetail> salesByCustomer = ordersByCustomer.entrySet().stream()
                 .map(entry -> {

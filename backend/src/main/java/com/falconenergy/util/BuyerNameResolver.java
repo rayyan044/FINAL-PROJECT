@@ -31,7 +31,21 @@ public final class BuyerNameResolver {
     }
 
     public static String resolveName(FuelOrder order) {
+        if (order == null) {
+            return null;
+        }
         Customer customer = resolveCustomer(order);
-        return customer == null ? null : customer.getCompanyName();
+        if (customer != null) {
+            String code = customer.getCustomerCode();
+            String name = customer.getCompanyName();
+            boolean isEmergency = "EMERGENCY".equalsIgnoreCase(code)
+                    || "Customer Fuel Requests".equalsIgnoreCase(name)
+                    || "Stranded Drivers (Emergency Requests)".equalsIgnoreCase(name);
+            if (isEmergency && order.getDriverName() != null && !order.getDriverName().trim().isEmpty()) {
+                return order.getDriverName();
+            }
+            return name;
+        }
+        return null;
     }
 }

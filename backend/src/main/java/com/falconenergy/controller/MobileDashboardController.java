@@ -181,4 +181,41 @@ public class MobileDashboardController {
         mobileDashboardService.markNotificationAsRead(id);
         return ResponseEntity.ok(ApiResponse.success("Notification marked as read"));
     }
+ 
+    @GetMapping("/notifications/{id}")
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<NotificationResponse>> getNotification(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Driver notification retrieved successfully", mobileDashboardService.getNotificationById(id)));
+    }
+ 
+    @PatchMapping("/notifications/{id}/read")
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<Void>> readNotificationPatch(@PathVariable Long id) {
+        mobileDashboardService.markNotificationAsRead(id);
+        return ResponseEntity.ok(ApiResponse.success("Notification marked as read"));
+    }
+ 
+    @GetMapping("/deliveries/{deliveryId}/delivery-note")
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<com.falconenergy.dto.DeliveryNoteResponse>> getDeliveryNote(@PathVariable Long deliveryId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Delivery Note retrieved successfully", mobileDashboardService.getDeliveryNoteForDelivery(deliveryId)));
+    }
+ 
+    @GetMapping("/deliveries/{deliveryId}/delivery-note/pdf")
+    public ResponseEntity<byte[]> getDeliveryNotePdf(@PathVariable Long deliveryId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Authentication is required");
+        }
+ 
+        byte[] pdfBytes = mobileDashboardService.getDeliveryNotePdf(deliveryId);
+        String dnNumber = mobileDashboardService.getDeliveryNoteNumber(deliveryId);
+ 
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + dnNumber + ".pdf\"")
+                .body(pdfBytes);
+    }
 }

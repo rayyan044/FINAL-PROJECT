@@ -64,6 +64,17 @@ class MobileDashboardServiceImplTest {
         lenient().when(userRepository.findByUsername(user.getEmail())).thenReturn(Optional.of(user));
     }
 
+    private Delivery createMockDelivery(Long id, DeliveryStatus status, Long driverId) {
+        Driver driver = Driver.builder().id(driverId).build();
+        Vehicle vehicle = Vehicle.builder().driver(driver).build();
+        LoadingActivity activity = LoadingActivity.builder().vehicle(vehicle).build();
+        return Delivery.builder()
+                .id(id)
+                .deliveryStatus(status)
+                .loadingActivity(activity)
+                .build();
+    }
+
     @Test
     void dashboardUsesOnlyTheDriverLinkedToTheAuthenticatedJwtUser() {
         authenticateAsDriver(17L, 101L);
@@ -98,18 +109,27 @@ class MobileDashboardServiceImplTest {
     }
 
     @Test
-    void driverCannotAccessAnotherDriversDelivery() {
+    void deliveryNotFoundThrowsResourceNotFound() {
         authenticateAsDriver(17L, 101L);
-        when(deliveryRepository.findForMobileDriver(99L, 17L)).thenReturn(Optional.empty());
+        when(deliveryRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> mobileDashboardService.getDelivery(99L));
     }
 
     @Test
+    void driverCannotAccessAnotherDriversDelivery() {
+        authenticateAsDriver(17L, 101L);
+        Delivery delivery = createMockDelivery(99L, DeliveryStatus.ASSIGNED, 18L);
+        when(deliveryRepository.findById(99L)).thenReturn(Optional.of(delivery));
+
+        assertThrows(AccessDeniedException.class, () -> mobileDashboardService.getDelivery(99L));
+    }
+
+    @Test
     void acceptDeliveryTransitionsFromAssignedToAccepted() {
         authenticateAsDriver(17L, 101L);
-        Delivery delivery = Delivery.builder().id(99L).deliveryStatus(DeliveryStatus.ASSIGNED).build();
-        when(deliveryRepository.findForMobileDriver(99L, 17L)).thenReturn(Optional.of(delivery));
+        Delivery delivery = createMockDelivery(99L, DeliveryStatus.ASSIGNED, 17L);
+        when(deliveryRepository.findById(99L)).thenReturn(Optional.of(delivery));
 
         mobileDashboardService.acceptDelivery(99L);
 
@@ -120,8 +140,8 @@ class MobileDashboardServiceImplTest {
     @Test
     void acceptDeliveryRejectedIfStatusNotAssigned() {
         authenticateAsDriver(17L, 101L);
-        Delivery delivery = Delivery.builder().id(99L).deliveryStatus(DeliveryStatus.IN_TRANSIT).build();
-        when(deliveryRepository.findForMobileDriver(99L, 17L)).thenReturn(Optional.of(delivery));
+        Delivery delivery = createMockDelivery(99L, DeliveryStatus.IN_TRANSIT, 17L);
+        when(deliveryRepository.findById(99L)).thenReturn(Optional.of(delivery));
 
         assertThrows(BadRequestException.class, () -> mobileDashboardService.acceptDelivery(99L));
     }
@@ -130,8 +150,8 @@ class MobileDashboardServiceImplTest {
     void startTripTransitionsFromAcceptedToInTransit() {
         authenticateAsDriver(17L, 101L);
         Dispatch dispatch = Dispatch.builder().id(200L).build();
-        Delivery delivery = Delivery.builder().id(99L).dispatch(dispatch).deliveryStatus(DeliveryStatus.ACCEPTED).build();
-        when(deliveryRepository.findForMobileDriver(99L, 17L)).thenReturn(Optional.of(delivery));
+        Delivery delivery = createMockDelivery(99L, DeliveryStatus.ACCEPTED, 17L);
+        delivery.setDispatch(dispatch);
         when(deliveryRepository.findById(99L)).thenReturn(Optional.of(delivery));
 
         mobileDashboardService.startTrip(99L, -6.123, 39.456);
@@ -144,8 +164,8 @@ class MobileDashboardServiceImplTest {
     @Test
     void startTripRejectedIfStatusNotAccepted() {
         authenticateAsDriver(17L, 101L);
-        Delivery delivery = Delivery.builder().id(99L).deliveryStatus(DeliveryStatus.ASSIGNED).build();
-        when(deliveryRepository.findForMobileDriver(99L, 17L)).thenReturn(Optional.of(delivery));
+        Delivery delivery = createMockDelivery(99L, DeliveryStatus.ASSIGNED, 17L);
+        when(deliveryRepository.findById(99L)).thenReturn(Optional.of(delivery));
 
         assertThrows(BadRequestException.class, () -> mobileDashboardService.startTrip(99L, 0.0, 0.0));
     }

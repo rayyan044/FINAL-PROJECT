@@ -86,4 +86,8 @@ public class DeliveryNote extends BaseEntity {
 
     @Column(name = "printed_at")
     private LocalDateTime printedAt;
+ 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_id", unique = true)
+    private Delivery delivery;
 }

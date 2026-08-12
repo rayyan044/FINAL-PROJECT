@@ -56,6 +56,15 @@ public class FuelOrderResponse {
     private String paymentStatus;
 
     public String getCustomerName() {
+        if (customer != null && (
+                "EMERGENCY".equalsIgnoreCase(customer.getCustomerCode()) ||
+                "Stranded Drivers (Emergency Requests)".equalsIgnoreCase(customer.getCompanyName()) ||
+                "Customer Fuel Requests".equalsIgnoreCase(customer.getCompanyName())
+            )) {
+            if (driverName != null && !driverName.trim().isEmpty()) {
+                return driverName;
+            }
+        }
         return customer != null ? customer.getCompanyName() : null;
     }
 

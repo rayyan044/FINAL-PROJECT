@@ -67,8 +67,13 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/**", "/api/v1/fuel-products/**", "/api/products/**", "/api/fuel-products/**", "/api/v1/customers", "/api/customers", "/api/v1/customers/**", "/api/customers/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/api/v1/products", "/api/products", "/api/v1/products/**", "/api/products/**",
+                                "/api/v1/fuel-products", "/api/fuel-products", "/api/v1/fuel-products/**", "/api/fuel-products/**",
+                                "/api/v1/customers", "/api/customers", "/api/v1/customers/**", "/api/customers/**"
+                        ).permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/order-pricing/preview", "/api/order-pricing/preview").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/orders", "/api/orders").permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

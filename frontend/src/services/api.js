@@ -38,9 +38,12 @@ export function normalizeApiError(error) {
   } else if (status === 400) {
     message = backendMessage || "The request was invalid. Please check the entered details and try again.";
   } else if (status === 401) {
-    message = backendMessage.includes("expired")
-      ? "This account or its credentials have expired. Please contact an administrator."
-      : "Invalid email or password.";
+    const isLoginRequest = error?.config?.url?.includes("/auth/login");
+    message = isLoginRequest
+      ? "Invalid email or password."
+      : backendMessage.includes("expired")
+        ? "This account or its credentials have expired. Please contact an administrator."
+        : "Unauthorized access. Please log in.";
   } else if (status === 403) {
     message = backendMessage.includes("lock")
       ? "This account is locked. Please contact an administrator."

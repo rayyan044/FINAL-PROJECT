@@ -13,12 +13,17 @@ import com.falconenergy.repository.DriverRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.VehicleRepository;
 import com.falconenergy.service.VehicleService;
+import com.falconenergy.service.DeliveryService;
+import com.falconenergy.repository.DeliveryRepository;
+import com.falconenergy.entity.Delivery;
+import com.falconenergy.entity.DeliveryStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -29,17 +34,23 @@ public class VehicleServiceImpl implements VehicleService {
     private final DriverRepository driverRepository;
     private final FuelProductRepository fuelProductRepository;
     private final VehicleMapper vehicleMapper;
+    private final DeliveryRepository deliveryRepository;
+    private final DeliveryService deliveryService;
 
     public VehicleServiceImpl(
             VehicleRepository vehicleRepository,
             DriverRepository driverRepository,
             FuelProductRepository fuelProductRepository,
-            VehicleMapper vehicleMapper
+            VehicleMapper vehicleMapper,
+            DeliveryRepository deliveryRepository,
+            DeliveryService deliveryService
     ) {
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.fuelProductRepository = fuelProductRepository;
         this.vehicleMapper = vehicleMapper;
+        this.deliveryRepository = deliveryRepository;
+        this.deliveryService = deliveryService;
     }
 
     @Override
@@ -88,6 +99,7 @@ public class VehicleServiceImpl implements VehicleService {
         }
         validateFleetFields(request);
 
+        Driver oldDriver = vehicle.getDriver();
         Driver driver = null;
         if (request.getDriverId() != null) {
             driver = driverRepository.findById(request.getDriverId())
@@ -97,6 +109,21 @@ public class VehicleServiceImpl implements VehicleService {
         vehicleMapper.updateEntityFromRequest(request, vehicle);
         vehicle.setDriver(driver);
         Vehicle updated = vehicleRepository.save(vehicle);
+
+        Driver newDriver = updated.getDriver();
+        if (newDriver != null && (oldDriver == null || !oldDriver.getId().equals(newDriver.getId()))) {
+            List<Delivery> activeDeliveries = deliveryRepository.findAll().stream()
+                    .filter(d -> d.getLoadingActivity() != null && 
+                                 d.getLoadingActivity().getVehicle() != null &&
+                                 d.getLoadingActivity().getVehicle().getId().equals(updated.getId()) &&
+                                 d.getDeliveryStatus() != DeliveryStatus.COMPLETED &&
+                                 d.getDeliveryStatus() != DeliveryStatus.CANCELLED)
+                    .toList();
+            for (Delivery delivery : activeDeliveries) {
+                deliveryService.sendDeliveryAssignedNotification(delivery, newDriver);
+            }
+        }
+
         return vehicleMapper.toResponse(updated);
     }
 

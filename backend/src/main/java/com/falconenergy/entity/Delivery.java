@@ -36,8 +36,7 @@ public class Delivery extends BaseEntity {
     @JoinColumn(name = "loading_activity_id")
     private LoadingActivity loadingActivity;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "delivery_note_id")
+    @OneToOne(mappedBy = "delivery", fetch = FetchType.LAZY)
     private DeliveryNote deliveryNote;
 
     @ManyToOne(fetch = FetchType.LAZY)

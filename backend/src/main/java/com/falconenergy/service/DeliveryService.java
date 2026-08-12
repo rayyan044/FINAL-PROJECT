@@ -3,6 +3,8 @@ package com.falconenergy.service;
 import com.falconenergy.dto.DeliveryResponse;
 import com.falconenergy.dto.DeliveryArrivalRequest;
 import com.falconenergy.dto.DeliveryCompleteRequest;
+import com.falconenergy.entity.Delivery;
+import com.falconenergy.entity.Driver;
 import java.util.List;
 
 public interface DeliveryService {
@@ -13,4 +15,5 @@ public interface DeliveryService {
     DeliveryResponse completeDelivery(Long deliveryId, DeliveryCompleteRequest request);
     DeliveryResponse cancelDelivery(Long deliveryId, String remarks);
     List<DeliveryResponse> getDeliveryHistory();
+    void sendDeliveryAssignedNotification(Delivery delivery, Driver driver);
 }

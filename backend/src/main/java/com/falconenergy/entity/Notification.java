@@ -31,6 +31,13 @@ public class Notification {
     @Builder.Default
     private boolean isRead = false;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_id")
+    private Delivery delivery;
+ 
+    @Column(name = "type", length = 50)
+    private String type;
+ 
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

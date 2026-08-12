@@ -355,6 +355,12 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
     }
 
     private DeliveryNoteResponse toDeliveryNoteResponse(DeliveryNote dn) {
+        String customerName = null;
+        if (dn.getLoadingOrder() != null && dn.getLoadingOrder().getOrder() != null) {
+            customerName = com.falconenergy.util.BuyerNameResolver.resolveName(dn.getLoadingOrder().getOrder());
+        } else if (dn.getCustomer() != null) {
+            customerName = dn.getCustomer().getCompanyName();
+        }
         return DeliveryNoteResponse.builder()
                 .id(dn.getId())
                 .deliveryNoteNumber(dn.getDeliveryNoteNumber())
@@ -362,7 +368,7 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .loadingActivityId(dn.getLoadingActivity() != null ? dn.getLoadingActivity().getId() : null)
                 .loadingReportId(dn.getLoadingReport() != null ? dn.getLoadingReport().getId() : null)
                 .customerId(dn.getCustomer() != null ? dn.getCustomer().getId() : null)
-                .customerName(dn.getCustomer() != null ? dn.getCustomer().getCompanyName() : null)
+                .customerName(customerName)
                 .productId(dn.getProduct() != null ? dn.getProduct().getId() : null)
                 .productName(dn.getProduct() != null ? dn.getProduct().getProductName() : null)
                 .truckNumber(dn.getTruckNumber())
@@ -384,6 +390,12 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
     }
 
     private TruckInvoiceResponse toTruckInvoiceResponse(TruckInvoice ti) {
+        String customerName = null;
+        if (ti.getLoadingOrder() != null && ti.getLoadingOrder().getOrder() != null) {
+            customerName = com.falconenergy.util.BuyerNameResolver.resolveName(ti.getLoadingOrder().getOrder());
+        } else if (ti.getCustomer() != null) {
+            customerName = ti.getCustomer().getCompanyName();
+        }
         return TruckInvoiceResponse.builder()
                 .id(ti.getId())
                 .invoiceNumber(ti.getInvoiceNumber())
@@ -392,7 +404,7 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
                 .deliveryNoteId(ti.getDeliveryNote() != null ? ti.getDeliveryNote().getId() : null)
                 .deliveryNoteNumber(ti.getDeliveryNote() != null ? ti.getDeliveryNote().getDeliveryNoteNumber() : null)
                 .customerId(ti.getCustomer() != null ? ti.getCustomer().getId() : null)
-                .customerName(ti.getCustomer() != null ? ti.getCustomer().getCompanyName() : null)
+                .customerName(customerName)
                 .productId(ti.getProduct() != null ? ti.getProduct().getId() : null)
                 .productName(ti.getProduct() != null ? ti.getProduct().getProductName() : null)
                 .truckNumber(ti.getTruckNumber())

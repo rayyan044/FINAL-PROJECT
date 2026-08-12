@@ -19,5 +19,10 @@ public interface MobileDashboardService {
 
     DriverProfileResponse getProfile();
     List<NotificationResponse> getNotifications();
+    NotificationResponse getNotificationById(Long id);
     void markNotificationAsRead(Long notificationId);
+ 
+    com.falconenergy.dto.DeliveryNoteResponse getDeliveryNoteForDelivery(Long deliveryId);
+    byte[] getDeliveryNotePdf(Long deliveryId);
+    String getDeliveryNoteNumber(Long deliveryId);
 }

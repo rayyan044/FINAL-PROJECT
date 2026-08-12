@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import DashboardHeader from "../../components/dashboard/DashboardHeader";
 import DeliveryCard from "../../components/dashboard/DeliveryCard";
@@ -8,6 +8,7 @@ import QuickActionButton from "../../components/dashboard/QuickActionButton";
 import SummaryCard from "../../components/dashboard/SummaryCard";
 import colors from "../../constants/colors";
 import { getDashboard } from "../../services/dashboardService";
+import { useAuth } from "../../context/AuthContext";
 
 function greetingForCurrentTime() {
   const hour = new Date().getHours();
@@ -21,6 +22,8 @@ export default function DashboardScreen({ navigation }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { logout } = useAuth();
 
   const loadDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -40,7 +43,14 @@ export default function DashboardScreen({ navigation }) {
 
   useEffect(() => {
     loadDashboard();
-  }, [loadDashboard]);
+
+    const unsubscribe = navigation.addListener("focus", () => {
+      loadDashboard(true);
+      setDropdownOpen(false); // reset dropdown state when screen is refocused
+    });
+
+    return unsubscribe;
+  }, [navigation, loadDashboard]);
 
   if (loading) {
     return <LoadingView />;
@@ -60,7 +70,30 @@ export default function DashboardScreen({ navigation }) {
         refreshControl={<RefreshControl colors={[colors.primary]} onRefresh={() => loadDashboard(true)} refreshing={refreshing} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        <DashboardHeader driver={dashboard.driver} greeting={greetingForCurrentTime()} onProfilePress={() => navigation.navigate("Profile")} />
+        <DashboardHeader
+          driver={dashboard.driver}
+          greeting={greetingForCurrentTime()}
+          unreadCount={dashboard.notifications?.unreadCount || 0}
+          onNotificationsPress={() => {
+            setDropdownOpen(false);
+            navigation.navigate("Notifications");
+          }}
+          onProfilePress={() => setDropdownOpen((prev) => !prev)}
+          dropdownOpen={dropdownOpen}
+          onCloseDropdown={() => setDropdownOpen(false)}
+          onMyProfile={() => {
+            setDropdownOpen(false);
+            navigation.navigate("Profile");
+          }}
+          onLogout={async () => {
+            setDropdownOpen(false);
+            try {
+              await logout();
+            } catch (err) {
+              Alert.alert("Error", err.message || "Logout failed. Please try again.");
+            }
+          }}
+        />
         <View style={styles.body}>
           {error ? <Text style={styles.refreshError}>{error}</Text> : null}
           <Text style={styles.sectionTitle}>Today’s overview</Text>
@@ -73,12 +106,6 @@ export default function DashboardScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Quick actions</Text>
           <View style={styles.quickActions}>
             <QuickActionButton icon={<Ionicons color={colors.primary} name="list-outline" size={19} />} label="My Deliveries" onPress={() => navigation.navigate("Deliveries")} />
-            <QuickActionButton 
-              icon={<Ionicons color={colors.primary} name="notifications-outline" size={19} />} 
-              label={dashboard.notifications?.unreadCount > 0 ? `Notifications (${dashboard.notifications.unreadCount})` : "Notifications"} 
-              onPress={() => navigation.navigate("Notifications")} 
-            />
-            <QuickActionButton icon={<Ionicons color={colors.primary} name="person-outline" size={19} />} label="Profile" onPress={() => navigation.navigate("Profile")} />
           </View>
           <Text style={styles.sectionTitle}>Recent deliveries</Text>
           {deliveries.length ? (
