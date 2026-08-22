@@ -1,0 +1,16 @@
+export default {
+  primary: "#1E40AF",
+  brightBlue: "#2563EB",
+  navy: "#0F172A",
+  accent: "#F59E0B",
+  success: "#10B981",
+  danger: "#EF4444",
+  purple: "#7C3AED",
+  background: "#F8FAFC",
+  white: "#FFFFFF",
+  surfaceMuted: "#F1F5F9",
+  text: "#0F172A",
+  gray: "#64748B",
+  muted: "#94A3B8",
+  border: "#E2E8F0",
+};

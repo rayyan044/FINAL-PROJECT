@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import jakarta.persistence.LockModeType;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
@@ -17,6 +18,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     boolean existsByInvoiceNumber(String invoiceNumber);
     boolean existsByOrderId(Long orderId);
     Optional<Invoice> findByOrderId(Long orderId);
+    List<Invoice> findByOrderCustomerIdOrderByInvoiceDateDesc(Long customerId);
+    Optional<Invoice> findByIdAndOrderCustomerId(Long id, Long customerId);
 
     @Query("SELECT i FROM Invoice i JOIN FETCH i.order o JOIN FETCH o.customer JOIN FETCH o.product WHERE i.id = :id")
     Optional<Invoice> findDetailedById(@Param("id") Long id);

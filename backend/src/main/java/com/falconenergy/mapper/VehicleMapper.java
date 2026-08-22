@@ -7,7 +7,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring", uses = {DriverMapper.class})
+@Mapper(componentModel = "spring", uses = {DriverMapper.class}, unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface VehicleMapper {
     VehicleResponse toResponse(Vehicle vehicle);
 

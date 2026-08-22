@@ -6,7 +6,7 @@ import com.falconenergy.entity.Driver;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface DriverMapper {
     DriverResponse toResponse(Driver driver);
     Driver toEntity(DriverRequest request);

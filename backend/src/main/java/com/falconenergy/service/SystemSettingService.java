@@ -2,7 +2,6 @@ package com.falconenergy.service;
 
 import com.falconenergy.entity.SystemSetting;
 import java.util.List;
-import java.util.Map;
 
 public interface SystemSettingService {
     String getSetting(String key);

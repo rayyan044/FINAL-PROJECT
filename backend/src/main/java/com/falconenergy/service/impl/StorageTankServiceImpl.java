@@ -12,7 +12,6 @@ import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.StorageTankRepository;
 import com.falconenergy.service.StorageTankService;
 import com.falconenergy.service.FuelTransactionService;
-import com.falconenergy.dto.FuelTransactionRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

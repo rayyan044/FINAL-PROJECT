@@ -31,7 +31,6 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
     private final LoadingReportRepository loadingReportRepository;
     private final LoadingOrderRepository loadingOrderRepository;
     private final FuelOrderRepository fuelOrderRepository;
-    private final UserRepository userRepository;
     private final SystemSettingService systemSettingService;
 
     @Override

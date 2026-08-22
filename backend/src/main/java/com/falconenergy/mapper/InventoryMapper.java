@@ -7,7 +7,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring", uses = {FuelProductMapper.class})
+@Mapper(componentModel = "spring", uses = {FuelProductMapper.class}, unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface InventoryMapper {
     InventoryResponse toResponse(Inventory inventory);
 

@@ -33,12 +33,6 @@ public class LoadingWorkflowIntegrationTest {
     private LoadingOrderRepository loadingOrderRepository;
 
     @Autowired
-    private LoadingActivityRepository loadingActivityRepository;
-
-    @Autowired
-    private LoadingReportRepository loadingReportRepository;
-
-    @Autowired
     private InventoryTransactionRepository inventoryTransactionRepository;
 
     @Test

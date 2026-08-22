@@ -6,7 +6,6 @@ import com.falconenergy.dto.TransportAllocationResponse;
 import com.falconenergy.entity.Invoice;
 import com.falconenergy.entity.CompanySettings;
 import com.falconenergy.entity.PaymentAccount;
-import com.falconenergy.entity.FuelProduct;
 import com.falconenergy.entity.FuelOrder;
 import com.falconenergy.exception.ResourceNotFoundException;
 import com.falconenergy.exception.BadRequestException;
@@ -19,8 +18,6 @@ import com.falconenergy.repository.PaymentAccountRepository;
 import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.OrderTruckAllocationRepository;
-import com.falconenergy.service.LoadingOrderService;
-import com.falconenergy.dto.LoadingOrderRequest;
 import com.falconenergy.service.InvoiceService;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.SystemSettingService;
@@ -49,7 +46,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final FuelProductMapper fuelProductMapper;
     private final SystemSettingService systemSettingService;
     private final OrderTruckAllocationRepository orderTruckAllocationRepository;
-    private final LoadingOrderService loadingOrderService;
     private final PaymentReceiptService paymentReceiptService;
 
     public InvoiceServiceImpl(
@@ -64,7 +60,6 @@ public class InvoiceServiceImpl implements InvoiceService {
             FuelProductMapper fuelProductMapper,
             SystemSettingService systemSettingService,
             OrderTruckAllocationRepository orderTruckAllocationRepository,
-            LoadingOrderService loadingOrderService,
             PaymentReceiptService paymentReceiptService
     ) {
         this.invoiceRepository = invoiceRepository;
@@ -78,7 +73,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.fuelProductMapper = fuelProductMapper;
         this.systemSettingService = systemSettingService;
         this.orderTruckAllocationRepository = orderTruckAllocationRepository;
-        this.loadingOrderService = loadingOrderService;
         this.paymentReceiptService = paymentReceiptService;
     }
 

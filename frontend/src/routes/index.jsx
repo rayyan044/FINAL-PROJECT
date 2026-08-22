@@ -40,9 +40,12 @@ function Landing() {
                 <FiUser size={28} />
               </div>
               <h3>Customer Portal</h3>
-              <p>Submit customer fuel requests online.</p>
-              <Link to="/customer" className="fef-btn fef-btn-accent fef-btn-block">
-                Continue as Customer <FiArrowRight />
+              <p>Create an account to order fuel and track delivery securely.</p>
+              <Link to="/customer-register" className="fef-btn fef-btn-accent fef-btn-block">
+                Create Customer Account <FiArrowRight />
+              </Link>
+              <Link to="/login" search={{ customer: true }} style={{ display: "block", marginTop: 10, textAlign: "center" }}>
+                Customer Login
               </Link>
             </div>
 

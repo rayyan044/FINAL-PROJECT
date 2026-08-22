@@ -10,6 +10,8 @@ import "../styles/forms.css";
 export const Route = createFileRoute("/login")({
   validateSearch: (search) => ({
     expired: search.expired === "true" || search.expired === true || undefined,
+    registered: search.registered === "true" || search.registered === true || undefined,
+    customer: search.customer === "true" || search.customer === true || undefined,
   }),
   head: () => ({
     meta: [
@@ -23,6 +25,7 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();
+  const isCustomerLogin = search.customer === true;
   const { login, updateUser } = useAuth();
 
   // Login States
@@ -233,8 +236,12 @@ function LoginPage() {
 
       <div className="fef-login-form-wrap">
         <form className="fef-card fef-login-card fef-slide-up" onSubmit={onSubmit}>
-          <h1>Welcome back</h1>
-          <p className="fef-sub">Sign in to your FEFTMS workspace.</p>
+          <h1>{isCustomerLogin ? "Customer Login" : "Welcome back"}</h1>
+          <p className="fef-sub">
+            {isCustomerLogin
+              ? "Sign in to view your account, orders, and delivery documents."
+              : "Sign in to your FEFTMS workspace."}
+          </p>
 
           {error && (
             <div
@@ -255,6 +262,15 @@ function LoginPage() {
             >
               <FiAlertCircle style={{ verticalAlign: "-2px", marginRight: 6 }} />
               Your session has expired. Please log in again.
+            </div>
+          )}
+
+          {search.registered && !error && (
+            <div
+              className="fef-alert fef-alert-success"
+              style={{ marginBottom: 14, display: "block" }}
+            >
+              Your customer account has been created. Please sign in to continue.
             </div>
           )}
 
@@ -317,7 +333,7 @@ function LoginPage() {
               "Signing in..."
             ) : (
               <>
-                <FiLogIn /> Login
+                <FiLogIn /> {isCustomerLogin ? "Customer Login" : "Login"}
               </>
             )}
           </button>
@@ -329,10 +345,10 @@ function LoginPage() {
               fontSize: 13,
             }}
           >
-            Are you a customer?{" "}
-            <Link to="/customer" style={{ color: "var(--feftms-secondary)", fontWeight: 600 }}>
-              Request Fuel
-            </Link>
+            New customer?{" "}
+            <Link to="/customer-register" style={{ color: "var(--feftms-secondary)", fontWeight: 600 }}>
+              Create a customer account
+            </Link>.
           </p>
         </form>
       </div>

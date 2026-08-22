@@ -43,7 +43,7 @@ The web client reads `VITE_API_BASE_URL` from `frontend/.env*` and defaults to `
 Start the driver client:
 
 ```bash
-cd falcon-driver-mobile-app
+cd mobile
 npm install
 # If .env does not exist, copy .env.example to .env and set the URL to this computer's LAN IP.
 npx expo start --clear

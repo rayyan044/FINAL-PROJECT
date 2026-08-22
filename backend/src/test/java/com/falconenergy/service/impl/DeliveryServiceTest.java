@@ -18,7 +18,6 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @SpringBootTest
 public class DeliveryServiceTest {
@@ -51,16 +50,10 @@ public class DeliveryServiceTest {
     private LoadingReportRepository loadingReportRepository;
 
     @Autowired
-    private DeliveryNoteRepository deliveryNoteRepository;
-
-    @Autowired
-    private TruckInvoiceRepository truckInvoiceRepository;
-
-    @Autowired
-    private DispatchRepository dispatchRepository;
-
-    @Autowired
     private DeliveryRepository deliveryRepository;
+
+    @Autowired
+    private DeliveryNoteRepository deliveryNoteRepository;
 
     @Autowired
     private InvoiceRepository invoiceRepository;
@@ -154,7 +147,7 @@ public class DeliveryServiceTest {
                 .completedAt(LocalDateTime.now())
                 .build());
 
-        LoadingReport report = loadingReportRepository.save(LoadingReport.builder()
+        loadingReportRepository.save(LoadingReport.builder()
                 .loadingActivity(activity)
                 .loadingOrder(loadingOrder)
                 .reportNumber("REP-DEL-001")
@@ -213,6 +206,10 @@ public class DeliveryServiceTest {
         Assertions.assertEquals(DeliveryStatus.IN_TRANSIT, delivery.getDeliveryStatus());
         Assertions.assertTrue(delivery.getDeliveryNumber().startsWith("DEL-"));
         Assertions.assertEquals("T-DEL-777", delivery.getTruckNumber());
+        Assertions.assertEquals(delivery.getId(), deliveryNoteRepository.findById(dnResponse.getId())
+                .orElseThrow()
+                .getDelivery()
+                .getId());
 
         // Assert: Duplicate prevention (returns existing instead of creating duplicate)
         DeliveryResponse secondaryResponse = deliveryService.createDelivery(dispatchResponse.getId());
@@ -252,8 +249,10 @@ public class DeliveryServiceTest {
         LoadingActivity updatedActivity = loadingActivityRepository.findById(activity.getId()).orElseThrow();
         Assertions.assertEquals(LoadingActivityStatus.DELIVERED, updatedActivity.getStatus());
 
-        // Verify LoadingOrder status updated to DELIVERED
+        // Verify terminal completion is persisted through the parent workflow.
         LoadingOrder updatedOrder = loadingOrderRepository.findById(loadingOrder.getId()).orElseThrow();
-        Assertions.assertEquals(LoadingOrderStatus.DELIVERED, updatedOrder.getStatus());
+        Assertions.assertEquals(LoadingOrderStatus.COMPLETED, updatedOrder.getStatus());
+        FuelOrder updatedFuelOrder = fuelOrderRepository.findById(order.getId()).orElseThrow();
+        Assertions.assertEquals("COMPLETED", updatedFuelOrder.getOrderStatus());
     }
 }

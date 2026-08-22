@@ -8,7 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring", uses = {CustomerMapper.class, FuelProductMapper.class}, builder = @org.mapstruct.Builder(disableBuilder = true))
+@Mapper(componentModel = "spring", uses = {CustomerMapper.class, FuelProductMapper.class}, builder = @org.mapstruct.Builder(disableBuilder = true), unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface FuelOrderMapper {
     @Mapping(target = "invoiceId", source = "invoice.id")
     @Mapping(target = "invoiceNumber", source = "invoice.invoiceNumber")

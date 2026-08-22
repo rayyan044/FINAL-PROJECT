@@ -22,6 +22,18 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>, JpaSp
     boolean existsByDispatchId(Long dispatchId);
 
     @Query("""
+            SELECT d FROM Delivery d JOIN d.loadingOrder loadingOrder JOIN loadingOrder.order fuelOrder
+            WHERE fuelOrder.customer.id = :customerId ORDER BY d.createdAt DESC
+            """)
+    List<Delivery> findForCustomer(@Param("customerId") Long customerId);
+
+    @Query("""
+            SELECT d FROM Delivery d JOIN d.loadingOrder loadingOrder JOIN loadingOrder.order fuelOrder
+            WHERE d.id = :deliveryId AND fuelOrder.customer.id = :customerId
+            """)
+    Optional<Delivery> findForCustomerById(@Param("deliveryId") Long deliveryId, @Param("customerId") Long customerId);
+
+    @Query("""
             SELECT new com.falconenergy.repository.projection.MobileDeliveryCounts(
                 COALESCE(SUM(CASE WHEN d.deliveryStatus IN :inProgressStatuses THEN 1L ELSE 0L END), 0L),
                 COALESCE(SUM(CASE WHEN d.deliveryStatus = :deliveredStatus

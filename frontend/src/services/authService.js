@@ -21,6 +21,10 @@ export async function register(payload) {
   return api.post("/auth/register", payload).then((r) => r.data);
 }
 
+export async function registerCustomer(payload) {
+  return api.post("/auth/customer-registration", payload).then((r) => r.data);
+}
+
 export async function refreshToken(payload) {
   // payload contains { refreshToken }
   return api.post("/auth/refresh", payload).then((r) => r.data);

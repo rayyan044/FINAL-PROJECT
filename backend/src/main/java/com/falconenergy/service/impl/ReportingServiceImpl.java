@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,7 +24,6 @@ public class ReportingServiceImpl implements ReportingService {
     private final FuelProductRepository fuelProductRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final LoadingActivityRepository loadingActivityRepository;
-    private final LoadingReportRepository loadingReportRepository;
     private final DispatchRepository dispatchRepository;
     private final DeliveryRepository deliveryRepository;
     private final InvoiceRepository invoiceRepository;
@@ -38,7 +36,6 @@ public class ReportingServiceImpl implements ReportingService {
             FuelProductRepository fuelProductRepository,
             InventoryTransactionRepository inventoryTransactionRepository,
             LoadingActivityRepository loadingActivityRepository,
-            LoadingReportRepository loadingReportRepository,
             DispatchRepository dispatchRepository,
             DeliveryRepository deliveryRepository,
             InvoiceRepository invoiceRepository,
@@ -49,7 +46,6 @@ public class ReportingServiceImpl implements ReportingService {
         this.fuelProductRepository = fuelProductRepository;
         this.inventoryTransactionRepository = inventoryTransactionRepository;
         this.loadingActivityRepository = loadingActivityRepository;
-        this.loadingReportRepository = loadingReportRepository;
         this.dispatchRepository = dispatchRepository;
         this.deliveryRepository = deliveryRepository;
         this.invoiceRepository = invoiceRepository;

@@ -5,7 +5,7 @@ import com.falconenergy.dto.UserResponse;
 import com.falconenergy.entity.AuditLog;
 import com.falconenergy.entity.Role;
 import com.falconenergy.entity.User;
-import com.falconenergy.entity.UserStatus;
+import com.falconenergy.exception.DuplicateResourceException;
 import com.falconenergy.exception.DuplicateResourceException;
 import com.falconenergy.repository.RoleRepository;
 import com.falconenergy.repository.UserRepository;

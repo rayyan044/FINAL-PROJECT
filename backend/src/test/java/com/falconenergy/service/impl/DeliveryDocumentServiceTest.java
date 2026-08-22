@@ -41,12 +41,6 @@ public class DeliveryDocumentServiceTest {
     @Autowired
     private LoadingReportRepository loadingReportRepository;
 
-    @Autowired
-    private DeliveryNoteRepository deliveryNoteRepository;
-
-    @Autowired
-    private TruckInvoiceRepository truckInvoiceRepository;
-
     @Test
     @Transactional
     @WithMockUser(username = "ops_officer", authorities = {"ROLE_OPERATIONS"})
@@ -121,7 +115,7 @@ public class DeliveryDocumentServiceTest {
         });
 
         // 3. Create Loading Report
-        LoadingReport report = loadingReportRepository.save(LoadingReport.builder()
+        loadingReportRepository.save(LoadingReport.builder()
                 .loadingActivity(activity)
                 .loadingOrder(loadingOrder)
                 .reportNumber("REP-OPS-001")

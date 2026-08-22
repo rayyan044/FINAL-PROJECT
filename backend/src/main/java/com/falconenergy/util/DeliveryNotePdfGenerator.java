@@ -64,7 +64,10 @@ public class DeliveryNotePdfGenerator {
             cell2.setBorder(Rectangle.NO_BORDER);
             cell2.setPadding(8);
             cell2.addElement(new Paragraph("CUSTOMER DETAILS", boldFont));
-            cell2.addElement(new Paragraph("Buyer/Customer: " + (note.getCustomer() != null ? note.getCustomer().getCompanyName() : "N/A"), regularFont));
+            String buyerName = note.getLoadingOrder() != null
+                    ? BuyerNameResolver.resolveName(note.getLoadingOrder().getOrder())
+                    : note.getCustomer() != null ? note.getCustomer().getCompanyName() : "N/A";
+            cell2.addElement(new Paragraph("Buyer/Customer: " + buyerName, regularFont));
             cell2.addElement(new Paragraph("Destination: " + note.getDestination(), regularFont));
             table.addCell(cell2);
 

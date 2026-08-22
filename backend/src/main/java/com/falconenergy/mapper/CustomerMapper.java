@@ -6,7 +6,7 @@ import com.falconenergy.entity.Customer;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface CustomerMapper {
     CustomerResponse toResponse(Customer customer);
     Customer toEntity(CustomerRequest request);

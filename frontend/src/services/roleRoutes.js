@@ -10,7 +10,7 @@ const ROLE_DASHBOARD_ROUTES = {
   // Customer service has read-only access and uses the Viewer workspace.
   CUSTOMER_SERVICE: "/viewer",
   VIEWER: "/viewer",
-  CUSTOMER: "/customer",
+  CUSTOMER: "/customer/dashboard",
 };
 
 export function getDashboardForRole(role) {

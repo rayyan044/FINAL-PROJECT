@@ -45,15 +45,6 @@ public class DispatchServiceTest {
     @Autowired
     private LoadingReportRepository loadingReportRepository;
 
-    @Autowired
-    private DeliveryNoteRepository deliveryNoteRepository;
-
-    @Autowired
-    private TruckInvoiceRepository truckInvoiceRepository;
-
-    @Autowired
-    private DispatchRepository dispatchRepository;
-
     @Test
     @Transactional
     @WithMockUser(username = "dispatch_officer", authorities = {"ROLE_DISPATCHER"})
@@ -119,7 +110,7 @@ public class DispatchServiceTest {
         });
 
         // 2. Create Loading Report
-        LoadingReport report = loadingReportRepository.save(LoadingReport.builder()
+        loadingReportRepository.save(LoadingReport.builder()
                 .loadingActivity(activity)
                 .loadingOrder(loadingOrder)
                 .reportNumber("REP-DISP-001")

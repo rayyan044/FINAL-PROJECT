@@ -7,7 +7,6 @@ import com.falconenergy.entity.FuelOrder;
 import com.falconenergy.entity.FuelProduct;
 import com.falconenergy.entity.FuelTransaction;
 import com.falconenergy.entity.StorageTank;
-import com.falconenergy.dto.FuelTransactionRequest;
 import com.falconenergy.exception.BadRequestException;
 import com.falconenergy.exception.DuplicateResourceException;
 import com.falconenergy.exception.ResourceNotFoundException;
@@ -38,12 +37,6 @@ import com.falconenergy.repository.InvoiceRepository;
 import com.falconenergy.dto.FuelOrderEditApprovalRequest;
 import com.falconenergy.repository.PaymentAccountRepository;
 import com.falconenergy.entity.PaymentAccount;
-import com.falconenergy.entity.OrderTruckAllocation;
-import com.falconenergy.entity.Vehicle;
-import com.falconenergy.repository.OrderTruckAllocationRepository;
-import com.falconenergy.repository.TruckPricingRepository;
-import com.falconenergy.repository.VehicleRepository;
-import com.falconenergy.service.FleetAllocationService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -67,10 +60,6 @@ public class FuelOrderServiceImpl implements FuelOrderService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentAccountRepository paymentAccountRepository;
     private final SystemSettingService systemSettingService;
-    private final FleetAllocationService fleetAllocationService;
-    private final OrderTruckAllocationRepository orderTruckAllocationRepository;
-    private final TruckPricingRepository truckPricingRepository;
-    private final VehicleRepository vehicleRepository;
     private final FuelPriceRangeService fuelPriceRangeService;
     private final TransportPriceRangeService transportPriceRangeService;
 
@@ -88,10 +77,6 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             InvoiceRepository invoiceRepository,
             PaymentAccountRepository paymentAccountRepository,
             SystemSettingService systemSettingService,
-            FleetAllocationService fleetAllocationService,
-            OrderTruckAllocationRepository orderTruckAllocationRepository,
-            TruckPricingRepository truckPricingRepository,
-            VehicleRepository vehicleRepository,
             FuelPriceRangeService fuelPriceRangeService,
             TransportPriceRangeService transportPriceRangeService
     ) {
@@ -108,10 +93,6 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         this.invoiceRepository = invoiceRepository;
         this.paymentAccountRepository = paymentAccountRepository;
         this.systemSettingService = systemSettingService;
-        this.fleetAllocationService = fleetAllocationService;
-        this.orderTruckAllocationRepository = orderTruckAllocationRepository;
-        this.truckPricingRepository = truckPricingRepository;
-        this.vehicleRepository = vehicleRepository;
         this.fuelPriceRangeService = fuelPriceRangeService;
         this.transportPriceRangeService = transportPriceRangeService;
     }
@@ -123,8 +104,24 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             throw new DuplicateResourceException("Order number already exists: " + request.getOrderNumber());
         }
 
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + request.getCustomerId()));
+        // A signed-in company user never controls the owning customer through a
+        // request field. Guest requests retain the legacy EMERGENCY flow.
+        Customer customer;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            Optional<User> currentUser = userRepository.findByEmail(authentication.getName())
+                    .or(() -> userRepository.findByUsername(authentication.getName()));
+            if (currentUser.isPresent() && currentUser.get().getRole() == UserRole.CUSTOMER) {
+                customer = Optional.ofNullable(currentUser.get().getCustomer())
+                        .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("Customer account is not linked to a company."));
+            } else {
+                customer = customerRepository.findById(request.getCustomerId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + request.getCustomerId()));
+            }
+        } else {
+            customer = customerRepository.findById(request.getCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + request.getCustomerId()));
+        }
 
         FuelProduct product = fuelProductRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Fuel product not found with id: " + request.getProductId()));
@@ -674,32 +671,6 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         FuelOrderResponse response = fuelOrderMapper.toResponse(savedOrder);
         nullifyProductQuantityIfCustomer(response);
         return response;
-    }
-
-    /** Reserves the exact company fleet and finance rate before the invoice is issued. */
-    private void allocateCompanyFleet(FuelOrder order) {
-        if (orderTruckAllocationRepository.existsByOrderId(order.getId())) return;
-
-        BigDecimal remaining = order.getApprovedQuantity() != null ? order.getApprovedQuantity() : order.getQuantity();
-        BigDecimal totalTransport = BigDecimal.ZERO;
-        for (Vehicle vehicle : fleetAllocationService.suggest(order)) {
-            BigDecimal price = transportPriceRangeService.resolve(order.getProduct(), order.getQuantity());
-            BigDecimal allocatedQuantity = remaining.min(vehicle.getCapacity());
-            orderTruckAllocationRepository.save(OrderTruckAllocation.builder()
-                    .order(order).vehicle(vehicle).allocatedQuantity(allocatedQuantity)
-                    .capacitySnapshot(vehicle.getCapacity()).transportPrice(price).build());
-            remaining = remaining.subtract(allocatedQuantity);
-            totalTransport = totalTransport.add(price);
-            vehicle.setCurrentStatus("ASSIGNED");
-            vehicleRepository.save(vehicle);
-        }
-        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-            throw new BadRequestException("The available fleet cannot satisfy this order quantity.");
-        }
-        order.setTransportCharges(totalTransport);
-        fuelOrderRepository.save(order);
-        auditLogService.log("TRUCK_AUTO_ASSIGNED", "FUEL_ORDER", order.getId(), order.getCustomer().getCustomerCode(),
-                "Company fleet automatically allocated for order " + order.getOrderNumber() + "; transport charge " + totalTransport);
     }
 
     private void generateInvoiceForOrder(FuelOrder order) {

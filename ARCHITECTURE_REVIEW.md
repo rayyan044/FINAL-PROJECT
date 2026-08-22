@@ -2,7 +2,7 @@
 
 ## Executive result
 
-The repository now has the intended deployment shape: `/backend` is the only Spring Boot service, `/frontend` is the web client, and `/falcon-driver-mobile-app` is the Expo client. Both clients use the same REST API and PostgreSQL schema. The backend contains the authoritative entities and workflows.
+The repository now has the intended deployment shape: `/backend` is the only Spring Boot service, `/frontend` is the web client, and `/mobile` is the Expo client. Both clients use the same REST API and PostgreSQL schema. The backend contains the authoritative entities and workflows.
 
 The system is not yet feature-identical across clients. The web application is an operator/admin client covering most domains; the mobile application is a driver workspace covering driver login, dashboard, deliveries, profile, and delivery detail. Unsupported mobile notifications are no longer presented as a fake screen.
 
@@ -130,7 +130,7 @@ One backend-generated notification count remains hardcoded to zero because no no
 └──────────────────────┘                         │ controllers/services   │
                                                  │ security + validation  │
 ┌──────────────────────┐        REST + JWT        └───────────┬────────────┘
-│ React Native /falcon-driver-mobile-app │ ─────▶             │ JPA/Flyway
+│ React Native /mobile │ ─────▶             │ JPA/Flyway
 └──────────────────────┘                                      ▼
                                                    ┌────────────────────────┐
                                                    │ PostgreSQL              │
@@ -143,11 +143,11 @@ One backend-generated notification count remains hardcoded to zero because no no
 
 ## Production hardening addendum (2026-08-06)
 
-This addendum supersedes the earlier findings above where they conflict. The mobile client is now located at `/falcon-driver-mobile-app`.
+This addendum supersedes the earlier findings above where they conflict. The mobile client is now located at `/mobile`.
 
 ### Completed hardening
 
-- Removed hardcoded database credentials, JWT secret, bootstrap password, API host fallbacks, and development token fallbacks. Required values are documented in `backend/.env.example`, `frontend/.env.example`, and `falcon-driver-mobile-app/.env.example`.
+- Removed hardcoded database credentials, JWT secret, bootstrap password, API host fallbacks, and development token fallbacks. Required values are documented in `backend/.env.example`, `frontend/.env.example`, and `mobile/.env.example`.
 - Changed Hibernate to `ddl-auto: validate`, disabled SQL/show-sql debug output, and made CORS an injected allow-list (`CORS_ALLOWED_ORIGINS`). Flyway migration V33 adds refresh-token revocation storage.
 - Logout now revokes refresh tokens by SHA-256 hash; expired revocations are purged. Access tokens remain valid only until their short configured expiry, so a production deployment should keep access TTL short.
 - Order creation is authenticated by the default security rule. Driver enumeration is restricted to operational roles; driver-scoped mobile queries remain ownership-filtered.
@@ -181,7 +181,7 @@ Active web and mobile API calls map to Spring controllers. No active client call
 falcon-fuel-management/
 ├── backend/                     # only backend; Spring Boot + Flyway + JPA
 ├── frontend/                    # React/Vite web client
-├── falcon-driver-mobile-app/    # React Native/Expo driver client
+├── mobile/                      # React Native/Expo driver client
 ├── ARCHITECTURE_REVIEW.md
 └── README.md
 ```

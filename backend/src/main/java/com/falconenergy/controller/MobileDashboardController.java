@@ -204,6 +204,7 @@ public class MobileDashboardController {
     }
  
     @GetMapping("/deliveries/{deliveryId}/delivery-note/pdf")
+    @PreAuthorize("hasRole('DRIVER')")
     public ResponseEntity<byte[]> getDeliveryNotePdf(@PathVariable Long deliveryId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {

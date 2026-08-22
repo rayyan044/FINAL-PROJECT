@@ -114,6 +114,9 @@ public class DispatchServiceImpl implements DispatchService {
 
         LoadingReport report = loadingReportRepository.findByLoadingActivityId(loadingActivityId)
                 .orElseThrow(() -> new BadRequestException("Loading Report must exist."));
+        if (report.getReportStatus() != LoadingReportStatus.GENERATED) {
+            throw new BadRequestException("Loading Report must be generated before creating a Dispatch.");
+        }
 
         DeliveryNote deliveryNote = deliveryNoteRepository.findByLoadingActivityId(loadingActivityId)
                 .orElseThrow(() -> new BadRequestException("Delivery Note must exist."));

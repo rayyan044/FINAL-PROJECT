@@ -12,7 +12,7 @@ import com.falconenergy.entity.LoadingReport;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface LoadingOrderMapper {
 
     @Mapping(target = "orderId", source = "order.id")

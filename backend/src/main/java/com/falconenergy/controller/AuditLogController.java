@@ -2,7 +2,6 @@ package com.falconenergy.controller;
 
 import com.falconenergy.dto.ApiResponse;
 import com.falconenergy.dto.AuditLogResponse;
-import com.falconenergy.entity.AuditLog;
 import com.falconenergy.repository.AuditLogRepository;
 import org.springframework.data.domain.*;
 import org.springframework.http.ResponseEntity;

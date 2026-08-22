@@ -21,10 +21,12 @@ import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as DeliveryDocumentsRouteImport } from './routes/delivery-documents'
 import { Route as DeliveriesRouteImport } from './routes/deliveries'
 import { Route as CustomerServiceRouteImport } from './routes/customer-service'
+import { Route as CustomerRegisterRouteImport } from './routes/customer-register'
 import { Route as CustomerRouteImport } from './routes/customer'
 import { Route as AdminManagementRouteImport } from './routes/admin-management'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CustomerDashboardRouteImport } from './routes/customer.dashboard'
 
 const ViewerRoute = ViewerRouteImport.update({
   id: '/viewer',
@@ -86,6 +88,11 @@ const CustomerServiceRoute = CustomerServiceRouteImport.update({
   path: '/customer-service',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomerRegisterRoute = CustomerRegisterRouteImport.update({
+  id: '/customer-register',
+  path: '/customer-register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CustomerRoute = CustomerRouteImport.update({
   id: '/customer',
   path: '/customer',
@@ -106,12 +113,18 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomerDashboardRoute = CustomerDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => CustomerRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-management': typeof AdminManagementRoute
-  '/customer': typeof CustomerRoute
+  '/customer': typeof CustomerRouteWithChildren
+  '/customer-register': typeof CustomerRegisterRoute
   '/customer-service': typeof CustomerServiceRoute
   '/deliveries': typeof DeliveriesRoute
   '/delivery-documents': typeof DeliveryDocumentsRoute
@@ -124,12 +137,14 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/viewer': typeof ViewerRoute
+  '/customer/dashboard': typeof CustomerDashboardRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-management': typeof AdminManagementRoute
-  '/customer': typeof CustomerRoute
+  '/customer': typeof CustomerRouteWithChildren
+  '/customer-register': typeof CustomerRegisterRoute
   '/customer-service': typeof CustomerServiceRoute
   '/deliveries': typeof DeliveriesRoute
   '/delivery-documents': typeof DeliveryDocumentsRoute
@@ -142,13 +157,15 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/viewer': typeof ViewerRoute
+  '/customer/dashboard': typeof CustomerDashboardRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-management': typeof AdminManagementRoute
-  '/customer': typeof CustomerRoute
+  '/customer': typeof CustomerRouteWithChildren
+  '/customer-register': typeof CustomerRegisterRoute
   '/customer-service': typeof CustomerServiceRoute
   '/deliveries': typeof DeliveriesRoute
   '/delivery-documents': typeof DeliveryDocumentsRoute
@@ -161,6 +178,7 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRoute
   '/viewer': typeof ViewerRoute
+  '/customer/dashboard': typeof CustomerDashboardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -169,6 +187,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin-management'
     | '/customer'
+    | '/customer-register'
     | '/customer-service'
     | '/deliveries'
     | '/delivery-documents'
@@ -181,12 +200,14 @@ export interface FileRouteTypes {
     | '/reports'
     | '/sales'
     | '/viewer'
+    | '/customer/dashboard'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
     | '/admin-management'
     | '/customer'
+    | '/customer-register'
     | '/customer-service'
     | '/deliveries'
     | '/delivery-documents'
@@ -199,12 +220,14 @@ export interface FileRouteTypes {
     | '/reports'
     | '/sales'
     | '/viewer'
+    | '/customer/dashboard'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/admin-management'
     | '/customer'
+    | '/customer-register'
     | '/customer-service'
     | '/deliveries'
     | '/delivery-documents'
@@ -217,13 +240,15 @@ export interface FileRouteTypes {
     | '/reports'
     | '/sales'
     | '/viewer'
+    | '/customer/dashboard'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AdminManagementRoute: typeof AdminManagementRoute
-  CustomerRoute: typeof CustomerRoute
+  CustomerRoute: typeof CustomerRouteWithChildren
+  CustomerRegisterRoute: typeof CustomerRegisterRoute
   CustomerServiceRoute: typeof CustomerServiceRoute
   DeliveriesRoute: typeof DeliveriesRoute
   DeliveryDocumentsRoute: typeof DeliveryDocumentsRoute
@@ -324,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerServiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customer-register': {
+      id: '/customer-register'
+      path: '/customer-register'
+      fullPath: '/customer-register'
+      preLoaderRoute: typeof CustomerRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/customer': {
       id: '/customer'
       path: '/customer'
@@ -352,14 +384,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customer/dashboard': {
+      id: '/customer/dashboard'
+      path: '/dashboard'
+      fullPath: '/customer/dashboard'
+      preLoaderRoute: typeof CustomerDashboardRouteImport
+      parentRoute: typeof CustomerRoute
+    }
   }
 }
+
+interface CustomerRouteChildren {
+  CustomerDashboardRoute: typeof CustomerDashboardRoute
+}
+
+const CustomerRouteChildren: CustomerRouteChildren = {
+  CustomerDashboardRoute: CustomerDashboardRoute,
+}
+
+const CustomerRouteWithChildren = CustomerRoute._addFileChildren(
+  CustomerRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AdminManagementRoute: AdminManagementRoute,
-  CustomerRoute: CustomerRoute,
+  CustomerRoute: CustomerRouteWithChildren,
+  CustomerRegisterRoute: CustomerRegisterRoute,
   CustomerServiceRoute: CustomerServiceRoute,
   DeliveriesRoute: DeliveriesRoute,
   DeliveryDocumentsRoute: DeliveryDocumentsRoute,

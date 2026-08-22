@@ -12,7 +12,6 @@ import com.falconenergy.service.DeliveryService;
 import com.falconenergy.service.DispatchService;
 import com.falconenergy.service.MobileDashboardService;
 import com.falconenergy.service.ProofOfDeliveryStorageService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
@@ -40,7 +39,6 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
     private final DispatchRepository dispatchRepository;
     private final NotificationRepository notificationRepository;
     private final ProofOfDeliveryStorageService proofOfDeliveryStorageService;
-    private final com.falconenergy.repository.DeliveryNoteRepository deliveryNoteRepository;
  
     private final DeliveryService deliveryService;
     private final DispatchService dispatchService;
@@ -49,7 +47,6 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
                                       DeliveryRepository deliveryRepository, DispatchRepository dispatchRepository,
                                       NotificationRepository notificationRepository,
                                       ProofOfDeliveryStorageService proofOfDeliveryStorageService,
-                                      com.falconenergy.repository.DeliveryNoteRepository deliveryNoteRepository,
                                       @Lazy DeliveryService deliveryService,
                                       @Lazy DispatchService dispatchService) {
         this.userRepository = userRepository;
@@ -58,7 +55,6 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         this.dispatchRepository = dispatchRepository;
         this.notificationRepository = notificationRepository;
         this.proofOfDeliveryStorageService = proofOfDeliveryStorageService;
-        this.deliveryNoteRepository = deliveryNoteRepository;
         this.deliveryService = deliveryService;
         this.dispatchService = dispatchService;
     }
@@ -524,8 +520,10 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         return MobileDashboardResponse.RecentDelivery.builder()
                 .deliveryId(delivery.getId())
                 .deliveryNoteNumber(note == null ? null : note.getDeliveryNoteNumber())
-                .customerName(note != null && note.getCustomer() != null ? note.getCustomer().getCompanyName()
-                        : order != null && order.getCustomer() != null ? order.getCustomer().getCompanyName() : null)
+                // The emergency placeholder customer must never be shown to a driver when
+                // the order carries the actual buyer name. BuyerNameResolver preserves the
+                // normal customer-company fallback for non-emergency orders.
+                .customerName(com.falconenergy.util.BuyerNameResolver.resolveName(order))
                 .fuelProduct(note != null && note.getProduct() != null ? note.getProduct().getProductName()
                         : order != null && order.getProduct() != null ? order.getProduct().getProductName() : null)
                 .quantity(quantity)

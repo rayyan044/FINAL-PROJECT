@@ -62,6 +62,11 @@ public class User extends BaseEntity {
     @JoinColumn(name = "driver_id", unique = true)
     private Driver driver;
 
+    /** Company represented by this user when their role is CUSTOMER. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private Customer customer;
+
     // Legacy getter helper to return the UserRole enum for backwards compatibility
     public UserRole getRole() {
         if (roleEntity == null) {

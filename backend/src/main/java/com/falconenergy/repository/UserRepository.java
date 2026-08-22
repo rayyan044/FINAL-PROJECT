@@ -24,5 +24,6 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     long countByRole(@Param("role") UserRole role);
 
     Optional<User> findByDriverId(Long driverId);
+    boolean existsByCustomerId(Long customerId);
     List<User> findByStatus(UserStatus status);
 }

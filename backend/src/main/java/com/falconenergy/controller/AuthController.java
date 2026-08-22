@@ -6,7 +6,10 @@ import com.falconenergy.dto.TokenResponse;
 import com.falconenergy.dto.UserRegisterRequest;
 import com.falconenergy.dto.UserLoginRequest;
 import com.falconenergy.dto.UserResponse;
+import com.falconenergy.dto.CustomerRegistrationRequest;
 import com.falconenergy.service.UserService;
+import com.falconenergy.service.CustomerRegistrationService;
+import com.falconenergy.exception.BadRequestException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,15 +20,23 @@ import java.security.Principal;
 public class AuthController {
 
     private final UserService userService;
+    private final CustomerRegistrationService customerRegistrationService;
 
-    public AuthController(UserService userService) {
+    public AuthController(UserService userService, CustomerRegistrationService customerRegistrationService) {
         this.userService = userService;
+        this.customerRegistrationService = customerRegistrationService;
     }
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<UserResponse>> register(@Valid @RequestBody UserRegisterRequest request) {
-        UserResponse response = userService.register(request);
-        return ResponseEntity.ok(ApiResponse.success("User registered successfully", response));
+        // This endpoint used to accept a caller-selected role.  Keeping it public
+        // would let an internet caller attempt privileged account creation.
+        throw new BadRequestException("Use the customer registration endpoint. Staff accounts are created by an administrator.");
+    }
+
+    @PostMapping("/customer-registration")
+    public ResponseEntity<ApiResponse<UserResponse>> registerCustomer(@Valid @RequestBody CustomerRegistrationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Customer account registered successfully", customerRegistrationService.register(request)));
     }
 
     @PostMapping("/login")

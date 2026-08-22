@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 public class DeliveryServiceImpl implements DeliveryService {
     private final DeliveryRepository deliveryRepository;
     private final DispatchRepository dispatchRepository;
+    private final DeliveryNoteRepository deliveryNoteRepository;
     private final LoadingActivityRepository loadingActivityRepository;
     private final LoadingOrderRepository loadingOrderRepository;
     private final FuelOrderRepository fuelOrderRepository;
@@ -90,6 +91,19 @@ public class DeliveryServiceImpl implements DeliveryService {
         delivery.setUpdatedBy(username);
 
         Delivery saved = deliveryRepository.save(delivery);
+
+        // DeliveryNote owns the one-to-one relationship (delivery_notes.delivery_id).
+        // Setting it only on Delivery is the inverse side and is not persisted by JPA.
+        // Keep the existing release document linked so drivers can retrieve it.
+        DeliveryNote deliveryNote = dispatch.getDeliveryNote();
+        if (deliveryNote == null) {
+            deliveryNote = deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElse(null);
+        }
+        if (deliveryNote != null) {
+            deliveryNote.setDelivery(saved);
+            deliveryNoteRepository.save(deliveryNote);
+        }
+
         var vehicle = activity.getVehicle();
         if (vehicle != null && vehicle.getDriver() != null) {
             sendDeliveryAssignedNotification(saved, vehicle.getDriver());
@@ -162,7 +176,10 @@ public class DeliveryServiceImpl implements DeliveryService {
                 vehicleRepository.save(activity.getVehicle());
             }
 
-            // Check & Update LoadingOrder Status if ALL activities under it are now DELIVERED
+            // The activity is delivered once its delivery is completed.  When
+            // every non-cancelled activity has reached that terminal state, the
+            // commercial order is terminal too.  Keep the parent records in
+            // COMPLETED so customer tracking can be rebuilt from persisted data.
             checkAndUpdateOrderStatus(activity.getLoadingOrder());
         }
 
@@ -204,12 +221,12 @@ public class DeliveryServiceImpl implements DeliveryService {
                 .allMatch(act -> act.getStatus() == LoadingActivityStatus.DELIVERED);
 
         if (allDelivered && !activities.isEmpty()) {
-            loadingOrder.setStatus(LoadingOrderStatus.DELIVERED);
+            loadingOrder.setStatus(LoadingOrderStatus.COMPLETED);
             loadingOrderRepository.save(loadingOrder);
 
             FuelOrder fuelOrder = loadingOrder.getOrder();
             if (fuelOrder != null) {
-                fuelOrder.setOrderStatus("DELIVERED");
+                fuelOrder.setOrderStatus("COMPLETED");
                 fuelOrderRepository.save(fuelOrder);
             }
         }

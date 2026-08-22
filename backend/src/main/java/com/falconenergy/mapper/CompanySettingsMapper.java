@@ -6,7 +6,7 @@ import com.falconenergy.entity.CompanySettings;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface CompanySettingsMapper {
     CompanySettingsResponse toResponse(CompanySettings entity);
     CompanySettings toEntity(CompanySettingsRequest request);

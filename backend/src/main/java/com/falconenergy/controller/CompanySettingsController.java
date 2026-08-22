@@ -19,7 +19,7 @@ public class CompanySettingsController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE', 'SALES_OFFICER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE', 'SALES_OFFICER')")
     public ResponseEntity<ApiResponse<CompanySettingsResponse>> getCompanySettings() {
         CompanySettingsResponse settings = companySettingsService.getCompanySettings();
         return ResponseEntity.ok(ApiResponse.success("Company settings retrieved successfully", settings));

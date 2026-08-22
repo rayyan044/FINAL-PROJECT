@@ -10,7 +10,7 @@ lerna-debug.log*
 # Local secrets and environment files
 .env
 backend/.env
-falcon-driver-mobile-app/.env
+mobile/.env
 
 # Frontend build artifacts and local dependencies (located in frontend/).
 node_modules
