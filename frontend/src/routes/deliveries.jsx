@@ -39,9 +39,9 @@ const SIDE = [
   { key: "history", label: "Delivery History", icon: FiCheckCircle },
 ];
 
-function DeliveryDash() {
+export function DeliveryDash({ embedded = false, initialTab = "dash", onWorkspaceSelect }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dash");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [activeDeliveries, setActiveDeliveries] = useState([]);
   const [historyDeliveries, setHistoryDeliveries] = useState([]);
   
@@ -118,18 +118,40 @@ function DeliveryDash() {
   return (
     <RouteGuard allowedRoles={["OPERATIONS", "OPERATOR", "DISPATCHER", "ADMIN"]}>
       <DashboardLayout
+        embedded={embedded}
         role="Operations Management"
         sideItems={SIDE}
         activeKey={activeTab}
         onSelect={(key) => {
-          if (key === "operations") navigate({ to: "/operations" });
+          if (embedded && onWorkspaceSelect) onWorkspaceSelect(key);
+          else if (key === "operations") navigate({ to: "/operations" });
           else if (key === "documents") navigate({ to: "/delivery-documents" });
           else if (key === "dispatch") navigate({ to: "/dispatch" });
           else setActiveTab(key);
         }}
       >
-        <PageHeader title="Delivery Management" crumbs={["Operations", "Delivery Management", activeTab === "dash" ? "Overview" : SIDE.find((item) => item.key === activeTab)?.label || activeTab]} />
-        <OperatorWorkflowProgress current="Delivery" nextLabel="View Completed Deliveries" onNext={() => setActiveTab("history")} />
+        {!embedded && <PageHeader title="Delivery Management" crumbs={["Operations", "Delivery Management", activeTab === "dash" ? "Overview" : SIDE.find((item) => item.key === activeTab)?.label || activeTab]} />}
+        {embedded && (
+          <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+            <button
+              className={`fef-btn ${activeTab === "active" ? "fef-btn-primary" : "fef-btn-outline"}`}
+              onClick={() => setActiveTab("active")}
+            >
+              Active Deliveries
+            </button>
+            <button
+              className={`fef-btn ${activeTab === "history" ? "fef-btn-primary" : "fef-btn-outline"}`}
+              onClick={() => setActiveTab("history")}
+            >
+              Completed Deliveries
+            </button>
+          </div>
+        )}
+        <OperatorWorkflowProgress
+          current="Delivery"
+          nextLabel={activeTab === "history" ? "Hide Completed Deliveries" : "View Completed Deliveries"}
+          onNext={() => setActiveTab((tab) => (tab === "history" ? "dash" : "history"))}
+        />
 
         {error && (
           <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 20 }}>

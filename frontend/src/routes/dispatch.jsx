@@ -45,9 +45,9 @@ const SIDE = [
   { key: "trucks", label: "Fleet Trucks", icon: FiTruck },
 ];
 
-function DispatchDash() {
+export function DispatchDash({ embedded = false, initialTab = "dash", onWorkspaceSelect }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dash");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [completedActivities, setCompletedActivities] = useState([]);
@@ -181,18 +181,20 @@ function DispatchDash() {
   return (
     <RouteGuard allowedRoles={["DISPATCHER", "OPERATIONS", "ADMIN", "OPERATOR"]}>
       <DashboardLayout
+        embedded={embedded}
         role="DISPATCHER"
         sideItems={SIDE}
         activeKey={activeTab}
         onSelect={(key) => {
-          if (key === "operations") navigate({ to: "/operations" });
+          if (embedded && onWorkspaceSelect) onWorkspaceSelect(key);
+          else if (key === "operations") navigate({ to: "/operations" });
           else if (key === "documents") navigate({ to: "/delivery-documents" });
           else if (key === "deliveries") navigate({ to: "/deliveries" });
           else setActiveTab(key);
         }}
       >
-        <PageHeader title="Dispatch Management" crumbs={["Operations", "Dispatch Management", activeTab === "dash" ? "Overview" : SIDE.find((item) => item.key === activeTab)?.label || activeTab]} />
-        <OperatorWorkflowProgress current="Dispatch" nextLabel="Delivery Management" onNext={() => navigate({ to: "/deliveries" })} />
+        {!embedded && <PageHeader title="Dispatch Management" crumbs={["Operations", "Dispatch Management", activeTab === "dash" ? "Overview" : SIDE.find((item) => item.key === activeTab)?.label || activeTab]} />}
+        <OperatorWorkflowProgress current="Dispatch" nextLabel="Delivery Management" onNext={() => embedded && onWorkspaceSelect ? onWorkspaceSelect("deliveries") : navigate({ to: "/deliveries" })} />
 
         {error && (
           <div className="fef-alert fef-alert-danger fef-fade-in" style={{ marginBottom: 20 }}>

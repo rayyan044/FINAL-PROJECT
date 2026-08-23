@@ -52,7 +52,7 @@ export const Route = createFileRoute("/reports")({
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 
-function ReportsDash() {
+export function ReportsDash({ embedded = false, onWorkspaceSelect }) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -204,6 +204,10 @@ function ReportsDash() {
   }
 
   const handleSidebarSelect = (key) => {
+    if (embedded && onWorkspaceSelect) {
+      onWorkspaceSelect(key === "reports" ? "reports" : "dash");
+      return;
+    }
     if (key === "reports") {
       setActiveTab(tabs[0]?.id || "overview");
     } else {
@@ -215,6 +219,7 @@ function ReportsDash() {
   return (
     <RouteGuard allowedRoles={["ADMIN", "MANAGER", "OPERATIONS", "DISPATCHER", "SALES_OFFICER", "FINANCE", "OPERATOR"]}>
       <DashboardLayout
+        embedded={embedded}
         role={userRole}
         userName={user?.username || "User"}
         pageTitle="Reports & Analytics Dashboard"
@@ -222,7 +227,7 @@ function ReportsDash() {
         activeKey="reports"
         onSelect={handleSidebarSelect}
       >
-        <PageHeader title="Reporting & Analytics" crumbs={["Reports", activeTab]} />
+        {!embedded && <PageHeader title="Reporting & Analytics" crumbs={["Reports", activeTab]} />}
 
         {/* Global Date & Export Controls */}
         <div className="fef-panel no-print" style={{ marginBottom: 20, padding: 15 }}>

@@ -11,6 +11,7 @@ export function DashboardLayout({
   sideItems,
   activeKey,
   onSelect,
+  embedded = false,
   children,
 }) {
   const [open, setOpen] = useState(false);
@@ -39,7 +40,7 @@ export function DashboardLayout({
       : user?.firstName || user?.lastName || "";
 
   const displayName =
-    loggedInName || user?.username || displayEmail.split("@")[0] || userName || "User";
+    user?.username || loggedInName || displayEmail.split("@")[0] || userName || "User";
 
   const formatRole = (rawRole) => {
     if (!rawRole) return "";
@@ -84,6 +85,12 @@ export function DashboardLayout({
     await logout();
     navigate({ to: "/" });
   };
+
+  // Some workflow views are shown as tabs inside a parent workspace. In that
+  // case the parent owns the sidebar and top bar, so only render the content.
+  if (embedded) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="fef-dash">

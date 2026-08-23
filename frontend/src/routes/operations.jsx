@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -24,6 +24,10 @@ import {
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
+import { DispatchDash } from "./dispatch";
+import { DeliveryDocumentsWorkspace } from "./delivery-documents";
+import { DeliveryDash } from "./deliveries";
+import { ReportsDash } from "./reports";
 import { listRequests } from "../services/requestService";
 import { listDeliveries, createDelivery } from "../services/deliveryService";
 import {
@@ -76,7 +80,6 @@ const SIDE = [
 ];
 
 function OpsDash() {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dash");
   const [stats, setStats] = useState({
     loadingOrders: 0,
@@ -857,19 +860,7 @@ function OpsDash() {
         pageTitle="Operations Control"
         sideItems={SIDE}
         activeKey={activeTab}
-        onSelect={(key) => {
-          if (key === "documents") {
-            navigate({ to: "/delivery-documents" });
-          } else if (key === "dispatch") {
-            navigate({ to: "/dispatch" });
-          } else if (key === "deliveries") {
-            navigate({ to: "/deliveries" });
-          } else if (key === "reports") {
-            navigate({ to: "/reports" });
-          } else {
-            setActiveTab(key);
-          }
-        }}
+        onSelect={setActiveTab}
       >
         <PageHeader
           title={
@@ -879,11 +870,7 @@ function OpsDash() {
                 ? "Inventory Control"
                 : activeTab === "loading"
                   ? "Approved Loading Orders"
-                  : activeTab === "deliveries"
-                    ? "Active Deliveries"
-                    : activeTab === "drivers"
-                      ? "Drivers Directory"
-                      : "Vehicles Fleet"
+                  : SIDE.find((item) => item.key === activeTab)?.label || "Operations"
           }
           crumbs={["Operations", activeTab]}
         />
@@ -901,6 +888,11 @@ function OpsDash() {
             {success}
           </div>
         )}
+
+        {activeTab === "documents" && <DeliveryDocumentsWorkspace embedded onWorkspaceSelect={setActiveTab} />}
+        {activeTab === "dispatch" && <DispatchDash embedded initialTab="queue" onWorkspaceSelect={setActiveTab} />}
+        {activeTab === "deliveries" && <DeliveryDash embedded initialTab="history" onWorkspaceSelect={setActiveTab} />}
+        {activeTab === "reports" && <ReportsDash embedded onWorkspaceSelect={setActiveTab} />}
 
         {/* DASHBOARD */}
         {activeTab === "dash" && (
@@ -1815,7 +1807,7 @@ function OpsDash() {
         )}
 
         {/* DELIVERIES */}
-        {activeTab === "deliveries" && (
+        {activeTab === "delivery-summary" && (
           <div className="fef-panel">
             <div className="fef-table-wrap">
               <table className="fef-table">
