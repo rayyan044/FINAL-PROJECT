@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { FiX, FiPrinter, FiCheck, FiAlertCircle, FiCheckCircle, FiDownload } from "react-icons/fi";
 import {
-  approveInvoicePayment,
   overrideInvoiceStatus,
   updateInvoicePaymentAccount,
   getInvoiceById,
@@ -213,30 +212,6 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
   }, [userRole, isPending, invoice?.id]);
 
   if (!invoice) return null;
-
-  const handleApprovePayment = async () => {
-    if (hasConfirmed || isPaid) return;
-    setHasConfirmed(true);
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    try {
-      const res = await approveInvoicePayment(invoice.id);
-      const updatedInvoice = res.data || res;
-      setFullInvoice(updatedInvoice);
-      setSuccess("Invoice payment confirmed and marked as Paid successfully.");
-      if (onRefresh) onRefresh();
-      setTimeout(() => {
-        onClose();
-      }, 800);
-    } catch (err) {
-      console.error(err);
-      setError(err?.message || "Failed to confirm payment.");
-      setHasConfirmed(false);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleOverrideStatus = async () => {
     setLoading(true);
@@ -1556,17 +1531,6 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
           <button className="fef-btn fef-btn-outline" onClick={onClose} disabled={loading}>
             Close
           </button>
-
-          {isPending && !isPaid && !hasConfirmed && userRole === "FINANCE" && (
-            <button
-              className="fef-btn fef-btn-success"
-              onClick={handleApprovePayment}
-              disabled={loading || hasConfirmed}
-              style={{ display: "flex", alignItems: "center", gap: "6px" }}
-            >
-              <FiCheck /> {loading || hasConfirmed ? "Processing..." : "Confirm Payment"}
-            </button>
-          )}
 
           {userRole === "ADMIN" && validationErrors.length === 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

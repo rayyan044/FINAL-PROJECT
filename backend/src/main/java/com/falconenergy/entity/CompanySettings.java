@@ -49,4 +49,9 @@ public class CompanySettings extends BaseEntity {
 
     @Column(name = "stamp", length = 255)
     private String stamp;
+
+    @Column(name = "depot_name", length = 150) private String depotName;
+    @Column(name = "depot_address", length = 255) private String depotAddress;
+    @Column(name = "depot_latitude", precision = 10, scale = 7) private java.math.BigDecimal depotLatitude;
+    @Column(name = "depot_longitude", precision = 10, scale = 7) private java.math.BigDecimal depotLongitude;
 }

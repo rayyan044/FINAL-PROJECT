@@ -74,6 +74,27 @@ public class FuelOrder extends BaseEntity {
     @Column(name = "location_landmark", columnDefinition = "TEXT")
     private String locationLandmark;
 
+    @Column(name = "delivery_address", columnDefinition = "TEXT")
+    private String deliveryAddress;
+
+    @Column(name = "delivery_latitude", precision = 10, scale = 7)
+    private BigDecimal deliveryLatitude;
+
+    @Column(name = "delivery_longitude", precision = 10, scale = 7)
+    private BigDecimal deliveryLongitude;
+
+    @Column(name = "delivery_distance_km", precision = 10, scale = 3)
+    private BigDecimal deliveryDistanceKm;
+
+    @Column(name = "distance_transport_price", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal distanceTransportPrice = BigDecimal.ZERO;
+
+    @Column(name = "route_duration_seconds") private Long routeDurationSeconds;
+    @Column(name = "route_polyline", columnDefinition = "TEXT") private String routePolyline;
+    @Column(name = "route_provider", length = 50) private String routeProvider;
+    @Column(name = "route_type", length = 50) private String routeType;
+
 
 
     @Column(name = "emergency_level", length = 50)

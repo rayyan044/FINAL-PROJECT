@@ -185,12 +185,19 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     public InvoiceResponse approveInvoicePayment(Long id, String approvedBy) {
-        log.info("Approving payment for invoice: {} by {}", id, approvedBy);
+        return confirmSuccessfulPayment(id, approvedBy);
+    }
+
+    /** Shared idempotent settlement path for simulated customer payments and authorized administrative corrections. */
+    @Override
+    public InvoiceResponse confirmSuccessfulPayment(Long id, String approvedBy) {
+        log.info("Confirming successful payment for invoice: {} by {}", id, approvedBy);
         Invoice invoice = invoiceRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with id: " + id));
 
         if ("PAID".equalsIgnoreCase(invoice.getPaymentStatus())) {
-            throw new BadRequestException("Payment has already been confirmed for this invoice.");
+            // Repeated requests cannot duplicate the receipt or advance the workflow twice.
+            return mapToResponse(invoice);
         }
 
         invoice.setPaymentStatus("PAID");
@@ -220,10 +227,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 "INVOICE",
                 updated.getId(),
                 updated.getOrder().getCustomer().getCustomerCode(),
-                "Invoice payment approved by " + approvedBy
+                "Invoice payment confirmed by " + approvedBy
         );
         auditLogService.log("PAYMENT_APPROVED", "INVOICE", updated.getId(), updated.getOrder().getCustomer().getCustomerCode(),
-                "Finance approved payment for invoice " + updated.getInvoiceNumber());
+                "Payment confirmed for invoice " + updated.getInvoiceNumber());
 
         return mapToResponse(updated);
     }

@@ -1,6 +1,6 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import colors from "../constants/colors";
 import { useAuth } from "../context/AuthContext";
@@ -21,6 +21,7 @@ export default function AppNavigator() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator color={colors.primary} size="large" />
+        <Text style={styles.loadingText}>Checking your saved session…</Text>
       </View>
     );
   }
@@ -55,5 +56,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     flex: 1,
     justifyContent: "center",
+  },
+  loadingText: {
+    color: colors.gray,
+    fontSize: 14,
+    marginTop: 14,
   },
 });

@@ -34,6 +34,14 @@ public class FuelOrderResponse {
     private String locationGps;
     private String locationAddress;
     private String locationLandmark;
+    private String deliveryAddress;
+    private BigDecimal deliveryLatitude;
+    private BigDecimal deliveryLongitude;
+    private BigDecimal deliveryDistanceKm;
+    private Long routeDurationSeconds;
+    private String routePolyline;
+    private String routeProvider;
+    private String routeType;
     private String emergencyLevel;
     private String paymentMethod;
     private String notes;

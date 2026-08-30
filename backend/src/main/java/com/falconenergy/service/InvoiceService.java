@@ -8,6 +8,7 @@ public interface InvoiceService {
     Page<InvoiceResponse> getAllInvoices(Pageable pageable);
     InvoiceResponse getInvoiceById(Long id);
     InvoiceResponse approveInvoicePayment(Long id, String approvedBy);
+    InvoiceResponse confirmSuccessfulPayment(Long id, String confirmedBy);
     InvoiceResponse overrideInvoiceStatus(Long id, String status, String updatedBy);
     InvoiceResponse updateInvoicePaymentAccount(Long id, Long paymentAccountId, String updatedBy);
 }

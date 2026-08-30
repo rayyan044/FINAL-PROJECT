@@ -1034,7 +1034,7 @@ function SalesDash() {
                             <div className="fef-detail-gps-row">
                               <code>{selectedRequest.locationGps}</code>
                               <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedRequest.locationGps)}`}
+                                href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(selectedRequest.locationGps)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="fef-btn fef-btn-outline"
@@ -1044,7 +1044,7 @@ function SalesDash() {
                                   borderRadius: "8px",
                                 }}
                               >
-                                Show on Google Maps
+                                Show on OpenStreetMap
                               </a>
                             </div>
                           </div>

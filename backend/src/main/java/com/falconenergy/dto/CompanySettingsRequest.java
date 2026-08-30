@@ -1,5 +1,6 @@
 package com.falconenergy.dto;
 
+import java.math.BigDecimal;
 import lombok.*;
 
 @Getter
@@ -18,4 +19,8 @@ public class CompanySettingsRequest {
     private String signatoryTitle;
     private String signatorySignature;
     private String stamp;
+    private String depotName;
+    private String depotAddress;
+    private BigDecimal depotLatitude;
+    private BigDecimal depotLongitude;
 }

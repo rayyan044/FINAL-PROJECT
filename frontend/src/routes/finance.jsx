@@ -30,6 +30,8 @@ import {
   togglePaymentAccountStatus,
 } from "../services/paymentAccountService";
 import { getCompanySettings, updateCompanySettings } from "../services/companySettingsService";
+import { OpenStreetMapLocationPicker } from "../components/OpenStreetMapLocationPicker";
+import { listTransportDistanceRates, saveTransportDistanceRate } from "../services/transportDistanceRateService";
 import { deleteTruckPricing, listTruckPricing, saveTruckPricing } from "../services/truckPricingService";
 import {
   createFuelPriceRange,
@@ -48,11 +50,17 @@ const SIDE = [
   { key: "dash", label: "Dashboard", icon: FiHome },
   { key: "pricing", label: "Fuel Pricing", icon: FiDollarSign },
   { key: "transportPricing", label: "Transport Pricing", icon: FiActivity },
+  { key: "distancePricing", label: "Distance Rate Brackets", icon: FiActivity },
   { key: "invoices", label: "Invoices", icon: FiFileText },
   { key: "paymentAccounts", label: "Payment Accounts", icon: FiCreditCard },
   { key: "companySettings", label: "Company Settings", icon: FiSettings },
   { key: "reports", label: "Reports & Analytics", icon: FiTrendingUp },
 ];
+
+const money = (value) => Number(value || 0).toLocaleString(undefined, {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
 
 function FinanceDash() {
   const navigate = useNavigate();
@@ -67,6 +75,7 @@ function FinanceDash() {
   const [success, setSuccess] = useState("");
   const [truckPricing, setTruckPricing] = useState([]);
   const [transportForm, setTransportForm] = useState({ fuelProductId: "", minLitres: "", maxLitres: "", transportPrice: "", effectiveDate: new Date().toISOString().slice(0, 10), status: "ACTIVE" });
+  const [distanceRates,setDistanceRates]=useState([]),[distanceForm,setDistanceForm]=useState({minimumKm:"",maximumKm:"",noMaximum:false,price:"",active:true});
   const [fuelPriceRanges, setFuelPriceRanges] = useState([]);
   const [rangeForm, setRangeForm] = useState({ fuelProductId: "", minLitres: "", maxLitres: "", pricePerLitre: "", effectiveDate: new Date().toISOString().slice(0, 10), status: "ACTIVE" });
 
@@ -83,6 +92,10 @@ function FinanceDash() {
     signatoryTitle: "",
     signatorySignature: "",
     stamp: "",
+    depotName: "",
+    depotAddress: "",
+    depotLatitude: "",
+    depotLongitude: "",
   });
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -149,6 +162,8 @@ function FinanceDash() {
   };
 
   const loadTruckPricing = () => listTruckPricing().then((res) => setTruckPricing(res.data || res || [])).catch((err) => console.warn("Unable to load transport pricing", err));
+  const loadDistanceRates=()=>listTransportDistanceRates().then(r=>setDistanceRates(r.data||r||[])).catch(err=>setError(err?.message||"Unable to load distance transport rates."));
+  const saveDistanceRate=async(e)=>{e.preventDefault();try{await saveTransportDistanceRate({minimumKm:Number(distanceForm.minimumKm),maximumKm:distanceForm.noMaximum?null:Number(distanceForm.maximumKm),price:Number(distanceForm.price),active:distanceForm.active},distanceForm.id);setDistanceForm({minimumKm:"",maximumKm:"",noMaximum:false,price:"",active:true});loadDistanceRates();setSuccess("Distance transport rate saved.")}catch(err){setError(err?.message||"Unable to save distance transport rate.")}};
   const loadFuelPriceRanges = () => listFuelPriceRanges().then((res) => setFuelPriceRanges(res.data || res || [])).catch((err) => setError(err?.message || "Unable to load fuel price ranges."));
   const resetRangeForm = () => setRangeForm({ fuelProductId: "", minLitres: "", maxLitres: "", pricePerLitre: "", effectiveDate: new Date().toISOString().slice(0, 10), status: "ACTIVE" });
   const saveFuelPriceRange = async (event) => {
@@ -238,7 +253,16 @@ function FinanceDash() {
       loadCompanySettings();
     }
     if (activeTab === "transportPricing") loadTruckPricing();
+    if (activeTab === "distancePricing") loadDistanceRates();
     if (activeTab === "pricing") loadFuelPriceRanges();
+  }, [activeTab]);
+
+  // Customer simulated payments update the shared invoice record. Keep
+  // Finance's ledger current while it is being viewed without requiring a page refresh.
+  useEffect(() => {
+    if (activeTab !== "invoices") return undefined;
+    const refreshInterval = window.setInterval(loadInvoices, 15000);
+    return () => window.clearInterval(refreshInterval);
   }, [activeTab]);
 
   // Payment Account Handlers
@@ -342,7 +366,7 @@ function FinanceDash() {
   const recentOrdersCount = orders.length;
 
   return (
-    <RouteGuard allowedRoles={["FINANCE"]}>
+    <RouteGuard allowedRoles={["FINANCE", "ADMIN"]}>
       <DashboardLayout
         role="FINANCE"
         userName="Sarah Finance"
@@ -470,11 +494,12 @@ function FinanceDash() {
 
         {activeTab === "transportPricing" && (
           <div className="fef-panel" style={{ marginTop: 24 }}>
-            <div className="fef-panel-head"><div><h3>Ordered-Litre Transport Pricing</h3><p style={{ margin: 0, color: "var(--feftms-text-muted)" }}>Finance controls transport charges by customer ordered-litre ranges.</p></div></div>
+            <div className="fef-panel-head"><div><h3>Ordered-Litre Transport Pricing (fallback)</h3><p style={{ margin: 0, color: "var(--feftms-text-muted)" }}>Used for legacy/admin orders without a mapped destination. Mapped deliveries use the road-distance bracket as their one final transport charge.</p></div></div>
             <form onSubmit={saveTransportPrice} className="fef-form-grid" style={{ padding: 20 }}><div className="fef-field"><label className="fef-label">Fuel Product</label><select required className="fef-input" value={transportForm.fuelProductId} onChange={(e) => setTransportForm({ ...transportForm, fuelProductId: e.target.value })}><option value="">Select fuel product</option>{products.map((product) => <option key={product.id} value={product.id}>{product.productName}</option>)}</select></div><div className="fef-field"><label className="fef-label">Minimum Ordered Litres</label><input required type="number" min="0.01" step="0.01" className="fef-input" value={transportForm.minLitres} onChange={(e) => setTransportForm({ ...transportForm, minLitres: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Maximum Ordered Litres</label><input required type="number" min="0.01" step="0.01" className="fef-input" value={transportForm.maxLitres} onChange={(e) => setTransportForm({ ...transportForm, maxLitres: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Transport Price</label><input required type="number" min="0" step="0.01" className="fef-input" value={transportForm.transportPrice} onChange={(e) => setTransportForm({ ...transportForm, transportPrice: e.target.value })} /></div><div className="fef-field"><label className="fef-label">Effective Date</label><input required type="date" className="fef-input" value={transportForm.effectiveDate} onChange={(e) => setTransportForm({ ...transportForm, effectiveDate: e.target.value })} /></div><button className="fef-btn fef-btn-primary">{transportForm.id ? "Update Range" : "Create Range"}</button></form>
             <div className="fef-table-wrap"><table className="fef-table"><thead><tr><th>Fuel Product</th><th>Min Litres</th><th>Max Litres</th><th>Transport Price</th><th>Effective Date</th><th>Status</th><th>Action</th></tr></thead><tbody>{truckPricing.map((rate) => <tr key={rate.id}><td>{rate.fuelProductName || "Not selected"}</td><td>{rate.minLitres?.toLocaleString()}</td><td>{rate.maxLitres?.toLocaleString()}</td><td>{rate.transportPrice?.toLocaleString()}</td><td>{rate.effectiveDate}</td><td>{rate.status}</td><td style={{ display: "flex", gap: 8 }}><button className="fef-btn fef-btn-outline" onClick={() => setTransportForm(rate)}>Edit</button><button className="fef-btn fef-btn-outline" style={{ color: "var(--feftms-danger)", borderColor: "var(--feftms-danger)" }} onClick={() => deleteTransportPrice(rate.id)}>Delete</button></td></tr>)}</tbody></table></div>
           </div>
         )}
+        {activeTab === "distancePricing" && <div className="fef-panel"><div className="fef-panel-head"><div><h3>Transport Distance Pricing</h3><p style={{margin:0,color:"var(--feftms-text-muted)"}}>Road distance is calculated automatically from the Falcon depot to the customer’s selected delivery location. Configure reusable price brackets, with one optional final “and above” bracket. Active brackets cannot overlap.</p></div></div><form onSubmit={saveDistanceRate} className="fef-form-grid" style={{padding:20}}><div className="fef-field"><label className="fef-label">Minimum distance (km)</label><input required min="0" step="0.001" type="number" className="fef-input" value={distanceForm.minimumKm} onChange={e=>setDistanceForm({...distanceForm,minimumKm:e.target.value})}/></div><div className="fef-field"><label className="fef-label">Maximum distance (km)</label><input required={!distanceForm.noMaximum} disabled={distanceForm.noMaximum} min="0" step="0.001" type="number" className="fef-input" value={distanceForm.maximumKm} onChange={e=>setDistanceForm({...distanceForm,maximumKm:e.target.value})} placeholder={distanceForm.noMaximum?"No maximum":"Maximum km"}/><label className="fef-label" style={{marginTop:8}}><input type="checkbox" checked={distanceForm.noMaximum} onChange={e=>setDistanceForm({...distanceForm,noMaximum:e.target.checked,maximumKm:e.target.checked?"":distanceForm.maximumKm})}/> No maximum / and above</label></div><div className="fef-field"><label className="fef-label">Price (TZS)</label><input required min="0" step="0.01" type="number" className="fef-input" value={distanceForm.price} onChange={e=>setDistanceForm({...distanceForm,price:e.target.value})}/></div><label className="fef-label">Active <input type="checkbox" checked={distanceForm.active} onChange={e=>setDistanceForm({...distanceForm,active:e.target.checked})}/></label><button className="fef-btn fef-btn-primary">{distanceForm.id?"Update bracket":"Create bracket"}</button></form><div className="fef-table-wrap"><table className="fef-table"><thead><tr><th>Distance bracket</th><th>Final transport charge</th><th>Status</th><th/></tr></thead><tbody>{distanceRates.map(r=><tr key={r.id}><td>{r.maximumKm==null?`${r.minimumKm}+ km`:`${r.minimumKm}–${r.maximumKm} km`}</td><td>TZS {money(r.price)}</td><td>{r.active?"ACTIVE":"INACTIVE"}</td><td><button className="fef-btn fef-btn-outline" onClick={()=>setDistanceForm({...r,noMaximum:r.maximumKm==null,maximumKm:r.maximumKm??""})}>Edit</button></td></tr>)}</tbody></table></div></div>}
 
         {/* INVOICES TAB */}
         {activeTab === "invoices" && (
@@ -809,6 +834,18 @@ function FinanceDash() {
                   Signatory & Authorized Verification Settings
                 </h4>
               </div>
+              <div style={{borderTop:"1px dashed rgba(255,255,255,0.1)",margin:"20px 0",paddingTop:"20px"}}>
+              <h4 style={{ color: "white", marginBottom: "6px" }}>Depot Location</h4>
+              <p style={{margin:"0 0 15px",color:"var(--feftms-text-muted)"}}>Configure Falcon’s route origin once. Every new mapped customer order automatically uses this saved depot.</p>
+              <div style={{ display: "flex", gap: "20px", marginBottom: "15px" }}>
+                <div className="fef-field" style={{ flex: 1 }}><label className="fef-label">Depot name</label><input required className="fef-input" placeholder="Falcon Energy Depot" value={companySettings.depotName || ""} onChange={e=>setCompanySettings({...companySettings,depotName:e.target.value})}/></div>
+              </div>
+              <OpenStreetMapLocationPicker value={{address:companySettings.depotAddress,latitude:companySettings.depotLatitude,longitude:companySettings.depotLongitude}} onChange={(location)=>setCompanySettings({...companySettings,depotAddress:location.address,depotLatitude:location.latitude,depotLongitude:location.longitude})} searchLabel="Search depot address" selectedLabel="Selected address" placeholder="Search location..."/>
+              <div style={{ display: "flex", gap: "20px", margin:"15px 0" }}>
+                <div className="fef-field" style={{ flex: 1 }}><label className="fef-label">Latitude</label><input readOnly type="number" className="fef-input" value={companySettings.depotLatitude ?? ""}/></div>
+                <div className="fef-field" style={{ flex: 1 }}><label className="fef-label">Longitude</label><input readOnly type="number" className="fef-input" value={companySettings.depotLongitude ?? ""}/></div>
+              </div>
+              </div>
               <div style={{ display: "flex", gap: "20px", marginBottom: "15px" }}>
                 <div className="fef-field" style={{ flex: 1 }}>
                   <label className="fef-label" style={{ color: "var(--feftms-text-muted)" }}>
@@ -868,7 +905,7 @@ function FinanceDash() {
                 </div>
               </div>
               <button type="submit" className="fef-btn fef-btn-primary" disabled={savingSettings}>
-                {savingSettings ? "Saving Settings..." : "Save Settings"}
+                {savingSettings ? "Saving Settings..." : "Save Company Settings & Depot Location"}
               </button>
             </form>
           </div>
@@ -1065,7 +1102,7 @@ function FinanceDash() {
 
         {selectedInvoice && (
           <InvoiceModal
-            invoice={selectedInvoice}
+            invoice={invoices.find((invoice) => invoice.id === selectedInvoice.id) || selectedInvoice}
             onClose={() => setSelectedInvoice(null)}
             onRefresh={loadData}
             userRole="FINANCE"

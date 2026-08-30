@@ -47,6 +47,7 @@ import {
   togglePaymentAccountStatus,
 } from "../services/paymentAccountService";
 import { getCompanySettings, updateCompanySettings } from "../services/companySettingsService";
+import { OpenStreetMapLocationPicker } from "../components/OpenStreetMapLocationPicker";
 import "../styles/forms.css";
 
 export const Route = createFileRoute("/admin")({
@@ -105,6 +106,10 @@ function AdminDash() {
     signatoryTitle: "",
     signatorySignature: "",
     stamp: "",
+    depotName: "",
+    depotAddress: "",
+    depotLatitude: "",
+    depotLongitude: "",
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [accountForm, setAccountForm] = useState({
@@ -1674,6 +1679,13 @@ function AdminDash() {
                   Signatory & Authorized Verification Settings
                 </h4>
               </div>
+              <div style={{borderTop:"1px dashed rgba(255,255,255,0.1)",margin:"20px 0",paddingTop:"20px"}}>
+                <h4 style={{ color: "white", marginBottom: "6px" }}>Depot Location</h4>
+                <p style={{margin:"0 0 15px",color:"var(--feftms-text-muted)"}}>Configure Falcon’s route origin once. Every new mapped customer order automatically uses this saved depot.</p>
+                <div className="fef-field" style={{marginBottom:15}}><label className="fef-label">Depot name</label><input required className="fef-input" placeholder="Falcon Energy Depot" value={companySettings.depotName || ""} onChange={e=>setCompanySettings({...companySettings,depotName:e.target.value})}/></div>
+                <OpenStreetMapLocationPicker value={{address:companySettings.depotAddress,latitude:companySettings.depotLatitude,longitude:companySettings.depotLongitude}} onChange={(location)=>setCompanySettings({...companySettings,depotAddress:location.address,depotLatitude:location.latitude,depotLongitude:location.longitude})} searchLabel="Search depot address" selectedLabel="Selected address" placeholder="Search location..."/>
+                <div style={{display:"flex",gap:20,margin:"15px 0"}}><div className="fef-field" style={{flex:1}}><label className="fef-label">Latitude</label><input readOnly className="fef-input" value={companySettings.depotLatitude ?? ""}/></div><div className="fef-field" style={{flex:1}}><label className="fef-label">Longitude</label><input readOnly className="fef-input" value={companySettings.depotLongitude ?? ""}/></div></div>
+              </div>
               <div style={{ display: "flex", gap: "20px", marginBottom: "15px" }}>
                 <div className="fef-field" style={{ flex: 1 }}>
                   <label className="fef-label" style={{ color: "var(--feftms-text-muted)" }}>
@@ -1733,7 +1745,7 @@ function AdminDash() {
                 </div>
               </div>
               <button type="submit" className="fef-btn fef-btn-primary" disabled={savingSettings}>
-                {savingSettings ? "Saving Settings..." : "Save Settings"}
+                {savingSettings ? "Saving Settings..." : "Save Company Settings & Depot Location"}
               </button>
             </form>
           </div>

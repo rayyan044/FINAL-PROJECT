@@ -18,6 +18,11 @@ import com.falconenergy.repository.FuelTransactionRepository;
 import com.falconenergy.service.FuelOrderService;
 import com.falconenergy.service.FuelPriceRangeService;
 import com.falconenergy.service.TransportPriceRangeService;
+import com.falconenergy.service.RoutingService;
+import com.falconenergy.service.TransportPricingService;
+import com.falconenergy.dto.RouteResult;
+import com.falconenergy.entity.CompanySettings;
+import com.falconenergy.repository.CompanySettingsRepository;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.SystemSettingService;
 import com.falconenergy.service.StorageTankService;
@@ -62,6 +67,9 @@ public class FuelOrderServiceImpl implements FuelOrderService {
     private final SystemSettingService systemSettingService;
     private final FuelPriceRangeService fuelPriceRangeService;
     private final TransportPriceRangeService transportPriceRangeService;
+    private final RoutingService routingService;
+    private final TransportPricingService transportPricingService;
+    private final CompanySettingsRepository companySettingsRepository;
 
     public FuelOrderServiceImpl(
             FuelOrderRepository fuelOrderRepository,
@@ -78,7 +86,10 @@ public class FuelOrderServiceImpl implements FuelOrderService {
             PaymentAccountRepository paymentAccountRepository,
             SystemSettingService systemSettingService,
             FuelPriceRangeService fuelPriceRangeService,
-            TransportPriceRangeService transportPriceRangeService
+            TransportPriceRangeService transportPriceRangeService,
+            RoutingService routingService,
+            TransportPricingService transportPricingService,
+            CompanySettingsRepository companySettingsRepository
     ) {
         this.fuelOrderRepository = fuelOrderRepository;
         this.customerRepository = customerRepository;
@@ -95,6 +106,9 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         this.systemSettingService = systemSettingService;
         this.fuelPriceRangeService = fuelPriceRangeService;
         this.transportPriceRangeService = transportPriceRangeService;
+        this.routingService = routingService;
+        this.transportPricingService = transportPricingService;
+        this.companySettingsRepository = companySettingsRepository;
     }
 
     @Override
@@ -136,6 +150,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         order.setAmount(amount);
         order.setUnitPrice(unitPrice);
         order.setTransportCharges(transportCharges);
+        applyDistanceTransportPricing(order, request);
         order.setCurrency(product.getCurrency() != null ? product.getCurrency() : "USD");
         order.setOrderStatus("PENDING");
 
@@ -249,6 +264,7 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         order.setAmount(amount);
         order.setUnitPrice(unitPrice);
         order.setTransportCharges(transportCharges);
+        applyDistanceTransportPricing(order, request);
         order.setCurrency(product.getCurrency() != null ? product.getCurrency() : "USD");
 
         FuelOrder updated = fuelOrderRepository.save(order);
@@ -256,6 +272,39 @@ public class FuelOrderServiceImpl implements FuelOrderService {
         FuelOrderResponse response = fuelOrderMapper.toResponse(updated);
         nullifyProductQuantityIfCustomer(response);
         return response;
+    }
+
+    /**
+     * Applies the backend-authoritative road route snapshot and selects the one final transport charge.
+     *
+     * The ordered-litre range remains the legacy/fallback price for orders without a map destination.
+     * Once a customer supplies a map location, the applicable driving-distance bracket replaces that
+     * fallback in {@code transportCharges}; it is never added as a second fee.
+     */
+    private void applyDistanceTransportPricing(FuelOrder order, FuelOrderRequest request) {
+        if (request.getDeliveryLatitude() == null && request.getDeliveryLongitude() == null) return;
+        if (request.getDeliveryLatitude() == null || request.getDeliveryLongitude() == null || request.getLocationAddress() == null || request.getLocationAddress().isBlank()) {
+            throw new BadRequestException("A delivery address and valid map location are required to calculate transport cost.");
+        }
+        if (request.getDeliveryLatitude().compareTo(new BigDecimal("-90")) < 0 || request.getDeliveryLatitude().compareTo(new BigDecimal("90")) > 0
+                || request.getDeliveryLongitude().compareTo(new BigDecimal("-180")) < 0 || request.getDeliveryLongitude().compareTo(new BigDecimal("180")) > 0) {
+            throw new BadRequestException("Delivery coordinates are invalid.");
+        }
+        CompanySettings depot = companySettingsRepository.findFirstByOrderByIdAsc()
+                .orElseThrow(() -> new BadRequestException("Falcon depot location has not been configured. Please configure the depot location in Company Settings."));
+        if (depot.getDepotLatitude() == null || depot.getDepotLongitude() == null) {
+            throw new BadRequestException("Falcon depot location has not been configured. Please configure the depot location in Company Settings.");
+        }
+        RouteResult route = routingService.calculateDrivingRoute(depot.getDepotLatitude(), depot.getDepotLongitude(), request.getDeliveryLatitude(), request.getDeliveryLongitude());
+        BigDecimal finalTransportCharge = transportPricingService.resolveDistancePrice(route.getDistanceKm());
+        order.setDeliveryLatitude(request.getDeliveryLatitude()); order.setDeliveryLongitude(request.getDeliveryLongitude());
+        order.setDeliveryAddress(request.getLocationAddress());
+        order.setDeliveryDistanceKm(route.getDistanceKm());
+        order.setTransportCharges(finalTransportCharge);
+        // Retained only as a backwards-compatible database column. It is not a billable component.
+        order.setDistanceTransportPrice(BigDecimal.ZERO);
+        order.setRouteDurationSeconds(route.getDurationSeconds()); order.setRoutePolyline(route.getPolyline());
+        order.setRouteProvider(route.getProvider()); order.setRouteType(route.getRouteType());
     }
 
     private String resolveCurrentUser() {

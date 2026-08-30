@@ -3,6 +3,10 @@ package com.falconenergy.service.impl;
 import com.falconenergy.entity.Customer;
 import com.falconenergy.entity.FuelOrder;
 import com.falconenergy.entity.FuelProduct;
+import com.falconenergy.entity.CompanySettings;
+import com.falconenergy.dto.FuelOrderRequest;
+import com.falconenergy.dto.FuelOrderResponse;
+import com.falconenergy.dto.RouteResult;
 import com.falconenergy.mapper.FuelOrderMapper;
 import com.falconenergy.repository.CustomerRepository;
 import com.falconenergy.repository.FuelOrderRepository;
@@ -25,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(MockitoExtension.class)
 class FuelOrderServiceImplTest {
@@ -74,6 +79,9 @@ class FuelOrderServiceImplTest {
     @Mock private com.falconenergy.repository.VehicleRepository vehicleRepository;
     @Mock private com.falconenergy.service.FuelPriceRangeService fuelPriceRangeService;
     @Mock private com.falconenergy.service.TransportPriceRangeService transportPriceRangeService;
+    @Mock private com.falconenergy.service.RoutingService routingService;
+    @Mock private com.falconenergy.service.TransportPricingService transportPricingService;
+    @Mock private com.falconenergy.repository.CompanySettingsRepository companySettingsRepository;
 
     @InjectMocks
     private FuelOrderServiceImpl fuelOrderService;
@@ -134,5 +142,36 @@ class FuelOrderServiceImplTest {
                 any(String.class),
                 contains("sales-agent")
         );
+    }
+
+    @Test
+    void mappedDeliveryReplacesLitreFallbackWithOneDistanceTransportCharge() {
+        Customer customer = Customer.builder().id(10L).customerCode("CUST-001").build();
+        FuelProduct product = FuelProduct.builder().id(20L).productName("Diesel").currency("TZS").build();
+        FuelOrder mappedOrder = FuelOrder.builder().build();
+        FuelOrderRequest request = FuelOrderRequest.builder()
+                .orderNumber("ORD-MAPPED-001").customerId(10L).productId(20L).quantity(new BigDecimal("800"))
+                .locationAddress("Customer location").deliveryLatitude(new BigDecimal("-6.8000000"))
+                .deliveryLongitude(new BigDecimal("39.2500000")).transportCharges(new BigDecimal("1")).build();
+
+        when(fuelOrderRepository.existsByOrderNumber(request.getOrderNumber())).thenReturn(false);
+        when(customerRepository.findById(10L)).thenReturn(Optional.of(customer));
+        when(fuelProductRepository.findById(20L)).thenReturn(Optional.of(product));
+        when(fuelPriceRangeService.resolvePrice(product, request.getQuantity())).thenReturn(new BigDecimal("3200"));
+        when(transportPriceRangeService.resolve(product, request.getQuantity())).thenReturn(new BigDecimal("30000"));
+        when(fuelOrderMapper.toEntity(request)).thenReturn(mappedOrder);
+        when(companySettingsRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(CompanySettings.builder()
+                .depotLatitude(new BigDecimal("-6.7923540")).depotLongitude(new BigDecimal("39.2083280")).build()));
+        when(routingService.calculateDrivingRoute(any(), any(), any(), any())).thenReturn(RouteResult.builder()
+                .distanceKm(new BigDecimal("17.4")).durationSeconds(1200L).provider("OSRM").routeType("SHORTEST_AVAILABLE").build());
+        when(transportPricingService.resolveDistancePrice(new BigDecimal("17.4"))).thenReturn(new BigDecimal("45000"));
+        when(fuelOrderRepository.save(any(FuelOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(fuelOrderMapper.toResponse(any(FuelOrder.class))).thenReturn(FuelOrderResponse.builder().build());
+
+        fuelOrderService.createOrder(request);
+
+        assertEquals(new BigDecimal("45000"), mappedOrder.getTransportCharges());
+        assertEquals(BigDecimal.ZERO, mappedOrder.getDistanceTransportPrice());
+        assertEquals(new BigDecimal("17.4"), mappedOrder.getDeliveryDistanceKm());
     }
 }

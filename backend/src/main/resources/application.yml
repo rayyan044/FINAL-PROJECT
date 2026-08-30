@@ -47,6 +47,24 @@ application:
   bootstrap:
     admin-password: ${BOOTSTRAP_ADMIN_PASSWORD}
 
+payments:
+  pawapay:
+    api-token: ${PAWAPAY_API_TOKEN:}
+    base-url: ${PAWAPAY_BASE_URL:}
+    environment: ${PAWAPAY_ENVIRONMENT:}
+
+routing:
+  # Public OSRM endpoints are appropriate for light local testing only. Self-host or use a managed provider in production.
+  base-url: ${ROUTING_BASE_URL:https://router.project-osrm.org}
+  fallback-base-urls: ${ROUTING_FALLBACK_BASE_URLS:https://routing.openstreetmap.de/routed-car}
+  allow-estimated-fallback: ${ROUTING_ALLOW_ESTIMATED_FALLBACK:true}
+  timeout-seconds: ${ROUTING_TIMEOUT_SECONDS:12}
+
+geocoding:
+  open-meteo-base-url: ${GEOCODING_OPEN_METEO_BASE_URL:https://geocoding-api.open-meteo.com}
+  nominatim-base-url: ${GEOCODING_NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
+  timeout-seconds: ${GEOCODING_TIMEOUT_SECONDS:5}
+
 logging:
   level:
     root: INFO

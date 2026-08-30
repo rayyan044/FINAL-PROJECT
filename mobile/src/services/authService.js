@@ -25,8 +25,8 @@ function normalizeUser(data, username) {
 }
 
 export function getAuthErrorMessage(error) {
-  if (error.code === "ECONNABORTED") {
-    return "The request timed out. Please try again.";
+  if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+    return "The server took too long to respond. Check your connection and try again.";
   }
 
   if (!error.response) {

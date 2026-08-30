@@ -7,6 +7,8 @@ import com.falconenergy.mapper.CompanySettingsMapper;
 import com.falconenergy.repository.CompanySettingsRepository;
 import com.falconenergy.service.AuditLogService;
 import com.falconenergy.service.CompanySettingsService;
+import com.falconenergy.exception.BadRequestException;
+import java.math.BigDecimal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -66,6 +68,7 @@ public class CompanySettingsServiceImpl implements CompanySettingsService {
     @Override
     public CompanySettingsResponse updateCompanySettings(CompanySettingsRequest request) {
         log.info("Updating company settings");
+        validateDepotLocation(request);
         CompanySettings settings = getOrCreateDefault();
         companySettingsMapper.updateEntityFromRequest(request, settings);
         CompanySettings saved = companySettingsRepository.save(settings);
@@ -80,4 +83,23 @@ public class CompanySettingsServiceImpl implements CompanySettingsService {
 
         return companySettingsMapper.toResponse(saved);
     }
+
+    /** A partial depot is unsafe: new mapped orders must always have a real origin. */
+    void validateDepotLocation(CompanySettingsRequest request) {
+        boolean hasDepotValue = hasText(request.getDepotName()) || hasText(request.getDepotAddress())
+                || request.getDepotLatitude() != null || request.getDepotLongitude() != null;
+        if (!hasDepotValue) return; // Company details may still be saved before a depot has been configured.
+        if (!hasText(request.getDepotName()) || !hasText(request.getDepotAddress())
+                || request.getDepotLatitude() == null || request.getDepotLongitude() == null) {
+            throw new BadRequestException("Depot name, selected address, latitude, and longitude are required.");
+        }
+        if (request.getDepotLatitude().compareTo(new BigDecimal("-90")) < 0 || request.getDepotLatitude().compareTo(new BigDecimal("90")) > 0) {
+            throw new BadRequestException("Depot latitude must be between -90 and 90.");
+        }
+        if (request.getDepotLongitude().compareTo(new BigDecimal("-180")) < 0 || request.getDepotLongitude().compareTo(new BigDecimal("180")) > 0) {
+            throw new BadRequestException("Depot longitude must be between -180 and 180.");
+        }
+    }
+
+    private boolean hasText(String value) { return value != null && !value.isBlank(); }
 }

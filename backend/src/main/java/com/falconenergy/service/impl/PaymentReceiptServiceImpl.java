@@ -4,6 +4,7 @@ import com.falconenergy.dto.PaymentReceiptResponse; import com.falconenergy.enti
 public class PaymentReceiptServiceImpl implements PaymentReceiptService {
  private final PaymentReceiptRepository repository;
  private final InvoiceRepository invoiceRepository; private final LoadingOrderRepository loadingOrderRepository; private final LoadingReportRepository loadingReportRepository; private final DeliveryNoteRepository deliveryNoteRepository; private final CompanySettingsRepository companySettingsRepository;
+ private final PaymentRepository paymentRepository;
  public PaymentReceiptResponse generateForPaidInvoice(Invoice invoice) { Invoice detailed = invoiceRepository.findDetailedById(invoice.getId()).orElseThrow(() -> new ResourceNotFoundException("Customer invoice not found with id: " + invoice.getId())); if (!"PAID".equalsIgnoreCase(detailed.getPaymentStatus())) throw new IllegalArgumentException("A payment receipt can only be issued for a paid customer invoice."); return repository.findByInvoiceId(detailed.getId()).map(this::map).orElseGet(() -> map(repository.save(PaymentReceipt.builder().receiptNumber(nextNumber()).invoice(detailed).receiptStatus("PAID").receivedAmount(detailed.getGrandTotal()).receivedAt(detailed.getFinanceApprovedAt() != null ? detailed.getFinanceApprovedAt() : LocalDateTime.now()).confirmedBy(detailed.getFinanceApprovedBy()).build()))); }
  @Transactional(readOnly=true) public PaymentReceiptResponse getByInvoiceId(Long id) { return map(repository.findByInvoiceId(id).orElseThrow(() -> new ResourceNotFoundException("Payment Receipt not found for customer invoice id: " + id))); }
  @Transactional(readOnly=true) public boolean existsForInvoiceId(Long id) { return repository.existsByInvoiceId(id); }
@@ -18,6 +19,8 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         LoadingReport report = activity == null ? null : loadingReportRepository.findByLoadingActivityId(activity.getId()).orElse(null);
         DeliveryNote note = activity == null ? null : deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElse(null);
         String paymentMethod = i.getPaymentMethod() != null && !i.getPaymentMethod().isBlank() ? i.getPaymentMethod() : order.getPaymentMethod();
+        Payment gatewayPayment = paymentRepository.findByInvoiceIdOrderByCreatedAtDesc(i.getId()).stream()
+                .filter(payment -> payment.getStatus() == PaymentStatus.COMPLETED).findFirst().orElse(null);
 
         boolean isEmergency = customer != null && (
                 "EMERGENCY".equalsIgnoreCase(customer.getCustomerCode()) ||
@@ -56,10 +59,12 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
                 .productName(order.getProduct().getProductName())
                 .fuelQuantity(order.getQuantity())
                 .currency(order.getCurrency())
-                .paymentMethod(paymentMethod != null ? paymentMethod : "Payment method not captured")
-                .paymentReference("Not captured during Finance payment confirmation")
-                .bankName(i.getBankName() != null ? i.getBankName() : "Not applicable / not captured")
-                .fuelSupplyAmount(i.getSubtotal())
+                .paymentMethod(gatewayPayment != null ? gatewayPayment.getPaymentMethod() : (paymentMethod != null ? paymentMethod : "Payment method not captured"))
+                .paymentReference(gatewayPayment != null ? gatewayPayment.getPaymentReference() : "Not captured")
+                .bankName(i.getBankName() != null ? i.getBankName() : "Not applicable for local simulation")
+                // The invoice subtotal includes fuel and the single transport charge. Keep the
+                // receipt breakdown truthful by showing fuel supply independently.
+                .fuelSupplyAmount(order.getAmount() == null ? BigDecimal.ZERO : order.getAmount())
                 .transportChargeAmount(i.getTransportCharges() == null ? BigDecimal.ZERO : i.getTransportCharges())
                 .receivedAmount(r.getReceivedAmount())
                 .receivedAt(r.getReceivedAt())

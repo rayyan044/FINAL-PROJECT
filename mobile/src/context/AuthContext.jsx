@@ -4,6 +4,16 @@ import { setAuthToken, setUnauthorizedHandler } from "../api/api";
 import * as authService from "../services/authService";
 
 const AuthContext = createContext(undefined);
+const STORAGE_TIMEOUT_MS = 8_000;
+
+function withTimeout(promise, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), STORAGE_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
 
 function isExpiredJwt(token) {
   try {
@@ -35,7 +45,12 @@ export function AuthProvider({ children }) {
 
   const clearSession = useCallback(async () => {
     try {
-      await authService.logout();
+      // A damaged or stalled device storage operation must not prevent the
+      // app from returning to the login screen.
+      await withTimeout(authService.logout(), "Session storage did not respond.");
+    } catch {
+      // The in-memory session still has to be cleared even when device storage
+      // is unavailable. A later app start will retry removing the stale values.
     } finally {
       setAuthToken(null);
       setToken(null);
@@ -47,7 +62,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
 
     try {
-      const session = await authService.loadSession();
+      const session = await withTimeout(authService.loadSession(), "Session storage did not respond.");
 
       if (!session) {
         setAuthToken(null);
@@ -60,7 +75,10 @@ export function AuthProvider({ children }) {
       if (isExpiredJwt(session.token)) {
         if (!session.refreshToken) throw new Error("Session expired");
         activeSession = await authService.refreshSession(session.refreshToken);
-        await authService.saveSession(activeSession.token, activeSession.user, activeSession.refreshToken);
+        await withTimeout(
+          authService.saveSession(activeSession.token, activeSession.user, activeSession.refreshToken),
+          "Session storage did not respond."
+        );
       }
 
       setAuthToken(activeSession.token);

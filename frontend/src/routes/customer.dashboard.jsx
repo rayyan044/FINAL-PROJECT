@@ -1,46 +1,796 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useState } from "react";
-import { FiHome, FiClipboard, FiPlusCircle, FiFileText, FiTruck, FiUser, FiDownload, FiAlertCircle } from "react-icons/fi";
+import {
+  FiHome,
+  FiClipboard,
+  FiPlusCircle,
+  FiFileText,
+  FiTruck,
+  FiUser,
+  FiDownload,
+  FiAlertCircle,
+} from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
 import { useAuth } from "../context/AuthContext";
-import { getCustomerDashboard, listCustomerOrders, createCustomerOrder, getCustomerTimeline, getCustomerDocuments, listCustomerInvoices, listCustomerDeliveries, getCustomerProfile, updateCustomerProfile, downloadCustomerDocument } from "../services/customerPortalService";
+import {
+  getCustomerDashboard,
+  listCustomerOrders,
+  createCustomerOrder,
+  previewTransportRoute,
+  getCustomerTimeline,
+  getCustomerDocuments,
+  listCustomerInvoices,
+  listCustomerDeliveries,
+  getCustomerProfile,
+  updateCustomerProfile,
+  downloadCustomerDocument,
+  initiateInvoicePayment,
+  listInvoicePayments,
+} from "../services/customerPortalService";
+import { OpenStreetMapLocationPicker } from "../components/OpenStreetMapLocationPicker";
 import { listProducts } from "../services/productService";
 import "../styles/forms.css";
 
 export const Route = createFileRoute("/customer/dashboard")({ component: CustomerDashboard });
-const SIDE=[{key:"dashboard",label:"Dashboard",icon:FiHome},{key:"orders",label:"Orders",icon:FiClipboard},{key:"new",label:"Place Order",icon:FiPlusCircle},{key:"invoices",label:"Invoices",icon:FiFileText},{key:"deliveries",label:"Deliveries",icon:FiTruck},{key:"profile",label:"Profile",icon:FiUser}];
-const money=(v)=>Number(v||0).toLocaleString();
-function CustomerDashboard(){return <RouteGuard allowedRoles={["CUSTOMER"]}><CustomerWorkspace/></RouteGuard>}
-function CustomerWorkspace(){
- const { user }=useAuth();
- const [tab,setTab]=useState("dashboard"),[data,setData]=useState(null),[orders,setOrders]=useState([]),[invoices,setInvoices]=useState([]),[deliveries,setDeliveries]=useState([]),[products,setProducts]=useState([]),[profile,setProfile]=useState(null),[selected,setSelected]=useState(null),[timeline,setTimeline]=useState(null),[deliveryDocuments,setDeliveryDocuments]=useState({}),[expandedDeliveryId,setExpandedDeliveryId]=useState(null),[loadingDeliveryDocuments,setLoadingDeliveryDocuments]=useState(null),[error,setError]=useState(""),[success,setSuccess]=useState("");
- const refresh=async()=>{try{const [d,o,i,dl,p,pr]=await Promise.all([getCustomerDashboard(),listCustomerOrders(),listCustomerInvoices(),listCustomerDeliveries(),listProducts({size:100}),getCustomerProfile()]);setData(d);setOrders(o||[]);setInvoices(i||[]);setDeliveries(dl||[]);setProducts((p.content||[]).map(x=>({...x,availableQuantity:undefined})));setProfile(pr)}catch(e){setError(e.message||"Unable to load your portal.")}};
- useEffect(()=>{refresh()},[]);
- const detail=async(o)=>{setSelected(o);try{const t=await getCustomerTimeline(o.id);setTimeline(t)}catch(e){setError(e.message)}};
- const toggleDeliveryDocuments=async(delivery)=>{
-  if(expandedDeliveryId===delivery.id){setExpandedDeliveryId(null);return}
-  setExpandedDeliveryId(delivery.id);
-  if(deliveryDocuments[delivery.id]!==undefined||!delivery.orderId)return;
-  try{setLoadingDeliveryDocuments(delivery.id);const documents=await getCustomerDocuments(delivery.orderId);setDeliveryDocuments(current=>({...current,[delivery.id]:documents||[]}))}catch(e){setError(e.message||"Unable to load delivery documents.");setDeliveryDocuments(current=>({...current,[delivery.id]:[]}))}finally{setLoadingDeliveryDocuments(null)}
- };
- const download=async(path,name)=>{try{const blob=await downloadCustomerDocument(path);const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url)}catch(e){setError(e.message||"Document download failed.")}};
- const submit=async(e)=>{e.preventDefault();const fd=new FormData(e.currentTarget);try{await createCustomerOrder({productId:Number(fd.get("productId")),quantity:Number(fd.get("quantity")),deliveryAddress:fd.get("deliveryAddress"),destination:fd.get("destination"),paymentMethod:fd.get("paymentMethod"),notes:fd.get("notes")});setSuccess("Your order was submitted for Sales review.");e.currentTarget.reset();setTab("orders");refresh()}catch(e){setError(e.message||"Order could not be submitted.")}};
- const saveProfile=async(e)=>{e.preventDefault();try{const result=await updateCustomerProfile(profile);setProfile(result);setSuccess("Profile updated.")}catch(e){setError(e.message)}};
- const rows=(items,cols,render)=><div className="fef-panel"><div className="fef-table-wrap"><table className="fef-table"><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{items.map(render)}{!items.length&&<tr><td colSpan={cols.length} style={{textAlign:"center",padding:28}}>Nothing available yet.</td></tr>}</tbody></table></div></div>;
- const customerName=user?.username||[user?.firstName,user?.lastName].filter(Boolean).join(" ")||profile?.contactPerson||"Customer";
- return <DashboardLayout role="CUSTOMER" pageTitle={SIDE.find(x=>x.key===tab)?.label||"Customer Portal"} sideItems={SIDE} activeKey={tab} onSelect={setTab}>
-  <PageHeader title={tab==="dashboard"?`Welcome, ${customerName}`:SIDE.find(x=>x.key===tab)?.label} crumbs={["Customer Portal"]}/>
-  {error&&<div className="fef-alert fef-alert-danger"><FiAlertCircle/> {error}</div>}{success&&<div className="fef-alert fef-alert-success">{success}</div>}
-  {tab==="dashboard"&&<><div className="fef-panel" style={{padding:20,marginBottom:20}}><div style={{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{profile?.companyName||"Your company"}</h3><p style={{margin:"6px 0 0"}}>{profile?.customerCode} · {profile?.contactPerson||"Contact details pending"}</p><p style={{margin:"4px 0 0"}}>{profile?.email} {profile?.phone&&` · ${profile.phone}`}</p></div><button className="fef-btn fef-btn-primary" onClick={()=>setTab("new")}><FiPlusCircle/> Apply / Order Fuel</button></div></div><div className="fef-stat-grid"><StatCard label="Total Orders" value={data?.totalOrders??"…"} icon={FiClipboard} tone="primary"/><StatCard label="Active Orders" value={data?.activeOrders??"…"} icon={FiTruck} tone="warning"/><StatCard label="Awaiting Payment" value={data?.awaitingPayment??"…"} icon={FiFileText} tone="warning"/><StatCard label="In Transit" value={data?.inTransit??"…"} icon={FiTruck} tone="primary"/><StatCard label="Delivered" value={data?.delivered??"…"} icon={FiHome} tone="success"/></div><h3 style={{marginTop:28}}>Recent Orders</h3>{rows(data?.recentOrders||[],["Order","Fuel","Quantity","Amount","Status",""],o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.productName}</td><td>{money(o.quantity)} L</td><td>{money(o.totalAmount)}</td><td><span className="fef-badge fef-badge-info">{o.customerStatus}</span></td><td><button className="fef-btn fef-btn-outline" onClick={()=>{detail(o);setTab("detail")}}>View</button></td></tr>)}</>}
-  {tab==="orders"&&<>{rows(orders,["Order","Fuel","Quantity","Total","Status",""],o=><tr key={o.id}><td>{o.orderNumber}</td><td>{o.productName}</td><td>{money(o.quantity)} L</td><td>{money(o.totalAmount)}</td><td>{o.customerStatus}</td><td><button className="fef-btn fef-btn-outline" onClick={()=>{detail(o);setTab("detail")}}>Details</button></td></tr>)}</>}
-  {tab==="new"&&<form className="fef-panel" onSubmit={submit} style={{maxWidth:720,padding:24}}><div className="fef-form-grid"><label className="fef-label">Fuel product<select className="fef-input" name="productId" defaultValue="" required><option value="" disabled>Select product</option>{products.filter(p=>p.status!=="DELETED").map(p=><option key={p.id} value={p.id}>{p.productName} ({p.fuelType})</option>)}</select></label><label className="fef-label">Quantity (litres)<input className="fef-input" name="quantity" type="number" min="0.01" step="0.01" required/></label><label className="fef-label">Destination<input className="fef-input" name="destination" required/></label><label className="fef-label">Delivery address<input className="fef-input" name="deliveryAddress" required/></label><label className="fef-label">Payment method<select className="fef-input" name="paymentMethod"><option>Bank Transfer</option><option>Mobile Money</option><option>Cash on Delivery</option></select></label><label className="fef-label">Notes<textarea className="fef-input" name="notes"/></label></div><button className="fef-btn fef-btn-primary" style={{marginTop:20}}>Submit for Sales Review</button></form>}
-  {tab==="invoices"&&rows(invoices,["Invoice","Order","Date","Amount","Payment",""],i=><tr key={i.id}><td>{i.invoiceNumber}</td><td>{i.orderNumber}</td><td>{i.invoiceDate?.slice(0,10)}</td><td>{money(i.grandTotal)}</td><td>{i.paymentStatus}</td><td><button className="fef-btn fef-btn-outline" onClick={()=>download(`/customer-portal/invoices/${i.id}/pdf`,`${i.invoiceNumber}.pdf`)}><FiDownload/> PDF</button></td></tr>)}
-  {tab==="deliveries"&&<div className="fef-panel"><div className="fef-table-wrap"><table className="fef-table"><thead><tr><th>Delivery</th><th>Order</th><th>Truck</th><th>Destination</th><th>Status</th><th>Date</th><th>Documents</th></tr></thead><tbody>{deliveries.map(d=><Fragment key={d.id}>
-    <tr key={d.id}><td>{d.deliveryNumber}</td><td>{d.orderNumber}</td><td>{d.truckNumber||"Assigned"}</td><td>{d.destination}</td><td>{d.deliveryStatus}</td><td>{d.dispatchedAt?.slice(0,10)||"—"}</td><td><button className="fef-btn fef-btn-outline" onClick={()=>toggleDeliveryDocuments(d)} disabled={!d.orderId}>{expandedDeliveryId===d.id?"Hide documents":"View documents"}</button></td></tr>
-    {expandedDeliveryId===d.id&&<tr key={`${d.id}-documents`}><td colSpan="7" style={{padding:20,background:"#f8fafc"}}><strong>Delivery documents</strong>{loadingDeliveryDocuments===d.id?<p style={{margin:"8px 0 0"}}>Loading documents…</p>:<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>{(deliveryDocuments[d.id]||[]).map(doc=><button key={`${doc.type}-${doc.id}`} className="fef-btn fef-btn-outline" onClick={()=>download(doc.endpoint,`${doc.number}.pdf`)}><FiDownload/> {doc.type}: {doc.number}</button>)}{!(deliveryDocuments[d.id]||[]).length&&<span>No documents are available for this delivery yet.</span>}</div>}</td></tr>}
-  </Fragment>)}{!deliveries.length&&<tr><td colSpan="7" style={{textAlign:"center",padding:28}}>Nothing available yet.</td></tr>}</tbody></table></div></div>}
-  {tab==="profile"&&profile&&<form className="fef-panel" onSubmit={saveProfile} style={{maxWidth:720,padding:24}}><p><strong>{profile.companyName}</strong> · {profile.customerCode}</p><div className="fef-form-grid"><label className="fef-label">Contact person<input className="fef-input" value={profile.contactPerson||""} onChange={e=>setProfile({...profile,contactPerson:e.target.value})}/></label><label className="fef-label">Email<input className="fef-input" type="email" value={profile.email||""} onChange={e=>setProfile({...profile,email:e.target.value})}/></label><label className="fef-label">Phone<input className="fef-input" value={profile.phone||""} onChange={e=>setProfile({...profile,phone:e.target.value})}/></label><label className="fef-label">Address<textarea className="fef-input" value={profile.address||""} onChange={e=>setProfile({...profile,address:e.target.value})}/></label></div><button className="fef-btn fef-btn-primary" style={{marginTop:20}}>Save profile</button></form>}
-  {tab==="detail"&&selected&&<div className="fef-panel" style={{padding:24}}><button className="fef-btn fef-btn-outline" onClick={()=>setTab("orders")}>Back to Orders</button><h2>{selected.orderNumber}</h2><p>{selected.productName} · {money(selected.quantity)} L · {selected.customerStatus}</p><h3>Order progress</h3>{timeline?.steps?.map(s=><div key={s.key} style={{padding:"8px 0",color:s.current?"var(--feftms-primary)":s.complete?"var(--feftms-success)":"var(--feftms-text-muted)",fontWeight:s.current?700:400}}>{s.complete?"✓":s.current?"●":"○"} {s.label}</div>)}</div>}
- </DashboardLayout>
+const SIDE = [
+  { key: "dashboard", label: "Dashboard", icon: FiHome },
+  { key: "orders", label: "Orders", icon: FiClipboard },
+  { key: "new", label: "Place Order", icon: FiPlusCircle },
+  { key: "invoices", label: "Invoices", icon: FiFileText },
+  { key: "deliveries", label: "Deliveries", icon: FiTruck },
+  { key: "profile", label: "Profile", icon: FiUser },
+];
+const money = (v) => Number(v || 0).toLocaleString();
+function CustomerDashboard() {
+  return (
+    <RouteGuard allowedRoles={["CUSTOMER"]}>
+      <CustomerWorkspace />
+    </RouteGuard>
+  );
+}
+function CustomerWorkspace() {
+  const { user } = useAuth();
+  const [tab, setTab] = useState("dashboard"),
+    [data, setData] = useState(null),
+    [orders, setOrders] = useState([]),
+    [invoices, setInvoices] = useState([]),
+    [deliveries, setDeliveries] = useState([]),
+    [products, setProducts] = useState([]),
+    [profile, setProfile] = useState(null),
+    [selected, setSelected] = useState(null),
+    [timeline, setTimeline] = useState(null),
+    [deliveryDocuments, setDeliveryDocuments] = useState({}),
+    [expandedDeliveryId, setExpandedDeliveryId] = useState(null),
+    [loadingDeliveryDocuments, setLoadingDeliveryDocuments] = useState(null),
+    [error, setError] = useState(""),
+    [success, setSuccess] = useState(""),
+    [selectedInvoice, setSelectedInvoice] = useState(null),
+    [paymentState, setPaymentState] = useState(""),
+    [paymentHistory, setPaymentHistory] = useState([]),
+    [paying, setPaying] = useState(false),
+    [paymentMethod, setPaymentMethod] = useState("AIRTEL_MONEY"),
+    [paymentPhone, setPaymentPhone] = useState(import.meta.env.DEV ? "683456789" : ""),
+    [location, setLocation] = useState(null),
+    [routePreview, setRoutePreview] = useState(null),
+    [routeLoading, setRouteLoading] = useState(false);
+  const refresh = async () => {
+    try {
+      const [d, o, i, dl, p, pr] = await Promise.all([
+        getCustomerDashboard(),
+        listCustomerOrders(),
+        listCustomerInvoices(),
+        listCustomerDeliveries(),
+        listProducts({ size: 100 }),
+        getCustomerProfile(),
+      ]);
+      setData(d);
+      setOrders(o || []);
+      setInvoices(i || []);
+      setSelectedInvoice((current) =>
+        current ? (i || []).find((invoice) => invoice.id === current.id) || current : current,
+      );
+      setDeliveries(dl || []);
+      setProducts((p.content || []).map((x) => ({ ...x, availableQuantity: undefined })));
+      setProfile(pr);
+    } catch (e) {
+      setError(e.message || "Unable to load your portal.");
+    }
+  };
+  useEffect(() => {
+    refresh();
+  }, []);
+  useEffect(() => {
+    if (tab !== "invoices") return undefined;
+    const refreshInterval = window.setInterval(refresh, 15000);
+    return () => window.clearInterval(refreshInterval);
+  }, [tab]);
+  const detail = async (o) => {
+    setSelected(o);
+    try {
+      const t = await getCustomerTimeline(o.id);
+      setTimeline(t);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const toggleDeliveryDocuments = async (delivery) => {
+    if (expandedDeliveryId === delivery.id) {
+      setExpandedDeliveryId(null);
+      return;
+    }
+    setExpandedDeliveryId(delivery.id);
+    if (deliveryDocuments[delivery.id] !== undefined || !delivery.orderId) return;
+    try {
+      setLoadingDeliveryDocuments(delivery.id);
+      const documents = await getCustomerDocuments(delivery.orderId);
+      setDeliveryDocuments((current) => ({ ...current, [delivery.id]: documents || [] }));
+    } catch (e) {
+      setError(e.message || "Unable to load delivery documents.");
+      setDeliveryDocuments((current) => ({ ...current, [delivery.id]: [] }));
+    } finally {
+      setLoadingDeliveryDocuments(null);
+    }
+  };
+  const download = async (path, name) => {
+    try {
+      const blob = await downloadCustomerDocument(path);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message || "Document download failed.");
+    }
+  };
+  const selectLocation = async (next) => {
+    setLocation(next);
+    setRoutePreview(null);
+    setError("");
+    setRouteLoading(true);
+    try {
+      setRoutePreview(
+        await previewTransportRoute({ latitude: next.latitude, longitude: next.longitude }),
+      );
+    } catch (e) {
+      setError(
+        e.message ||
+          "Unable to calculate transport cost for this destination. Please select another location or try again.",
+      );
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+  const submit = async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    if (!location || !routePreview) {
+      setError("Select a delivery location with a calculated driving route before submitting.");
+      return;
+    }
+    try {
+      await createCustomerOrder({
+        productId: Number(fd.get("productId")),
+        quantity: Number(fd.get("quantity")),
+        deliveryAddress: location.address,
+        destination: location.address,
+        deliveryLatitude: location.latitude,
+        deliveryLongitude: location.longitude,
+        notes: fd.get("notes"),
+      });
+      setSuccess("Your order was submitted for Sales review.");
+      form.reset();
+      setLocation(null);
+      setRoutePreview(null);
+      setTab("orders");
+      refresh();
+    } catch (e) {
+      setError(e.message || "Order could not be submitted.");
+    }
+  };
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    try {
+      const result = await updateCustomerProfile(profile);
+      setProfile(result);
+      setSuccess("Profile updated.");
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const viewInvoice = async (invoice) => {
+    setSelectedInvoice(invoice);
+    setPaymentState("");
+    try {
+      setPaymentHistory((await listInvoicePayments(invoice.id)) || []);
+    } catch (e) {
+      setError(e.message || "Unable to load payment history.");
+    }
+  };
+  const payInvoice = async () => {
+    if (!selectedInvoice) return;
+    const localNumber = paymentPhone.replace(/\D/g, "");
+    if (!/^[67]\d{8}$/.test(localNumber)) {
+      setError("Enter a 9-digit Tanzanian mobile number starting with 6 or 7.");
+      return;
+    }
+    setPaying(true);
+    setError("");
+    try {
+      const payment = await initiateInvoicePayment(selectedInvoice.id, {
+        paymentMethod,
+        phoneNumber: `255${localNumber}`,
+      });
+      setPaymentState(payment.status);
+      setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []);
+      if (payment.status === "COMPLETED") {
+        setSelectedInvoice((invoice) =>
+          invoice ? { ...invoice, paymentStatus: payment.invoicePaymentStatus || "PAID" } : invoice,
+        );
+        setSuccess("Payment successful. Your invoice has been marked as paid.");
+      } else if (payment.status === "PROCESSING") {
+        setSuccess("Payment request sent. Approve it on your phone; this invoice will update automatically.");
+      } else {
+        setError(payment.failureReason || "Payment request could not be accepted.");
+      }
+      await refresh();
+    } catch (e) {
+      setPaymentState("FAILED");
+      setError(e.message || "Payment request could not be submitted.");
+    } finally {
+      setPaying(false);
+    }
+  };
+  const rows = (items, cols, render) => (
+    <div className="fef-panel">
+      <div className="fef-table-wrap">
+        <table className="fef-table">
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <th key={c}>{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(render)}
+            {!items.length && (
+              <tr>
+                <td colSpan={cols.length} style={{ textAlign: "center", padding: 28 }}>
+                  Nothing available yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+  const customerName =
+    user?.username ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+    profile?.contactPerson ||
+    "Customer";
+  return (
+    <DashboardLayout
+      role="CUSTOMER"
+      pageTitle={SIDE.find((x) => x.key === tab)?.label || "Customer Portal"}
+      sideItems={SIDE}
+      activeKey={tab}
+      onSelect={setTab}
+    >
+      <PageHeader
+        title={
+          tab === "dashboard" ? `Welcome, ${customerName}` : SIDE.find((x) => x.key === tab)?.label
+        }
+        crumbs={["Customer Portal"]}
+      />
+      {error && (
+        <div className="fef-alert fef-alert-danger">
+          <FiAlertCircle /> {error}
+        </div>
+      )}
+      {success && <div className="fef-alert fef-alert-success">{success}</div>}
+      {tab === "dashboard" && (
+        <>
+          <div className="fef-panel" style={{ padding: 20, marginBottom: 20 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 16,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0 }}>{profile?.companyName || "Your company"}</h3>
+                <p style={{ margin: "6px 0 0" }}>
+                  {profile?.customerCode} · {profile?.contactPerson || "Contact details pending"}
+                </p>
+                <p style={{ margin: "4px 0 0" }}>
+                  {profile?.email} {profile?.phone && ` · ${profile.phone}`}
+                </p>
+              </div>
+              <button className="fef-btn fef-btn-primary" onClick={() => setTab("new")}>
+                <FiPlusCircle /> Apply / Order Fuel
+              </button>
+            </div>
+          </div>
+          <div className="fef-stat-grid">
+            <StatCard
+              label="Total Orders"
+              value={data?.totalOrders ?? "…"}
+              icon={FiClipboard}
+              tone="primary"
+            />
+            <StatCard
+              label="Active Orders"
+              value={data?.activeOrders ?? "…"}
+              icon={FiTruck}
+              tone="warning"
+            />
+            <StatCard
+              label="Awaiting Payment"
+              value={data?.awaitingPayment ?? "…"}
+              icon={FiFileText}
+              tone="warning"
+            />
+            <StatCard
+              label="In Transit"
+              value={data?.inTransit ?? "…"}
+              icon={FiTruck}
+              tone="primary"
+            />
+            <StatCard
+              label="Delivered"
+              value={data?.delivered ?? "…"}
+              icon={FiHome}
+              tone="success"
+            />
+          </div>
+          <h3 style={{ marginTop: 28 }}>Recent Orders</h3>
+          {rows(
+            data?.recentOrders || [],
+            ["Order", "Fuel", "Quantity", "Amount", "Status", ""],
+            (o) => (
+              <tr key={o.id}>
+                <td>{o.orderNumber}</td>
+                <td>{o.productName}</td>
+                <td>{money(o.quantity)} L</td>
+                <td>{money(o.totalAmount)}</td>
+                <td>
+                  <span className="fef-badge fef-badge-info">{o.customerStatus}</span>
+                </td>
+                <td>
+                  <button
+                    className="fef-btn fef-btn-outline"
+                    onClick={() => {
+                      detail(o);
+                      setTab("detail");
+                    }}
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            ),
+          )}
+        </>
+      )}
+      {tab === "orders" && (
+        <>
+          {rows(orders, ["Order", "Fuel", "Quantity", "Total", "Status", ""], (o) => (
+            <tr key={o.id}>
+              <td>{o.orderNumber}</td>
+              <td>{o.productName}</td>
+              <td>{money(o.quantity)} L</td>
+              <td>{money(o.totalAmount)}</td>
+              <td>{o.customerStatus}</td>
+              <td>
+                <button
+                  className="fef-btn fef-btn-outline"
+                  onClick={() => {
+                    detail(o);
+                    setTab("detail");
+                  }}
+                >
+                  Details
+                </button>
+              </td>
+            </tr>
+          ))}
+        </>
+      )}
+      {tab === "new" && (
+        <form className="fef-panel" onSubmit={submit} style={{ maxWidth: 820, padding: 24 }}>
+          <div className="fef-form-grid">
+            <label className="fef-label">
+              Fuel product
+              <select className="fef-input" name="productId" defaultValue="" required>
+                <option value="" disabled>
+                  Select product
+                </option>
+                {products
+                  .filter((p) => p.status !== "DELETED")
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.productName} ({p.fuelType})
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="fef-label">
+              Quantity (litres)
+              <input
+                className="fef-input"
+                name="quantity"
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+              />
+            </label>
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <OpenStreetMapLocationPicker
+              value={location}
+              onChange={selectLocation}
+              routePreview={routePreview}
+            />
+          </div>
+          {routeLoading && <p style={{ marginTop: 16 }}>Calculating road distance…</p>}
+          {routePreview && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: 16,
+                background:
+                  routePreview.routeType === "ESTIMATED_STRAIGHT_LINE" ? "#fffbeb" : "#f0fdf4",
+                borderRadius: 8,
+              }}
+            >
+              <strong>
+                {routePreview.routeType === "ESTIMATED_STRAIGHT_LINE"
+                  ? "Estimated Distance"
+                  : "Road Distance"}
+              </strong>
+              <br />
+              {Number(routePreview.distanceKm).toFixed(1)} km ·{" "}
+              {Math.ceil(Number(routePreview.durationSeconds) / 60)} min
+              <br />
+              {routePreview.routeType === "ESTIMATED_STRAIGHT_LINE" && (
+                <small>
+                  Live routing is temporarily unavailable; this estimate will be reviewed before
+                  dispatch.
+                </small>
+              )}
+              <br />
+              <strong>Transport Charge</strong>
+              <br />
+              TZS {money(routePreview.transportPrice)}
+            </div>
+          )}
+          <label className="fef-label" style={{ display: "block", marginTop: 16 }}>
+            Notes
+            <textarea className="fef-input" name="notes" />
+          </label>
+          <button
+            className="fef-btn fef-btn-primary"
+            style={{ marginTop: 20 }}
+            disabled={routeLoading || !routePreview}
+          >
+            Submit for Sales Review
+          </button>
+        </form>
+      )}
+      {tab === "invoices" && (
+        <>
+          <>
+            {rows(invoices, ["Invoice", "Order", "Date", "Amount", "Payment", ""], (i) => (
+              <tr key={i.id}>
+                <td>{i.invoiceNumber}</td>
+                <td>{i.orderNumber}</td>
+                <td>{i.invoiceDate?.slice(0, 10)}</td>
+                <td>{money(i.grandTotal)}</td>
+                <td>{i.paymentStatus}</td>
+                <td style={{ display: "flex", gap: 8 }}>
+                  <button className="fef-btn fef-btn-outline" onClick={() => viewInvoice(i)}>
+                    {i.paymentStatus === "PAID" ? "Details" : "Pay Invoice"}
+                  </button>
+                  <button
+                    className="fef-btn fef-btn-outline"
+                    onClick={() =>
+                      download(`/customer-portal/invoices/${i.id}/pdf`, `${i.invoiceNumber}.pdf`)
+                    }
+                  >
+                    <FiDownload /> PDF
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </>
+          {selectedInvoice && (
+            <div className="fef-panel" style={{ padding: 24, marginTop: 20, maxWidth: 760 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <h3 style={{ marginTop: 0 }}>Invoice {selectedInvoice.invoiceNumber}</h3>
+                <button
+                  className="fef-btn fef-btn-outline"
+                  onClick={() => setSelectedInvoice(null)}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="fef-form-grid">
+                <p>
+                  <strong>Fuel Product</strong>
+                  <br />
+                  {selectedInvoice.productName}
+                </p>
+                <p>
+                  <strong>Quantity</strong>
+                  <br />
+                  {money(selectedInvoice.quantity)} L
+                </p>
+                <p>
+                  <strong>Total Amount</strong>
+                  <br />
+                  {money(selectedInvoice.grandTotal)}
+                </p>
+                <p>
+                  <strong>Payment Status</strong>
+                  <br />
+                  {selectedInvoice.paymentStatus}
+                </p>
+              </div>
+              {selectedInvoice.paymentStatus !== "PAID" ? (
+                <div style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 8 }}>
+                  <h4 style={{ marginTop: 0 }}>Pay by mobile money</h4>
+                  <p>
+                    Invoice: <strong>{selectedInvoice.invoiceNumber}</strong>
+                    <br />
+                    Amount: <strong>TZS {money(selectedInvoice.grandTotal)}</strong>
+                  </p>
+                  <div className="fef-form-grid">
+                    <label className="fef-label">
+                      Provider
+                      <select
+                        className="fef-input"
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      >
+                        <option value="AIRTEL_MONEY">Airtel Money</option>
+                        <option value="MIXX_BY_YAS">Mixx by Yas</option>
+                        <option value="HALOPESA">HaloPesa</option>
+                      </select>
+                    </label>
+                    <label className="fef-label">
+                      Mobile number
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <span
+                          aria-label="Tanzania country code"
+                          style={{
+                            display: "grid",
+                            placeItems: "center",
+                            minWidth: 104,
+                            border: "1px solid #dbe3ef",
+                            borderRadius: 8,
+                            background: "#f8fafc",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          🇹🇿 +255
+                        </span>
+                        <input
+                          className="fef-input"
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength="10"
+                          placeholder="712 345 678"
+                          value={paymentPhone}
+                          onChange={(e) => setPaymentPhone(e.target.value.replace(/[^0-9]/g, ""))}
+                          required
+                        />
+                      </div>
+                    </label>
+                  </div>
+                  <button
+                    className="fef-btn fef-btn-primary"
+                    style={{ marginTop: 16 }}
+                    onClick={payInvoice}
+                    disabled={paying}
+                  >
+                    {paying ? "Submitting payment…" : "Pay now"}
+                  </button>
+                </div>
+              ) : (
+                <p style={{ marginTop: 16, color: "var(--feftms-success)", fontWeight: 700 }}>
+                  PAID
+                </p>
+              )}
+              {paymentState && (
+                <p style={{ marginTop: 12 }}>
+                  <strong>{paymentState}</strong>
+                </p>
+              )}
+              {paymentHistory.length > 0 && (
+                <>
+                  <h4 style={{ marginTop: 24 }}>Payment History</h4>
+                  {rows(
+                    paymentHistory,
+                    ["Reference", "Method", "Amount", "Status", "Date", "Details"],
+                    (p) => (
+                      <tr key={p.id}>
+                        <td>{p.paymentReference}</td>
+                        <td>{p.paymentMethod}</td>
+                        <td>
+                          {p.currency} {money(p.amount)}
+                        </td>
+                        <td>{p.status}</td>
+                        <td>{p.completedAt?.slice(0, 10) || p.initiatedAt?.slice(0, 10)}</td>
+                        <td title={p.failureReason || ""}>{p.failureReason || "—"}</td>
+                      </tr>
+                    ),
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+      {tab === "deliveries" && (
+        <div className="fef-panel">
+          <div className="fef-table-wrap">
+            <table className="fef-table">
+              <thead>
+                <tr>
+                  <th>Delivery</th>
+                  <th>Order</th>
+                  <th>Truck</th>
+                  <th>Destination</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Documents</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveries.map((d) => (
+                  <Fragment key={d.id}>
+                    <tr key={d.id}>
+                      <td>{d.deliveryNumber}</td>
+                      <td>{d.orderNumber}</td>
+                      <td>{d.truckNumber || "Assigned"}</td>
+                      <td>{d.destination}</td>
+                      <td>{d.deliveryStatus}</td>
+                      <td>{d.dispatchedAt?.slice(0, 10) || "—"}</td>
+                      <td>
+                        <button
+                          className="fef-btn fef-btn-outline"
+                          onClick={() => toggleDeliveryDocuments(d)}
+                          disabled={!d.orderId}
+                        >
+                          {expandedDeliveryId === d.id ? "Hide documents" : "View documents"}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedDeliveryId === d.id && (
+                      <tr key={`${d.id}-documents`}>
+                        <td colSpan="7" style={{ padding: 20, background: "#f8fafc" }}>
+                          <strong>Delivery documents</strong>
+                          {loadingDeliveryDocuments === d.id ? (
+                            <p style={{ margin: "8px 0 0" }}>Loading documents…</p>
+                          ) : (
+                            <div
+                              style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}
+                            >
+                              {(deliveryDocuments[d.id] || []).map((doc) => (
+                                <button
+                                  key={`${doc.type}-${doc.id}`}
+                                  className="fef-btn fef-btn-outline"
+                                  onClick={() => download(doc.endpoint, `${doc.number}.pdf`)}
+                                >
+                                  <FiDownload /> {doc.type}: {doc.number}
+                                </button>
+                              ))}
+                              {!(deliveryDocuments[d.id] || []).length && (
+                                <span>No documents are available for this delivery yet.</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+                {!deliveries.length && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: "center", padding: 28 }}>
+                      Nothing available yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {tab === "profile" && profile && (
+        <form className="fef-panel" onSubmit={saveProfile} style={{ maxWidth: 720, padding: 24 }}>
+          <p>
+            <strong>{profile.companyName}</strong> · {profile.customerCode}
+          </p>
+          <div className="fef-form-grid">
+            <label className="fef-label">
+              Contact person
+              <input
+                className="fef-input"
+                value={profile.contactPerson || ""}
+                onChange={(e) => setProfile({ ...profile, contactPerson: e.target.value })}
+              />
+            </label>
+            <label className="fef-label">
+              Email
+              <input
+                className="fef-input"
+                type="email"
+                value={profile.email || ""}
+                onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+              />
+            </label>
+            <label className="fef-label">
+              Phone
+              <input
+                className="fef-input"
+                value={profile.phone || ""}
+                onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+              />
+            </label>
+            <label className="fef-label">
+              Address
+              <textarea
+                className="fef-input"
+                value={profile.address || ""}
+                onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+              />
+            </label>
+          </div>
+          <button className="fef-btn fef-btn-primary" style={{ marginTop: 20 }}>
+            Save profile
+          </button>
+        </form>
+      )}
+      {tab === "detail" && selected && (
+        <div className="fef-panel" style={{ padding: 24 }}>
+          <button className="fef-btn fef-btn-outline" onClick={() => setTab("orders")}>
+            Back to Orders
+          </button>
+          <h2>{selected.orderNumber}</h2>
+          <p>
+            {selected.productName} · {money(selected.quantity)} L · {selected.customerStatus}
+          </p>
+          <h3>Order progress</h3>
+          {timeline?.steps?.map((s) => (
+            <div
+              key={s.key}
+              style={{
+                padding: "8px 0",
+                color: s.current
+                  ? "var(--feftms-primary)"
+                  : s.complete
+                    ? "var(--feftms-success)"
+                    : "var(--feftms-text-muted)",
+                fontWeight: s.current ? 700 : 400,
+              }}
+            >
+              {s.complete ? "✓" : s.current ? "●" : "○"} {s.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </DashboardLayout>
+  );
 }
