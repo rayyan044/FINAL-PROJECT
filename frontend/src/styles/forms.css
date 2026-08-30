@@ -49,6 +49,15 @@
   justify-content: flex-end;
   gap: 10px;
 }
+.fef-field-error {
+  display: block;
+  margin-top: 6px;
+  color: #b42318;
+  font-size: 12px;
+}
+.fef-input-invalid {
+  border-color: #d92d20 !important;
+}
 
 /* Login */
 .fef-login-shell {

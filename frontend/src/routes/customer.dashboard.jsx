@@ -9,6 +9,7 @@ import {
   FiUser,
   FiDownload,
   FiAlertCircle,
+  FiMapPin,
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
@@ -22,6 +23,7 @@ import {
   getCustomerDocuments,
   listCustomerInvoices,
   listCustomerDeliveries,
+  getCustomerDeliveryTracking,
   getCustomerProfile,
   updateCustomerProfile,
   downloadCustomerDocument,
@@ -29,7 +31,9 @@ import {
   listInvoicePayments,
 } from "../services/customerPortalService";
 import { OpenStreetMapLocationPicker } from "../components/OpenStreetMapLocationPicker";
+import { DeliveryTrackingMap } from "../components/DeliveryTrackingMap";
 import { listProducts } from "../services/productService";
+import { reverseGeocode } from "../services/geocodingService";
 import "../styles/forms.css";
 
 export const Route = createFileRoute("/customer/dashboard")({ component: CustomerDashboard });
@@ -63,6 +67,10 @@ function CustomerWorkspace() {
     [deliveryDocuments, setDeliveryDocuments] = useState({}),
     [expandedDeliveryId, setExpandedDeliveryId] = useState(null),
     [loadingDeliveryDocuments, setLoadingDeliveryDocuments] = useState(null),
+    [trackingDeliveryId, setTrackingDeliveryId] = useState(null),
+    [tracking, setTracking] = useState(null),
+    [trackingPlace, setTrackingPlace] = useState(""),
+    [trackingError, setTrackingError] = useState(""),
     [error, setError] = useState(""),
     [success, setSuccess] = useState(""),
     [selectedInvoice, setSelectedInvoice] = useState(null),
@@ -100,6 +108,32 @@ function CustomerWorkspace() {
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (!trackingDeliveryId) return undefined;
+    let active = true;
+    const loadTracking = async () => {
+      try {
+        const next = await getCustomerDeliveryTracking(trackingDeliveryId);
+        if (!active) return;
+        setTracking(next);
+        setTrackingError("");
+        if (next?.live) {
+          try {
+            const place = await reverseGeocode(next.latitude, next.longitude);
+            if (active) setTrackingPlace(place?.address || "Current driver location");
+          } catch {
+            if (active) setTrackingPlace("Current driver location");
+          }
+        } else if (active) setTrackingPlace("");
+      } catch (trackingRequestError) {
+        if (active) setTrackingError(trackingRequestError.message || "Unable to refresh live tracking.");
+      }
+    };
+    loadTracking();
+    const interval = window.setInterval(loadTracking, 20_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [trackingDeliveryId]);
   useEffect(() => {
     if (tab !== "invoices") return undefined;
     const refreshInterval = window.setInterval(refresh, 15000);
@@ -131,6 +165,19 @@ function CustomerWorkspace() {
     } finally {
       setLoadingDeliveryDocuments(null);
     }
+  };
+  const toggleLiveTracking = (delivery) => {
+    if (trackingDeliveryId === delivery.id) {
+      setTrackingDeliveryId(null);
+      setTracking(null);
+      setTrackingPlace("");
+      setTrackingError("");
+      return;
+    }
+    setTrackingDeliveryId(delivery.id);
+    setTracking(null);
+    setTrackingPlace("");
+    setTrackingError("");
   };
   const download = async (path, name) => {
     try {
@@ -462,13 +509,6 @@ function CustomerWorkspace() {
               {Number(routePreview.distanceKm).toFixed(1)} km ·{" "}
               {Math.ceil(Number(routePreview.durationSeconds) / 60)} min
               <br />
-              {routePreview.routeType === "ESTIMATED_STRAIGHT_LINE" && (
-                <small>
-                  Live routing is temporarily unavailable; this estimate will be reviewed before
-                  dispatch.
-                </small>
-              )}
-              <br />
               <strong>Transport Charge</strong>
               <br />
               TZS {money(routePreview.transportPrice)}
@@ -654,7 +694,7 @@ function CustomerWorkspace() {
                   <th>Destination</th>
                   <th>Status</th>
                   <th>Date</th>
-                  <th>Documents</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -667,7 +707,7 @@ function CustomerWorkspace() {
                       <td>{d.destination}</td>
                       <td>{d.deliveryStatus}</td>
                       <td>{d.dispatchedAt?.slice(0, 10) || "—"}</td>
-                      <td>
+                      <td style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button
                           className="fef-btn fef-btn-outline"
                           onClick={() => toggleDeliveryDocuments(d)}
@@ -675,8 +715,30 @@ function CustomerWorkspace() {
                         >
                           {expandedDeliveryId === d.id ? "Hide documents" : "View documents"}
                         </button>
+                        <button
+                          className="fef-btn fef-btn-primary"
+                          onClick={() => toggleLiveTracking(d)}
+                          disabled={d.deliveryStatus !== "IN_TRANSIT"}
+                          title={d.deliveryStatus === "IN_TRANSIT" ? "View the driver's current location" : "Live tracking is available while the delivery is in transit"}
+                        >
+                          <FiMapPin /> {trackingDeliveryId === d.id ? "Hide live map" : "Track delivery"}
+                        </button>
                       </td>
                     </tr>
+                    {trackingDeliveryId === d.id && (
+                      <tr key={`${d.id}-tracking`}>
+                        <td colSpan="7" style={{ padding: 20, background: "#f8fafc" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+                            <div>
+                              <strong>Live driver location</strong>
+                              <div style={{ color: "var(--feftms-text-muted)", fontSize: 13, marginTop: 4 }}>Refreshes automatically every 20 seconds while this delivery is in transit.</div>
+                            </div>
+                            {tracking?.updatedAt && <span className="fef-badge fef-badge-info">Last update: {new Date(tracking.updatedAt).toLocaleTimeString()}</span>}
+                          </div>
+                          {trackingError ? <p className="fef-alert fef-alert-danger">{trackingError}</p> : !tracking ? <p>Loading live location…</p> : tracking.live ? <><DeliveryTrackingMap latitude={tracking.latitude} longitude={tracking.longitude} /><p style={{ margin: "12px 0 0" }}><strong>Current area:</strong> {trackingPlace || "Looking up current area…"}<br /><small>{Number(tracking.latitude).toFixed(6)}, {Number(tracking.longitude).toFixed(6)}{tracking.accuracy != null ? ` · accuracy about ${Math.round(tracking.accuracy)} m` : ""}</small></p></> : <p>The driver has not shared a live location yet. Tracking will appear after the driver starts the trip and allows location access.</p>}
+                        </td>
+                      </tr>
+                    )}
                     {expandedDeliveryId === d.id && (
                       <tr key={`${d.id}-documents`}>
                         <td colSpan="7" style={{ padding: 20, background: "#f8fafc" }}>

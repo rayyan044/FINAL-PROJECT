@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -21,6 +21,8 @@ import {
   FiEdit,
   FiTruck,
   FiTrendingUp,
+  FiEye,
+  FiEyeOff,
 } from "react-icons/fi";
 import { DashboardLayout, PageHeader, StatCard } from "../components/DashboardLayout";
 import { RouteGuard } from "../components/RouteGuard";
@@ -33,6 +35,7 @@ import { listCustomers, createCustomer } from "../services/customerService";
 import { listProducts } from "../services/productService";
 import { getInvoiceById } from "../services/invoiceService";
 import { InvoiceModal } from "../components/InvoiceModal";
+import { ReportsDash } from "./reports";
 import "../styles/forms.css";
 
 export const Route = createFileRoute("/sales")({
@@ -49,7 +52,6 @@ const SIDE = [
 ];
 
 function SalesDash() {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dash");
   const [stats, setStats] = useState({ pending: 0, approved: 0, customers: 0 });
   const [ordersList, setOrdersList] = useState([]);
@@ -61,6 +63,7 @@ function SalesDash() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [showCustomerRequests, setShowCustomerRequests] = useState(true);
 
   // Invoice & Editing States
   const [isEditing, setIsEditing] = useState(false);
@@ -246,11 +249,7 @@ function SalesDash() {
         sideItems={SIDE}
         activeKey={activeTab}
         onSelect={(tab) => {
-          if (tab === "reports") {
-            navigate({ to: "/reports" });
-          } else {
-            setActiveTab(tab);
-          }
+          setActiveTab(tab);
         }}
       >
         <PageHeader
@@ -261,7 +260,9 @@ function SalesDash() {
                 ? "Request Approvals"
                 : activeTab === "inventory"
                   ? "Fuel Products"
-                  : "Customer Directory"
+                  : activeTab === "customers"
+                    ? "Customer Directory"
+                    : "Reports & Analytics"
           }
           crumbs={["Sales", activeTab]}
         />
@@ -425,8 +426,18 @@ function SalesDash() {
           <div className="fef-panel">
             <div className="fef-panel-head">
               <h3>All Customer Requests</h3>
+              <button
+                type="button"
+                className="fef-btn fef-btn-outline"
+                onClick={() => setShowCustomerRequests((visible) => !visible)}
+                aria-expanded={showCustomerRequests}
+                aria-controls="sales-customer-requests"
+              >
+                {showCustomerRequests ? <FiEyeOff /> : <FiEye />}
+                {showCustomerRequests ? "Hide requests" : "View requests"}
+              </button>
             </div>
-            <div className="fef-table-wrap">
+            {showCustomerRequests ? <div id="sales-customer-requests" className="fef-table-wrap">
               <table className="fef-table">
                 <thead>
                   <tr>
@@ -544,9 +555,16 @@ function SalesDash() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </div> : (
+              <p style={{ margin: 0, color: "var(--feftms-text-muted)" }}>
+                Customer requests are hidden. Select “View requests” to show them again.
+              </p>
+            )}
           </div>
         )}
+
+        {/* REPORTS VIEW — embedded in the Sales workspace, not a separate route. */}
+        {activeTab === "reports" && <ReportsDash embedded onWorkspaceSelect={setActiveTab} />}
 
         {/* FUEL INVENTORY VIEW */}
         {activeTab === "inventory" && (
