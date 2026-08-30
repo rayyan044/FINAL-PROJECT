@@ -20,6 +20,7 @@ public interface CustomerPortalService {
     byte[] receiptPdf(Long id);
     List<CustomerPortalResponse.Delivery> deliveries();
     CustomerPortalResponse.Delivery delivery(Long id);
+    CustomerPortalResponse.DeliveryTracking deliveryTracking(Long id);
     CustomerPortalResponse.Document deliveryNote(Long id);
     byte[] deliveryNotePdf(Long id);
 }

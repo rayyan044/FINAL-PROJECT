@@ -83,6 +83,18 @@ public class Delivery extends BaseEntity {
     @Column(name = "start_longitude")
     private Double startLongitude;
 
+    @Column(name = "current_latitude")
+    private Double currentLatitude;
+
+    @Column(name = "current_longitude")
+    private Double currentLongitude;
+
+    @Column(name = "current_location_accuracy")
+    private Double currentLocationAccuracy;
+
+    @Column(name = "location_updated_at")
+    private LocalDateTime locationUpdatedAt;
+
     @Column(name = "pod_latitude")
     private Double podLatitude;
 

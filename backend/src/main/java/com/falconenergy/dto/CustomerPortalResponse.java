@@ -51,6 +51,13 @@ public final class CustomerPortalResponse {
         private String deliveryNumber, orderNumber, truckNumber, destination, dispatchStatus, deliveryStatus;
         private LocalDateTime dispatchedAt, deliveredAt;
     }
+    @Getter @Builder public static class DeliveryTracking {
+        private Long deliveryId;
+        private String deliveryNumber, truckNumber, status;
+        private boolean live;
+        private Double latitude, longitude, accuracy;
+        private LocalDateTime updatedAt;
+    }
     @Getter @Builder public static class Document {
         private Long id, orderId;
         private String type, number, status, endpoint;

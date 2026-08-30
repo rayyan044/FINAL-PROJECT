@@ -98,6 +98,19 @@ export async function startTrip(deliveryId, latitude, longitude) {
   }
 }
 
+export async function updateLiveLocation(deliveryId, latitude, longitude, accuracy) {
+  try {
+    const response = await api.post(`/mobile/deliveries/${deliveryId}/location`, {
+      latitude,
+      longitude,
+      accuracy,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
 export async function markArrived(deliveryId, receivedBy, remarks) {
   try {
     const response = await api.post(`/mobile/deliveries/${deliveryId}/arrive`, {

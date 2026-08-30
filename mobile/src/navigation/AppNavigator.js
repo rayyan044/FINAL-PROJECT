@@ -11,11 +11,14 @@ import DeliveryDetailsScreen from "../screens/deliveries/DeliveryDetailsScreen";
 import DeliveryNoteScreen from "../screens/deliveries/DeliveryNoteScreen";
 import MyDeliveriesScreen from "../screens/deliveries/MyDeliveriesScreen";
 import LoginScreen from "../screens/auth/LoginScreen";
+import ChangePasswordScreen from "../screens/auth/ChangePasswordScreen";
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+  const requiresPasswordChange =
+    String(user?.role || "").toUpperCase() === "DRIVER" && user?.passwordChanged === false;
 
   if (loading) {
     return (
@@ -33,7 +36,9 @@ export default function AppNavigator() {
           headerShown: false,
         }}
       >
-        {isAuthenticated ? (
+        {isAuthenticated && requiresPasswordChange ? (
+          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+        ) : isAuthenticated ? (
           <>
             <Stack.Screen name="Dashboard" component={DashboardScreen} />
             <Stack.Screen name="Deliveries" component={MyDeliveriesScreen} />

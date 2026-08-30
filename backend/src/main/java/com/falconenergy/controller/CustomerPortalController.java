@@ -37,6 +37,7 @@ public class CustomerPortalController {
     @GetMapping("/receipts/{id}/pdf") public ResponseEntity<byte[]> receiptPdf(@PathVariable Long id){return pdf(service.receiptPdf(id),"receipt-"+id+".pdf");}
     @GetMapping("/deliveries") public ResponseEntity<ApiResponse<List<CustomerPortalResponse.Delivery>>> deliveries(){return ok("Customer deliveries retrieved",service.deliveries());}
     @GetMapping("/deliveries/{id}") public ResponseEntity<ApiResponse<CustomerPortalResponse.Delivery>> delivery(@PathVariable Long id){return ok("Delivery retrieved",service.delivery(id));}
+    @GetMapping("/deliveries/{id}/tracking") public ResponseEntity<ApiResponse<CustomerPortalResponse.DeliveryTracking>> deliveryTracking(@PathVariable Long id){return ok("Delivery tracking retrieved",service.deliveryTracking(id));}
     @GetMapping("/delivery-notes/{id}") public ResponseEntity<ApiResponse<CustomerPortalResponse.Document>> deliveryNote(@PathVariable Long id){return ok("Delivery note retrieved",service.deliveryNote(id));}
     @GetMapping("/delivery-notes/{id}/pdf") public ResponseEntity<byte[]> deliveryNotePdf(@PathVariable Long id){return pdf(service.deliveryNotePdf(id),"delivery-note-"+id+".pdf");}
     private <T> ResponseEntity<ApiResponse<T>> ok(String message,T value){return ResponseEntity.ok(ApiResponse.success(message,value));}

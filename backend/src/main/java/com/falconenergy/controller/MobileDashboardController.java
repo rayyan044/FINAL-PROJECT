@@ -81,6 +81,19 @@ public class MobileDashboardController {
         return ResponseEntity.ok(ApiResponse.success("Trip started successfully"));
     }
 
+    public static class LocationUpdateRequest {
+        public Double latitude;
+        public Double longitude;
+        public Double accuracy;
+    }
+
+    @PostMapping("/deliveries/{deliveryId}/location")
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<Void>> updateLiveLocation(@PathVariable Long deliveryId, @RequestBody LocationUpdateRequest request) {
+        mobileDashboardService.updateLiveLocation(deliveryId, request.latitude, request.longitude, request.accuracy);
+        return ResponseEntity.ok(ApiResponse.success("Live location updated"));
+    }
+
     public static class ArriveRequest {
         public String receivedBy;
         public String remarks;

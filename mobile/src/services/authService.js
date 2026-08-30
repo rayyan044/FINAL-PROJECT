@@ -21,6 +21,9 @@ function normalizeUser(data, username) {
     ...responseUser,
     username: responseUser.username || data.username || username,
     role: responseUser.role || data.role || data.userRole || null,
+    // Login and refresh responses are flat TokenResponse objects, while
+    // profile responses contain a nested user object. Support both shapes.
+    passwordChanged: responseUser.passwordChanged ?? data.passwordChanged ?? true,
   };
 }
 
@@ -128,6 +131,15 @@ export async function refreshSession(refreshToken) {
   const token = getToken(data);
   if (!token) throw new Error("The server returned an invalid refresh response.");
   return { token, refreshToken: data.refreshToken || refreshToken, user: normalizeUser(data, data.username || "") };
+}
+
+export async function changePassword(password, confirmPassword) {
+  try {
+    const response = await api.put("/auth/change-password", { password, confirmPassword });
+    return getResponseData(response);
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
 }
 
 export async function getCurrentProfile() {

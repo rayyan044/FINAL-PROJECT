@@ -7,6 +7,7 @@ import com.falconenergy.dto.UserRegisterRequest;
 import com.falconenergy.dto.UserLoginRequest;
 import com.falconenergy.dto.UserResponse;
 import com.falconenergy.dto.CustomerRegistrationRequest;
+import com.falconenergy.dto.SelfProfileUpdateRequest;
 import com.falconenergy.service.UserService;
 import com.falconenergy.service.CustomerRegistrationService;
 import com.falconenergy.exception.BadRequestException;
@@ -62,5 +63,14 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> me(Principal principal) {
         return ResponseEntity.ok(ApiResponse.success("Current user profile retrieved", userService.getSelfProfile(principal.getName())));
+    }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<ApiResponse<UserResponse>> changePassword(
+            Principal principal,
+            @Valid @RequestBody SelfProfileUpdateRequest request
+    ) {
+        UserResponse response = userService.updateSelfProfile(principal.getName(), request);
+        return ResponseEntity.ok(ApiResponse.success("Password updated successfully", response));
     }
 }

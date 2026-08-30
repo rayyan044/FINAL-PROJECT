@@ -235,8 +235,27 @@ public class MobileDashboardServiceImpl implements MobileDashboardService {
         Delivery activeDelivery = deliveryRepository.findById(deliveryId).orElseThrow();
         activeDelivery.setStartLatitude(latitude);
         activeDelivery.setStartLongitude(longitude);
+        activeDelivery.setCurrentLatitude(latitude);
+        activeDelivery.setCurrentLongitude(longitude);
+        activeDelivery.setLocationUpdatedAt(LocalDateTime.now());
         activeDelivery.setUpdatedBy(user.getUsername());
         deliveryRepository.save(activeDelivery);
+    }
+
+    @Override
+    @Transactional
+    public void updateLiveLocation(Long deliveryId, Double latitude, Double longitude, Double accuracy) {
+        User user = getAuthenticatedUser();
+        if (user.getRole() != UserRole.DRIVER || user.getDriver() == null) throw new AccessDeniedException("Only linked driver accounts can share a location");
+        if (latitude == null || longitude == null || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) throw new BadRequestException("Valid latitude and longitude are required.");
+        Delivery delivery = deliveryRepository.findForMobileDriver(deliveryId, user.getDriver().getId()).orElseThrow(() -> new ResourceNotFoundException("Delivery not found for this driver"));
+        if (delivery.getDeliveryStatus() != DeliveryStatus.IN_TRANSIT) throw new BadRequestException("Location can only be shared while the delivery is in transit.");
+        delivery.setCurrentLatitude(latitude);
+        delivery.setCurrentLongitude(longitude);
+        delivery.setCurrentLocationAccuracy(accuracy == null || accuracy < 0 ? null : accuracy);
+        delivery.setLocationUpdatedAt(LocalDateTime.now());
+        delivery.setUpdatedBy(user.getUsername());
+        deliveryRepository.save(delivery);
     }
 
     @Override

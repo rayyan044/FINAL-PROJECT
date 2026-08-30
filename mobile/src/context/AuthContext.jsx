@@ -115,6 +115,16 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const changePassword = useCallback(async (password, confirmPassword) => {
+    const updatedProfile = await authService.changePassword(password, confirmPassword);
+    const updatedUser = { ...user, ...updatedProfile, passwordChanged: true };
+    const storedSession = await authService.loadSession();
+    if (token) {
+      await authService.saveSession(token, updatedUser, storedSession?.refreshToken || null);
+    }
+    setUser(updatedUser);
+  }, [token, user]);
+
   const value = useMemo(
     () => ({
       user,
@@ -122,9 +132,10 @@ export function AuthProvider({ children }) {
       loading,
       isAuthenticated: Boolean(token),
       login,
+      changePassword,
       logout: clearSession,
     }),
-    [user, token, loading, login, clearSession]
+    [user, token, loading, login, changePassword, clearSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

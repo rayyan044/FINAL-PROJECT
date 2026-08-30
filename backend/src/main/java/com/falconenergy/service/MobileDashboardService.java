@@ -13,6 +13,7 @@ public interface MobileDashboardService {
 
     void acceptDelivery(Long deliveryId);
     void startTrip(Long deliveryId, Double latitude, Double longitude);
+    void updateLiveLocation(Long deliveryId, Double latitude, Double longitude, Double accuracy);
     void arriveAtDestination(Long deliveryId, String receivedBy, String remarks);
     void uploadProof(Long deliveryId, MultipartFile file, Double latitude, Double longitude, String notes);
     void completeDelivery(Long deliveryId);

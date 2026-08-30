@@ -29,6 +29,7 @@ import {
   startTrip,
   uploadProofOfDelivery,
 } from "../../services/deliveryService";
+import { startLiveTracking, stopLiveTracking } from "../../services/liveTrackingService";
 
 export default function DeliveryDetailsScreen({ route, navigation }) {
   const deliveryId = route?.params?.deliveryId;
@@ -37,6 +38,7 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [liveTrackingActive, setLiveTrackingActive] = useState(false);
   const [deliveryNote, setDeliveryNote] = useState(null);
   const [deliveryNoteError, setDeliveryNoteError] = useState("");
 
@@ -118,10 +120,34 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
       const { latitude, longitude } = location.coords;
 
       await startTrip(deliveryId, latitude, longitude);
-      showAlert("Trip Started", "Location logged and status updated to In Transit.");
+      showAlert("Trip Started", "Your delivery is now in transit. Press Start Live Tracking to share your current route location with the customer.");
       await load();
     } catch (err) {
       showAlert("Error", err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStartLiveTracking = async () => {
+    try {
+      setSubmitting(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        showAlert("Permission Denied", "Location permission is required to share live delivery tracking with the customer.");
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const tracking = await startLiveTracking(deliveryId, location);
+      setLiveTrackingActive(true);
+      showAlert(
+        "Live Tracking Started",
+        tracking.backgroundEnabled
+          ? "Your live location is now being shared with the customer during this delivery."
+          : "Your location is being shared while this app is open. Allow background location in phone settings to keep tracking when the app is not visible.",
+      );
+    } catch (err) {
+      showAlert("Tracking Error", err.message || "Unable to start live tracking. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -131,6 +157,8 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
     try {
       setSubmitting(true);
       await markArrived(deliveryId, receivedBy, arrivalRemarks);
+      await stopLiveTracking();
+      setLiveTrackingActive(false);
       showAlert("Arrived", "Arrival at destination logged.");
       await load();
     } catch (err) {
@@ -195,6 +223,8 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
       }
 
       await uploadProofOfDelivery(deliveryId, fileData, latitude, longitude, podNotes);
+      await stopLiveTracking();
+      setLiveTrackingActive(false);
       showAlert("Success", "Proof of delivery uploaded. Status is now Delivered.");
       await load();
     } catch (err) {
@@ -208,6 +238,8 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
     try {
       setSubmitting(true);
       await completeDelivery(deliveryId);
+      await stopLiveTracking();
+      setLiveTrackingActive(false);
       showAlert("Success", "Delivery finalized and completed. Vehicle freed.");
       navigation.navigate("Dashboard");
     } catch (err) {
@@ -330,6 +362,14 @@ export default function DeliveryDetailsScreen({ route, navigation }) {
                 <View>
                   <Text style={styles.instructionText}>
                     You are in transit. Upon arrival at the customer destination, record details to mark arrival.
+                  </Text>
+
+                  <Pressable disabled={submitting || liveTrackingActive} onPress={handleStartLiveTracking} style={[styles.trackingButton, liveTrackingActive && styles.trackingButtonActive]}>
+                    <Ionicons color={colors.white} name={liveTrackingActive ? "radio" : "location"} size={20} />
+                    <Text style={styles.actionButtonText}>{liveTrackingActive ? "Live Tracking Is Active" : "Start Live Tracking"}</Text>
+                  </Pressable>
+                  <Text style={styles.trackingHelper}>
+                    {liveTrackingActive ? "Your customer can now view your changing route position." : "Tap this after starting the trip to share your location with the customer."}
                   </Text>
 
                   <Text style={styles.inputLabel}>Received By</Text>
@@ -509,6 +549,27 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: "700",
+  },
+  trackingButton: {
+    alignItems: "center",
+    backgroundColor: colors.success,
+    borderRadius: radius.md,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    marginTop: 16,
+    minHeight: 54,
+    padding: 16,
+  },
+  trackingButtonActive: {
+    backgroundColor: "#047857",
+    opacity: 0.82,
+  },
+  trackingHelper: {
+    color: colors.gray,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
   },
   actionCard: {
     backgroundColor: colors.white,
