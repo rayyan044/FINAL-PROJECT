@@ -48,6 +48,14 @@ application:
     admin-password: ${BOOTSTRAP_ADMIN_PASSWORD}
 
 payments:
+  flutterwave:
+    client-id: ${FLUTTERWAVE_CLIENT_ID:}
+    client-secret: ${FLUTTERWAVE_CLIENT_SECRET:}
+    base-url: ${FLUTTERWAVE_BASE_URL:https://developersandbox-api.flutterwave.com}
+    environment: ${FLUTTERWAVE_ENVIRONMENT:sandbox}
+    webhook-secret-hash: ${FLUTTERWAVE_WEBHOOK_SECRET_HASH:}
+    redirect-url: ${FLUTTERWAVE_REDIRECT_URL:}
+    scenario-key: ${FLUTTERWAVE_SCENARIO_KEY:}
   pawapay:
     api-token: ${PAWAPAY_API_TOKEN:}
     base-url: ${PAWAPAY_BASE_URL:}

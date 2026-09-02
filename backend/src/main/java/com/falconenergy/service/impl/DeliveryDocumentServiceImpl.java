@@ -44,7 +44,7 @@ public class DeliveryDocumentServiceImpl implements DeliveryDocumentService {
             throw new BadRequestException("Loading activity must be COMPLETED before generating a Delivery Note.");
         }
 
-        LoadingReport report = loadingReportRepository.findByLoadingActivityId(activityId)
+        LoadingReport report = loadingReportRepository.findFirstByLoadingActivityIdOrderByCreatedAtDesc(activityId)
                 .orElseThrow(() -> new BadRequestException("Loading Report must exist before generating a Delivery Note."));
 
         if (deliveryNoteRepository.existsByLoadingActivityId(activityId)) {

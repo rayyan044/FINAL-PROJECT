@@ -15,7 +15,12 @@ public interface LoadingReportRepository extends JpaRepository<LoadingReport, Lo
     @Query("SELECT MAX(lr.reportNumber) FROM LoadingReport lr WHERE lr.reportNumber LIKE :prefix%")
     String findMaxReportNumberWithPrefix(@Param("prefix") String prefix);
 
-    Optional<LoadingReport> findByLoadingActivityId(Long loadingActivityId);
+    /**
+     * Legacy data can contain more than one report for an activity.  Consumers
+     * need the report that was generated most recently rather than a query that
+     * fails with NonUniqueResultException.
+     */
+    Optional<LoadingReport> findFirstByLoadingActivityIdOrderByCreatedAtDesc(Long loadingActivityId);
 
     List<LoadingReport> findByLoadingOrderId(Long loadingOrderId);
 }

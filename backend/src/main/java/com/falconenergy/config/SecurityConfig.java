@@ -77,6 +77,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/order-pricing/preview", "/api/order-pricing/preview").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/orders", "/api/orders").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/integrations/pawapay/deposits/callback", "/api/integrations/pawapay/deposits/callback").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/integrations/flutterwave/webhook", "/api/integrations/flutterwave/webhook").permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

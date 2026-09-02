@@ -55,7 +55,7 @@ public class DispatchServiceImpl implements DispatchService {
 
         return activities.stream()
                 .filter(act -> act.getStatus() == LoadingActivityStatus.COMPLETED)
-                .filter(act -> loadingReportRepository.findByLoadingActivityId(act.getId()).isPresent())
+                .filter(act -> loadingReportRepository.findFirstByLoadingActivityIdOrderByCreatedAtDesc(act.getId()).isPresent())
                 .filter(act -> deliveryNoteRepository.findByLoadingActivityId(act.getId())
                         .map(note -> "HANDED_TO_DRIVER".equals(note.getStatus()))
                         .orElse(false))
@@ -112,7 +112,7 @@ public class DispatchServiceImpl implements DispatchService {
             throw new BadRequestException("Loading activity status must be COMPLETED before creating a Dispatch.");
         }
 
-        LoadingReport report = loadingReportRepository.findByLoadingActivityId(loadingActivityId)
+        LoadingReport report = loadingReportRepository.findFirstByLoadingActivityIdOrderByCreatedAtDesc(loadingActivityId)
                 .orElseThrow(() -> new BadRequestException("Loading Report must exist."));
         if (report.getReportStatus() != LoadingReportStatus.GENERATED) {
             throw new BadRequestException("Loading Report must be generated before creating a Dispatch.");
@@ -197,7 +197,7 @@ public class DispatchServiceImpl implements DispatchService {
         if (customerInvoice == null || !paymentReceiptRepository.existsByInvoiceId(customerInvoice.getId())) {
             throw new BadRequestException("Truck cannot be released: the Payment Receipt has not been generated.");
         }
-        LoadingReport releaseReport = loadingReportRepository.findByLoadingActivityId(releaseActivity.getId())
+        LoadingReport releaseReport = loadingReportRepository.findFirstByLoadingActivityIdOrderByCreatedAtDesc(releaseActivity.getId())
                 .orElseThrow(() -> new BadRequestException("Truck cannot be released: the Loading Report is missing."));
         if (releaseReport.getReportStatus() != LoadingReportStatus.GENERATED) {
             throw new BadRequestException("Truck cannot be released: the Loading Report is not completed.");

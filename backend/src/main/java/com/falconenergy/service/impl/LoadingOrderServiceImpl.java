@@ -668,7 +668,7 @@ public class LoadingOrderServiceImpl implements LoadingOrderService {
     @Override
     @Transactional(readOnly = true)
     public LoadingReportResponse getLoadingReportByActivityId(Long activityId) {
-        LoadingReport report = loadingReportRepository.findByLoadingActivityId(activityId)
+        LoadingReport report = loadingReportRepository.findFirstByLoadingActivityIdOrderByCreatedAtDesc(activityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Loading Report not found for activity id: " + activityId));
         return loadingOrderMapper.toReportResponse(report);
     }

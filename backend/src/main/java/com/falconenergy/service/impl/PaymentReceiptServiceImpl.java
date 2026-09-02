@@ -16,7 +16,7 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         CompanySettings company = companySettingsRepository.findFirstByOrderByIdAsc().orElse(null);
         LoadingOrder loadingOrder = loadingOrderRepository.findByOrderId(order.getId()).orElse(null);
         LoadingActivity activity = loadingOrder != null && loadingOrder.getActivities() != null && !loadingOrder.getActivities().isEmpty() ? loadingOrder.getActivities().get(0) : null;
-        LoadingReport report = activity == null ? null : loadingReportRepository.findByLoadingActivityId(activity.getId()).orElse(null);
+        LoadingReport report = activity == null ? null : loadingReportRepository.findFirstByLoadingActivityIdOrderByCreatedAtDesc(activity.getId()).orElse(null);
         DeliveryNote note = activity == null ? null : deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElse(null);
         String paymentMethod = i.getPaymentMethod() != null && !i.getPaymentMethod().isBlank() ? i.getPaymentMethod() : order.getPaymentMethod();
         Payment gatewayPayment = paymentRepository.findByInvoiceIdOrderByCreatedAtDesc(i.getId()).stream()

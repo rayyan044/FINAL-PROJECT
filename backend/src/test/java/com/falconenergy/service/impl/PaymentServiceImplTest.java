@@ -1,7 +1,6 @@
 package com.falconenergy.service.impl;
 
 import com.falconenergy.dto.PaymentResponse;
-import com.falconenergy.config.PawaPayProperties;
 import com.falconenergy.dto.PawaPayDepositRequest;
 import com.falconenergy.dto.PawaPayDepositCallback;
 import com.falconenergy.entity.*;
@@ -11,7 +10,7 @@ import com.falconenergy.repository.InvoiceRepository;
 import com.falconenergy.repository.PaymentRepository;
 import com.falconenergy.repository.UserRepository;
 import com.falconenergy.service.InvoiceService;
-import com.falconenergy.service.PawaPayClient;
+import com.falconenergy.service.FlutterwaveClient;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -27,7 +26,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceImplTest {
     @Mock InvoiceRepository invoices; @Mock PaymentRepository payments; @Mock UserRepository users;
-    @Mock InvoiceService invoiceService; @Mock PawaPayClient pawaPay; @Mock PawaPayProperties pawaPayProperties;
+    @Mock InvoiceService invoiceService; @Mock FlutterwaveClient flutterwave;
     @InjectMocks PaymentServiceImpl service;
     Customer customer; Invoice invoice;
 
@@ -35,23 +34,23 @@ class PaymentServiceImplTest {
         customer=Customer.builder().customerCode("C-1").companyName("Customer").build(); customer.setId(7L);
         Role role=Role.builder().roleName("CUSTOMER").build();
         User user=User.builder().username("customer").email("customer@example.com").roleEntity(role).customer(customer).build();
-        when(users.findByEmail("customer@example.com")).thenReturn(Optional.of(user));
+        lenient().when(users.findByEmail("customer@example.com")).thenReturn(Optional.of(user));
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("customer@example.com", null));
         FuelOrder order=FuelOrder.builder().customer(customer).orderStatus("SALES_CONFIRMED").currency("TZS").build(); order.setId(21L);
         invoice=Invoice.builder().invoiceNumber("INV-1").order(order).paymentStatus("PENDING_PAYMENT").grandTotal(new BigDecimal("6000000.00")).build(); invoice.setId(12L);
     }
     @AfterEach void cleanUp(){ SecurityContextHolder.clearContext(); }
 
-    @Test void customerInitiatesPawaPayDepositWithoutSettlingInvoice() {
+    @Test void customerInitiatesFlutterwaveChargeWithoutSettlingPendingInvoice() {
         when(invoices.findByIdAndOrderCustomerId(12L,7L)).thenReturn(Optional.of(invoice));
         when(invoices.findByIdForUpdate(12L)).thenReturn(Optional.of(invoice));
         when(payments.save(any())).thenAnswer(i -> { Payment p=i.getArgument(0); if(p.getId()==null)p.setId(1L); return p; });
-        when(pawaPay.initiateDeposit(any(),any(),any(),any(),any(),any())).thenReturn(new PawaPayClient.DepositResult("ACCEPTED",null));
+        when(flutterwave.createMobileMoneyCharge(any(),any(),any(),any(),any(),any(),any())).thenReturn(new FlutterwaveClient.ChargeResult("chg_test",null,invoice.getGrandTotal(),"TZS","pending","requires_authorization",null,null));
         PaymentResponse response=service.initiatePawaPayDeposit(12L,new PawaPayDepositRequest("AIRTEL_MONEY","255683456789"));
         ArgumentCaptor<Payment> payment=ArgumentCaptor.forClass(Payment.class);
         verify(payments).save(payment.capture());
         assertEquals(new BigDecimal("6000000.00"),payment.getValue().getAmount());
-        assertEquals("PAWAPAY",payment.getValue().getGateway());
+        assertEquals("FLUTTERWAVE",payment.getValue().getGateway());
         assertEquals(PaymentStatus.PROCESSING,response.status());
         assertNull(response.completedAt());
         assertEquals(12L,response.invoiceId());
@@ -60,17 +59,16 @@ class PaymentServiceImplTest {
         verifyNoInteractions(invoiceService);
     }
 
-    @Test void sandboxPaymentCompletesImmediatelyForDemo() {
+    @Test void successfulFlutterwaveChargeSettlesInvoice() {
         when(invoices.findByIdAndOrderCustomerId(12L,7L)).thenReturn(Optional.of(invoice));
         when(invoices.findByIdForUpdate(12L)).thenReturn(Optional.of(invoice));
         when(payments.save(any())).thenAnswer(i -> { Payment p=i.getArgument(0); p.setId(1L); return p; });
-        when(pawaPayProperties.getEnvironment()).thenReturn("sandbox");
+        when(flutterwave.createMobileMoneyCharge(any(),any(),any(),any(),any(),any(),any())).thenReturn(new FlutterwaveClient.ChargeResult("chg_test",null,invoice.getGrandTotal(),"TZS","succeeded",null,null,null));
 
         PaymentResponse response=service.initiatePawaPayDeposit(12L,new PawaPayDepositRequest("AIRTEL_MONEY","255683456789"));
 
         assertEquals(PaymentStatus.COMPLETED,response.status());
-        verify(invoiceService).confirmSuccessfulPayment(12L,"sandbox demo payment");
-        verifyNoInteractions(pawaPay);
+        verify(invoiceService).confirmSuccessfulPayment(12L,"Flutterwave charge creation");
     }
 
     @Test void customerCannotInitiateAnotherCustomersInvoice() {
@@ -80,7 +78,7 @@ class PaymentServiceImplTest {
     }
 
     @Test void alreadyPaidInvoiceCannotBePaidAgain() {
-        invoice.setPaymentStatus("PAID"); when(invoices.findByIdAndOrderCustomerId(12L,7L)).thenReturn(Optional.of(invoice));
+        invoice.setPaymentStatus("PAID"); when(invoices.findByIdAndOrderCustomerId(12L,7L)).thenReturn(Optional.of(invoice)); when(invoices.findByIdForUpdate(12L)).thenReturn(Optional.of(invoice));
         assertThrows(BadRequestException.class,()->service.initiatePawaPayDeposit(12L,new PawaPayDepositRequest("AIRTEL_MONEY","255683456789")));
         verifyNoInteractions(invoiceService);
     }

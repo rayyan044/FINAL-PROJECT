@@ -279,7 +279,11 @@ function CustomerWorkspace() {
         );
         setSuccess("Payment successful. Your invoice has been marked as paid.");
       } else if (payment.status === "PROCESSING") {
-        setSuccess("Payment request sent. Approve it on your phone; this invoice will update automatically.");
+        if (payment.authorizationUrl) {
+          window.location.assign(payment.authorizationUrl);
+          return;
+        }
+        setSuccess("Flutterwave payment request sent. Approve it on your phone; this invoice will update automatically.");
       } else {
         setError(payment.failureReason || "Payment request could not be accepted.");
       }

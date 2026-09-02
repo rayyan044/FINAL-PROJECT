@@ -14,6 +14,9 @@ public class Payment extends BaseEntity {
  /** Locally generated transaction identifier used by development/demo payment simulation. */
  @Column(name="gateway_transaction_id",nullable=false,unique=true) private String gatewayTransactionId;
  @Column(name="failure_reason") private String failureReason;
+ @Column(name="gateway_status",length=50) private String gatewayStatus;
+ @Column(name="next_action",length=50) private String nextAction;
+ @Column(name="authorization_url",columnDefinition="TEXT") private String authorizationUrl;
  @Column(name="initiated_at") private LocalDateTime initiatedAt;
  @Column(name="completed_at") private LocalDateTime completedAt;
 }

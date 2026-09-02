@@ -30,7 +30,7 @@ public class CustomerPortalController {
     @GetMapping("/invoices") public ResponseEntity<ApiResponse<List<CustomerPortalResponse.Invoice>>> invoices(){return ok("Customer invoices retrieved",service.invoices());}
     @GetMapping("/invoices/{id}") public ResponseEntity<ApiResponse<CustomerPortalResponse.Invoice>> invoice(@PathVariable Long id){return ok("Invoice retrieved",service.invoice(id));}
     @GetMapping("/invoices/{id}/pdf") public ResponseEntity<byte[]> invoicePdf(@PathVariable Long id){return pdf(service.invoicePdf(id),"invoice-"+id+".pdf");}
-    @PostMapping("/invoices/{invoiceId}/pay") public ResponseEntity<ApiResponse<PaymentResponse>> pay(@PathVariable Long invoiceId,@Valid @RequestBody PawaPayDepositRequest request){return ok("pawaPay payment request submitted",paymentService.initiatePawaPayDeposit(invoiceId,request));}
+    @PostMapping("/invoices/{invoiceId}/pay") public ResponseEntity<ApiResponse<PaymentResponse>> pay(@PathVariable Long invoiceId,@Valid @RequestBody PawaPayDepositRequest request){return ok("Flutterwave payment request submitted",paymentService.initiatePawaPayDeposit(invoiceId,request));}
     @GetMapping("/invoices/{id}/payments") public ResponseEntity<ApiResponse<List<PaymentResponse>>> payments(@PathVariable Long id){return ok("Payments retrieved",paymentService.listForCustomer(id));}
     @GetMapping("/receipts") public ResponseEntity<ApiResponse<List<CustomerPortalResponse.Receipt>>> receipts(){return ok("Payment receipts retrieved",service.receipts());}
     @GetMapping("/receipts/{id}") public ResponseEntity<ApiResponse<CustomerPortalResponse.Receipt>> receipt(@PathVariable Long id){return ok("Payment receipt retrieved",service.receipt(id));}
