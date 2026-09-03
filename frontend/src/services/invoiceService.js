@@ -48,3 +48,6 @@ export async function updateInvoicePaymentAccount(id, paymentAccountId) {
     .post(`/invoices/${id}/payment-account`, null, { params: { paymentAccountId } })
     .then((r) => r.data);
 }
+
+export const listInvoicePaymentAttempts = (id) => api.get(`/invoices/${id}/payments`).then((r) => r.data);
+export const refreshInvoicePaymentAttempt = (id) => api.post(`/invoices/payments/${id}/refresh`).then((r) => r.data);

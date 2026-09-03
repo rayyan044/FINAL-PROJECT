@@ -29,6 +29,8 @@ import {
   downloadCustomerDocument,
   initiateInvoicePayment,
   listInvoicePayments,
+  refreshCustomerPayment,
+  cancelCustomerPayment,
 } from "../services/customerPortalService";
 import { OpenStreetMapLocationPicker } from "../components/OpenStreetMapLocationPicker";
 import { DeliveryTrackingMap } from "../components/DeliveryTrackingMap";
@@ -46,6 +48,17 @@ const SIDE = [
   { key: "profile", label: "Profile", icon: FiUser },
 ];
 const money = (v) => Number(v || 0).toLocaleString();
+const paymentLabel = (status) => ({
+  INITIATED: "Payment request sent",
+  PENDING: "Waiting for payment approval",
+  PROCESSING: "Payment is being processed",
+  ACTION_REQUIRED: "Approve payment to continue",
+  SUCCESSFUL: "Payment completed successfully",
+  FAILED: "Payment failed",
+  CANCELLED: "Payment was cancelled",
+  EXPIRED: "Payment expired",
+  UNKNOWN: "Payment status needs checking",
+}[status] || status || "—");
 function CustomerDashboard() {
   return (
     <RouteGuard allowedRoles={["CUSTOMER"]}>
@@ -78,7 +91,7 @@ function CustomerWorkspace() {
     [paymentHistory, setPaymentHistory] = useState([]),
     [paying, setPaying] = useState(false),
     [paymentMethod, setPaymentMethod] = useState("AIRTEL_MONEY"),
-    [paymentPhone, setPaymentPhone] = useState(import.meta.env.DEV ? "683456789" : ""),
+    [paymentPhone, setPaymentPhone] = useState(import.meta.env.DEV ? "0683456789" : ""),
     [location, setLocation] = useState(null),
     [routePreview, setRoutePreview] = useState(null),
     [routeLoading, setRouteLoading] = useState(false);
@@ -139,6 +152,16 @@ function CustomerWorkspace() {
     const refreshInterval = window.setInterval(refresh, 15000);
     return () => window.clearInterval(refreshInterval);
   }, [tab]);
+  useEffect(() => {
+    if (!selectedInvoice || !paymentHistory.some((p) => ["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status))) return undefined;
+    let attempts = 0;
+    const timer = window.setInterval(async () => {
+      const active = paymentHistory.find((p) => ["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status));
+      if (!active || attempts++ >= 6) return window.clearInterval(timer);
+      try { await refreshCustomerPayment(active.id); setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []); await refresh(); } catch { /* Manual Check Status remains available. */ }
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [selectedInvoice?.id, paymentHistory]);
   const detail = async (o) => {
     setSelected(o);
     try {
@@ -259,9 +282,10 @@ function CustomerWorkspace() {
   };
   const payInvoice = async () => {
     if (!selectedInvoice) return;
-    const localNumber = paymentPhone.replace(/\D/g, "");
-    if (!/^[67]\d{8}$/.test(localNumber)) {
-      setError("Enter a 9-digit Tanzanian mobile number starting with 6 or 7.");
+    const digits = paymentPhone.replace(/\D/g, "");
+    const normalized = digits.startsWith("0") ? `255${digits.slice(1)}` : digits;
+    if (!/^255[67]\d{8}$/.test(normalized)) {
+      setError("Enter 0682328642, +255682328642, or 255682328642.");
       return;
     }
     setPaying(true);
@@ -269,21 +293,21 @@ function CustomerWorkspace() {
     try {
       const payment = await initiateInvoicePayment(selectedInvoice.id, {
         paymentMethod,
-        phoneNumber: `255${localNumber}`,
+        phoneNumber: paymentPhone,
       });
       setPaymentState(payment.status);
       setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []);
-      if (payment.status === "COMPLETED") {
+      if (["SUCCESSFUL", "COMPLETED"].includes(payment.status)) {
         setSelectedInvoice((invoice) =>
           invoice ? { ...invoice, paymentStatus: payment.invoicePaymentStatus || "PAID" } : invoice,
         );
         setSuccess("Payment successful. Your invoice has been marked as paid.");
-      } else if (payment.status === "PROCESSING") {
+      } else if (["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(payment.status)) {
         if (payment.authorizationUrl) {
           window.location.assign(payment.authorizationUrl);
           return;
         }
-        setSuccess("Flutterwave payment request sent. Approve it on your phone; this invoice will update automatically.");
+        setSuccess(payment.authorizationInstruction || "Payment request sent. Approve it on your phone.");
       } else {
         setError(payment.failureReason || "Payment request could not be accepted.");
       }
@@ -325,6 +349,7 @@ function CustomerWorkspace() {
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     profile?.contactPerson ||
     "Customer";
+  const activePayment = paymentHistory.find((p) => ["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status));
   return (
     <DashboardLayout
       role="CUSTOMER"
@@ -590,7 +615,7 @@ function CustomerWorkspace() {
                   {selectedInvoice.paymentStatus}
                 </p>
               </div>
-              {selectedInvoice.paymentStatus !== "PAID" ? (
+              {selectedInvoice.paymentStatus !== "PAID" && !activePayment ? (
                 <div style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 8 }}>
                   <h4 style={{ marginTop: 0 }}>Pay by mobile money</h4>
                   <p>
@@ -609,37 +634,24 @@ function CustomerWorkspace() {
                         <option value="AIRTEL_MONEY">Airtel Money</option>
                         <option value="MIXX_BY_YAS">Mixx by Yas</option>
                         <option value="HALOPESA">HaloPesa</option>
+                        <option value="VODACOM_MONEY">M-Pesa / Vodacom</option>
                       </select>
                     </label>
                     <label className="fef-label">
-                      Mobile number
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <span
-                          aria-label="Tanzania country code"
-                          style={{
-                            display: "grid",
-                            placeItems: "center",
-                            minWidth: 104,
-                            border: "1px solid #dbe3ef",
-                            borderRadius: 8,
-                            background: "#f8fafc",
-                            fontWeight: 700,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          🇹🇿 +255
-                        </span>
-                        <input
-                          className="fef-input"
-                          type="tel"
-                          inputMode="numeric"
-                          maxLength="10"
-                          placeholder="712 345 678"
-                          value={paymentPhone}
-                          onChange={(e) => setPaymentPhone(e.target.value.replace(/[^0-9]/g, ""))}
-                          required
-                        />
-                      </div>
+                      Tanzanian mobile number
+                      <input
+                        className="fef-input"
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength="13"
+                        placeholder="0787835248, 255787835248, or +255787835248"
+                        value={paymentPhone}
+                        onChange={(e) => setPaymentPhone(e.target.value.replace(/[^0-9+]/g, ""))}
+                        required
+                      />
+                      <small style={{ display: "block", marginTop: 6, color: "var(--feftms-text-muted)" }}>
+                        Enter the number exactly as you have it. The system accepts local 0-prefix and +255/255 formats.
+                      </small>
                     </label>
                   </div>
                   <button
@@ -651,14 +663,20 @@ function CustomerWorkspace() {
                     {paying ? "Submitting payment…" : "Pay now"}
                   </button>
                 </div>
-              ) : (
+              ) : selectedInvoice.paymentStatus === "PAID" ? (
                 <p style={{ marginTop: 16, color: "var(--feftms-success)", fontWeight: 700 }}>
                   PAID
                 </p>
+              ) : (
+                <div style={{ marginTop: 16, padding: 16, background: "#fff7ed", borderRadius: 8 }}>
+                  <strong>{paymentLabel(activePayment?.status)}</strong>
+                  <p style={{ margin: "8px 0 0" }}>{activePayment?.authorizationInstruction || "Payment request sent. Approve it on your phone, then use Check Status below."}</p>
+                  <p style={{ margin: "8px 0 0", fontSize: 13 }}>Sandbox note: this is a simulated Flutterwave request; it does not send a real Airtel Money prompt or charge the displayed number.</p>
+                </div>
               )}
               {paymentState && (
                 <p style={{ marginTop: 12 }}>
-                  <strong>{paymentState}</strong>
+                  <strong>{paymentLabel(paymentState)}</strong>
                 </p>
               )}
               {paymentHistory.length > 0 && (
@@ -666,17 +684,22 @@ function CustomerWorkspace() {
                   <h4 style={{ marginTop: 24 }}>Payment History</h4>
                   {rows(
                     paymentHistory,
-                    ["Reference", "Method", "Amount", "Status", "Date", "Details"],
+                    ["Reference", "Method", "Amount", "Status", "Provider", "Date", "Details", ""],
                     (p) => (
                       <tr key={p.id}>
                         <td>{p.paymentReference}</td>
-                        <td>{p.paymentMethod}</td>
+                        <td>{p.paymentMethod}{p.mobileMoneyNetwork ? ` · ${p.mobileMoneyNetwork}` : ""}<br /><small>{p.maskedPhoneNumber || ""}</small></td>
                         <td>
                           {p.currency} {money(p.amount)}
                         </td>
-                        <td>{p.status}</td>
+                        <td>{paymentLabel(p.status)}</td>
+                        <td>{p.providerReference || "—"}</td>
                         <td>{p.completedAt?.slice(0, 10) || p.initiatedAt?.slice(0, 10)}</td>
                         <td title={p.failureReason || ""}>{p.failureReason || "—"}</td>
+                        <td style={{ display: "flex", gap: 6 }}>
+                          {["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status) && <button className="fef-btn fef-btn-outline" onClick={async () => { setPaying(true); try { await refreshCustomerPayment(p.id); setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []); await refresh(); } finally { setPaying(false); } }} disabled={paying}>Check Status</button>}
+                          {["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status) && <button className="fef-btn fef-btn-outline" onClick={async () => { await cancelCustomerPayment(p.id); setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []); }}>Cancel</button>}
+                        </td>
                       </tr>
                     ),
                   )}

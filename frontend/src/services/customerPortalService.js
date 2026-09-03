@@ -13,6 +13,8 @@ export const listCustomerInvoices = () => api.get("/customer-portal/invoices").t
 export const listCustomerReceipts = () => api.get("/customer-portal/receipts").then((r) => r.data);
 export const initiateInvoicePayment = (invoiceId, payment) => api.post(`/customer-portal/invoices/${invoiceId}/pay`, payment).then((r) => r.data);
 export const listInvoicePayments = (id) => api.get(`/customer-portal/invoices/${id}/payments`).then((r) => r.data);
+export const refreshCustomerPayment = (id) => api.post(`/customer-portal/payments/${id}/refresh`).then((r) => r.data);
+export const cancelCustomerPayment = (id) => api.post(`/customer-portal/payments/${id}/cancel`).then((r) => r.data);
 export const listCustomerDeliveries = () => api.get("/customer-portal/deliveries").then((r) => r.data);
 export const getCustomerDeliveryTracking = (id) => api.get(`/customer-portal/deliveries/${id}/tracking`).then((r) => r.data);
 export const downloadCustomerDocument = (path) => api.get(path, { responseType: "blob" });

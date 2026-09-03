@@ -5,6 +5,8 @@ import {
   overrideInvoiceStatus,
   updateInvoicePaymentAccount,
   getInvoiceById,
+  listInvoicePaymentAttempts,
+  refreshInvoicePaymentAttempt,
 } from "../services/invoiceService";
 import { listActivePaymentAccounts } from "../services/paymentAccountService";
 import logoImg from "../assets/falcon-logo.png";
@@ -175,6 +177,7 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
   const [overrideStatus, setOverrideStatus] = useState(invoice?.paymentStatus || "PENDING_PAYMENT");
   const [activeAccounts, setActiveAccounts] = useState([]);
   const [hasConfirmed, setHasConfirmed] = useState(false);
+  const [paymentAttempts, setPaymentAttempts] = useState([]);
 
   const currentInvoice = fullInvoice || invoice;
   const isPending =
@@ -210,6 +213,11 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
         .catch((err) => console.error("Error loading active accounts", err));
     }
   }, [userRole, isPending, invoice?.id]);
+
+  useEffect(() => {
+    if (!["ADMIN", "FINANCE", "MANAGER"].includes(userRole) || !invoice?.id) return;
+    listInvoicePaymentAttempts(invoice.id).then(setPaymentAttempts).catch(() => setPaymentAttempts([]));
+  }, [userRole, invoice?.id]);
 
   if (!invoice) return null;
 
@@ -574,6 +582,18 @@ export function InvoiceModal({ invoice, onClose, onRefresh, userRole }) {
                 >
                   <FiCheckCircle style={{ verticalAlign: "-2px", marginRight: 6 }} />
                   {success}
+                </div>
+              )}
+
+              {["ADMIN", "FINANCE", "MANAGER"].includes(userRole) && paymentAttempts.length > 0 && (
+                <div className="fef-panel no-print" style={{ marginBottom: 20, padding: 15 }}>
+                  <h4 style={{ margin: "0 0 10px" }}>Flutterwave payment attempts</h4>
+                  {paymentAttempts.map((attempt) => (
+                    <div key={attempt.id} style={{ display: "flex", gap: 12, alignItems: "center", borderTop: "1px solid #e5e7eb", padding: "8px 0", flexWrap: "wrap" }}>
+                      <strong>{attempt.status}</strong><span>{attempt.currency} {attempt.amount}</span><span>{attempt.mobileMoneyNetwork} · {attempt.maskedPhoneNumber}</span><span>{attempt.paymentReference}</span><span>{attempt.providerReference || "Provider pending"}</span>
+                      {!["SUCCESSFUL", "FAILED", "CANCELLED", "EXPIRED"].includes(attempt.status) && <button className="fef-btn fef-btn-outline" onClick={async () => { await refreshInvoicePaymentAttempt(attempt.id); setPaymentAttempts(await listInvoicePaymentAttempts(invoice.id)); }}>Check Status</button>}
+                    </div>
+                  ))}
                 </div>
               )}
 
