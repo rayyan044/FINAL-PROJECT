@@ -1,3 +1,7 @@
 package com.falconenergy.entity;
-/** Local transaction state. COMPLETED is set by the in-app payment simulation. */
-public enum PaymentStatus { PENDING, PROCESSING, COMPLETED, SUCCESSFUL, FAILED, CANCELLED, EXPIRED, REVERSED }
+/** Server-controlled payment state. Provider status is retained separately on Payment. */
+public enum PaymentStatus {
+ INITIATED, PENDING, PROCESSING, ACTION_REQUIRED, SUCCESSFUL, FAILED, CANCELLED, EXPIRED, UNKNOWN,
+ /** Legacy state retained for historical pawaPay rows. New Flutterwave payments use SUCCESSFUL. */
+ COMPLETED, REVERSED
+}

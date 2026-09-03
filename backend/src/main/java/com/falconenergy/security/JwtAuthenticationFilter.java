@@ -17,12 +17,24 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final java.util.Set<String> UNAUTHENTICATED_WEBHOOK_PATHS = java.util.Set.of(
+            "/api/v1/integrations/flutterwave/webhook",
+            "/api/integrations/flutterwave/webhook"
+    );
+
     private final JwtTokenProvider jwtTokenProvider;
     private final CustomUserDetailsService userDetailsService;
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, CustomUserDetailsService userDetailsService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userDetailsService = userDetailsService;
+    }
+
+    /** Flutterwave signs this server-to-server request; it never includes a user JWT. */
+    @Override
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+        return "POST".equalsIgnoreCase(request.getMethod())
+                && UNAUTHENTICATED_WEBHOOK_PATHS.contains(request.getRequestURI().substring(request.getContextPath().length()));
     }
 
     @Override

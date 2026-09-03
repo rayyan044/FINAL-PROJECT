@@ -15,6 +15,9 @@ import com.falconenergy.mapper.FuelProductMapper;
 import com.falconenergy.repository.InvoiceRepository;
 import com.falconenergy.repository.CompanySettingsRepository;
 import com.falconenergy.repository.PaymentAccountRepository;
+import com.falconenergy.repository.PaymentRepository;
+import com.falconenergy.entity.Payment;
+import com.falconenergy.entity.PaymentStatus;
 import com.falconenergy.repository.FuelOrderRepository;
 import com.falconenergy.repository.FuelProductRepository;
 import com.falconenergy.repository.OrderTruckAllocationRepository;
@@ -47,6 +50,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final SystemSettingService systemSettingService;
     private final OrderTruckAllocationRepository orderTruckAllocationRepository;
     private final PaymentReceiptService paymentReceiptService;
+    private final PaymentRepository paymentRepository;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -60,7 +64,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             FuelProductMapper fuelProductMapper,
             SystemSettingService systemSettingService,
             OrderTruckAllocationRepository orderTruckAllocationRepository,
-            PaymentReceiptService paymentReceiptService
+            PaymentReceiptService paymentReceiptService,
+            PaymentRepository paymentRepository
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceMapper = invoiceMapper;
@@ -74,6 +79,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.systemSettingService = systemSettingService;
         this.orderTruckAllocationRepository = orderTruckAllocationRepository;
         this.paymentReceiptService = paymentReceiptService;
+        this.paymentRepository = paymentRepository;
     }
 
     private InvoiceResponse mapToResponse(Invoice invoice) {
@@ -85,6 +91,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             } else {
                 response.setInvoiceType("Proforma Invoice");
             }
+            response.setPaymentDisplayStatus(financePaymentDisplay(invoice));
             
             // Recover soft-deleted product details if reference is null due to soft delete filter
             if (response.getOrder() != null && response.getOrder().getProduct() == null) {
@@ -165,6 +172,12 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
         }
         return response;
+    }
+
+    private String financePaymentDisplay(Invoice invoice) {
+        if ("PAID".equalsIgnoreCase(invoice.getPaymentStatus())) return "Paid";
+        PaymentStatus latest = paymentRepository.findFirstByInvoiceIdOrderByCreatedAtDesc(invoice.getId()).map(Payment::getStatus).orElse(null);
+        return latest == PaymentStatus.FAILED ? "Failed" : latest == PaymentStatus.CANCELLED ? "Cancelled" : "Unpaid";
     }
 
     @Override

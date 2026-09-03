@@ -19,6 +19,7 @@ public class InvoiceResponse {
     private BigDecimal tax;
     private BigDecimal grandTotal;
     private String paymentStatus;
+    private String paymentDisplayStatus;
     private String financeApprovedBy;
     private LocalDateTime financeApprovedAt;
     private String termsAndConditions;

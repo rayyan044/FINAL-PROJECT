@@ -20,7 +20,7 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         DeliveryNote note = activity == null ? null : deliveryNoteRepository.findByLoadingActivityId(activity.getId()).orElse(null);
         String paymentMethod = i.getPaymentMethod() != null && !i.getPaymentMethod().isBlank() ? i.getPaymentMethod() : order.getPaymentMethod();
         Payment gatewayPayment = paymentRepository.findByInvoiceIdOrderByCreatedAtDesc(i.getId()).stream()
-                .filter(payment -> payment.getStatus() == PaymentStatus.COMPLETED).findFirst().orElse(null);
+                .filter(payment -> payment.getStatus() == PaymentStatus.SUCCESSFUL || payment.getStatus() == PaymentStatus.COMPLETED).findFirst().orElse(null);
 
         boolean isEmergency = customer != null && (
                 "EMERGENCY".equalsIgnoreCase(customer.getCustomerCode()) ||

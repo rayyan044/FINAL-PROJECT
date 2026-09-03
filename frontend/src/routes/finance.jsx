@@ -551,11 +551,7 @@ function FinanceDash() {
                           <span
                             className={`fef-badge fef-badge-${inv.paymentStatus?.toLowerCase()}`}
                           >
-                            {inv.paymentStatus === "PENDING_PAYMENT"
-                              ? "Pending Payment"
-                              : inv.paymentStatus === "PAID"
-                                ? "Paid"
-                                : inv.paymentStatus}
+                            {inv.paymentDisplayStatus || (inv.paymentStatus === "PAID" ? "Paid" : "Unpaid")}
                           </span>
                         </td>
                         <td>

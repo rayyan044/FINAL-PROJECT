@@ -122,6 +122,37 @@ function CustomerWorkspace() {
     refresh();
   }, []);
 
+  // Flutterwave returns to this route after the sandbox authorization page. The
+  // payment ID is stored before redirecting so the result is checked without the
+  // customer needing to reopen the invoice or press Pay again.
+  useEffect(() => {
+    const paymentId = sessionStorage.getItem("flw_payment_return_id");
+    const invoiceId = sessionStorage.getItem("flw_payment_return_invoice_id");
+    if (!paymentId || !invoiceId) return undefined;
+    let active = true;
+    let attempts = 0;
+    const checkReturnedPayment = async () => {
+      try {
+        const payment = await refreshCustomerPayment(paymentId);
+        if (!active) return;
+        const history = (await listInvoicePayments(invoiceId)) || [];
+        setPaymentHistory(history);
+        await refresh();
+        if (["SUCCESSFUL", "COMPLETED", "FAILED", "CANCELLED", "EXPIRED"].includes(payment.status)) {
+          sessionStorage.removeItem("flw_payment_return_id");
+          sessionStorage.removeItem("flw_payment_return_invoice_id");
+          if (["SUCCESSFUL", "COMPLETED"].includes(payment.status)) setSuccess("Payment completed successfully. Your invoice is now paid.");
+          return;
+        }
+      } catch (e) {
+        if (active) setError(e.message || "Unable to check the returned payment.");
+      }
+      if (active && attempts++ < 10) window.setTimeout(checkReturnedPayment, 3_000);
+    };
+    checkReturnedPayment();
+    return () => { active = false; };
+  }, []);
+
   useEffect(() => {
     if (!trackingDeliveryId) return undefined;
     let active = true;
@@ -304,6 +335,8 @@ function CustomerWorkspace() {
         setSuccess("Payment successful. Your invoice has been marked as paid.");
       } else if (["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(payment.status)) {
         if (payment.authorizationUrl) {
+          sessionStorage.setItem("flw_payment_return_id", String(payment.id));
+          sessionStorage.setItem("flw_payment_return_invoice_id", String(selectedInvoice.id));
           window.location.assign(payment.authorizationUrl);
           return;
         }
@@ -565,7 +598,7 @@ function CustomerWorkspace() {
                 <td>{i.orderNumber}</td>
                 <td>{i.invoiceDate?.slice(0, 10)}</td>
                 <td>{money(i.grandTotal)}</td>
-                <td>{i.paymentStatus}</td>
+                <td>{i.paymentDisplayStatus || (i.paymentStatus === "PAID" ? "Paid" : "Unpaid")}</td>
                 <td style={{ display: "flex", gap: 8 }}>
                   <button className="fef-btn fef-btn-outline" onClick={() => viewInvoice(i)}>
                     {i.paymentStatus === "PAID" ? "Details" : "Pay Invoice"}
@@ -612,7 +645,7 @@ function CustomerWorkspace() {
                 <p>
                   <strong>Payment Status</strong>
                   <br />
-                  {selectedInvoice.paymentStatus}
+                  {selectedInvoice.paymentDisplayStatus || (selectedInvoice.paymentStatus === "PAID" ? "Paid" : "Unpaid")}
                 </p>
               </div>
               {selectedInvoice.paymentStatus !== "PAID" && !activePayment ? (
@@ -698,7 +731,7 @@ function CustomerWorkspace() {
                         <td title={p.failureReason || ""}>{p.failureReason || "—"}</td>
                         <td style={{ display: "flex", gap: 6 }}>
                           {["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status) && <button className="fef-btn fef-btn-outline" onClick={async () => { setPaying(true); try { await refreshCustomerPayment(p.id); setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []); await refresh(); } finally { setPaying(false); } }} disabled={paying}>Check Status</button>}
-                          {["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status) && <button className="fef-btn fef-btn-outline" onClick={async () => { await cancelCustomerPayment(p.id); setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []); }}>Cancel</button>}
+                          {["INITIATED", "PENDING", "PROCESSING", "ACTION_REQUIRED", "UNKNOWN"].includes(p.status) && <button className="fef-btn fef-btn-outline" onClick={async () => { setPaying(true); try { await cancelCustomerPayment(p.id); setPaymentHistory((await listInvoicePayments(selectedInvoice.id)) || []); await refresh(); setPaymentState("CANCELLED"); } finally { setPaying(false); } }} disabled={paying}>Cancel</button>}
                         </td>
                       </tr>
                     ),

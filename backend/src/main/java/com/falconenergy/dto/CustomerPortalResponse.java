@@ -36,7 +36,7 @@ public final class CustomerPortalResponse {
     }
     @Getter @Builder public static class Invoice {
         private Long id, orderId;
-        private String invoiceNumber, orderNumber, productName, paymentStatus, invoiceType;
+        private String invoiceNumber, orderNumber, productName, paymentStatus, paymentDisplayStatus, invoiceType;
         private BigDecimal quantity, grandTotal;
         private LocalDateTime invoiceDate;
     }

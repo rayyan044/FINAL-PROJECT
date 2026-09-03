@@ -53,9 +53,14 @@ payments:
     client-secret: ${FLUTTERWAVE_CLIENT_SECRET:}
     base-url: ${FLUTTERWAVE_BASE_URL:https://developersandbox-api.flutterwave.com}
     environment: ${FLUTTERWAVE_ENVIRONMENT:sandbox}
-    webhook-secret-hash: ${FLUTTERWAVE_WEBHOOK_SECRET_HASH:}
+    # FLUTTERWAVE_WEBHOOK_SECRET is retained as a backwards-compatible local alias.
+    webhook-secret-hash: ${FLUTTERWAVE_WEBHOOK_SECRET_HASH:${FLUTTERWAVE_WEBHOOK_SECRET:}}
     redirect-url: ${FLUTTERWAVE_REDIRECT_URL:}
+    frontend-return-url: ${FLUTTERWAVE_FRONTEND_RETURN_URL:http://localhost:8080/customer/dashboard}
     scenario-key: ${FLUTTERWAVE_SCENARIO_KEY:}
+    token-url: ${FLUTTERWAVE_TOKEN_URL:https://idp.flutterwave.com/realms/flutterwave/protocol/openid-connect/token}
+    connect-timeout-seconds: ${FLUTTERWAVE_CONNECT_TIMEOUT_SECONDS:10}
+    read-timeout-seconds: ${FLUTTERWAVE_READ_TIMEOUT_SECONDS:20}
   pawapay:
     api-token: ${PAWAPAY_API_TOKEN:}
     base-url: ${PAWAPAY_BASE_URL:}

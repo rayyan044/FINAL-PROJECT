@@ -31,6 +31,7 @@ public class CustomerPortalServiceImpl implements CustomerPortalService {
     private final CustomerRepository customerRepository;
     private final FuelOrderRepository fuelOrderRepository;
     private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
     private final PaymentReceiptRepository receiptRepository;
     private final DeliveryRepository deliveryRepository;
     private final DeliveryNoteRepository deliveryNoteRepository;
@@ -154,7 +155,8 @@ public class CustomerPortalServiceImpl implements CustomerPortalService {
     }
     @Override @Transactional(readOnly=true) public List<CustomerPortalResponse.Invoice> invoices(){Customer c=customer();return invoiceRepository.findByOrderCustomerIdOrderByInvoiceDateDesc(c.getId()).stream().map(this::invoiceView).toList();}
     @Override @Transactional(readOnly=true) public CustomerPortalResponse.Invoice invoice(Long id){Customer c=customer();return invoiceView(invoiceRepository.findByIdAndOrderCustomerId(id,c.getId()).orElseThrow(()->new ResourceNotFoundException("Invoice not found.")));}
-    private CustomerPortalResponse.Invoice invoiceView(Invoice i){return CustomerPortalResponse.Invoice.builder().id(i.getId()).invoiceNumber(i.getInvoiceNumber()).orderId(i.getOrder().getId()).orderNumber(i.getOrder().getOrderNumber()).productName(i.getOrder().getProduct().getProductName()).quantity(i.getOrder().getQuantity()).grandTotal(i.getGrandTotal()).paymentStatus(i.getPaymentStatus()).invoiceDate(i.getInvoiceDate()).invoiceType("Invoice").build();}
+    private CustomerPortalResponse.Invoice invoiceView(Invoice i){return CustomerPortalResponse.Invoice.builder().id(i.getId()).invoiceNumber(i.getInvoiceNumber()).orderId(i.getOrder().getId()).orderNumber(i.getOrder().getOrderNumber()).productName(i.getOrder().getProduct().getProductName()).quantity(i.getOrder().getQuantity()).grandTotal(i.getGrandTotal()).paymentStatus(i.getPaymentStatus()).paymentDisplayStatus(customerPaymentDisplay(i)).invoiceDate(i.getInvoiceDate()).invoiceType("Invoice").build();}
+    private String customerPaymentDisplay(Invoice invoice) { if ("PAID".equalsIgnoreCase(invoice.getPaymentStatus())) return "Paid"; PaymentStatus status=paymentRepository.findFirstByInvoiceIdOrderByCreatedAtDesc(invoice.getId()).map(Payment::getStatus).orElse(null); return status==PaymentStatus.FAILED?"Unpaid – Failed":status==PaymentStatus.CANCELLED?"Unpaid – Cancelled":"Unpaid"; }
     @Override public byte[] invoicePdf(Long id){CustomerPortalResponse.Invoice i=invoice(id);return pdf("Invoice "+i.getInvoiceNumber(),List.of("Order: "+i.getOrderNumber(),"Fuel: "+i.getProductName(),"Quantity: "+i.getQuantity(),"Amount: "+i.getGrandTotal(),"Payment status: "+i.getPaymentStatus()));}
     @Override @Transactional(readOnly=true) public List<CustomerPortalResponse.Receipt> receipts(){Customer c=customer();return receiptRepository.findByInvoiceOrderCustomerIdOrderByCreatedAtDesc(c.getId()).stream().map(this::receiptView).toList();}
     @Override @Transactional(readOnly=true) public CustomerPortalResponse.Receipt receipt(Long id){Customer c=customer();return receiptView(receiptRepository.findByIdAndInvoiceOrderCustomerId(id,c.getId()).orElseThrow(()->new ResourceNotFoundException("Payment receipt not found.")));}

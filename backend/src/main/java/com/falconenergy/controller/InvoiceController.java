@@ -3,6 +3,9 @@ package com.falconenergy.controller;
 import com.falconenergy.dto.ApiResponse;
 import com.falconenergy.dto.InvoiceResponse;
 import com.falconenergy.service.InvoiceService;
+import com.falconenergy.service.PaymentService;
+import com.falconenergy.dto.PaymentResponse;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,9 +21,23 @@ import org.springframework.web.bind.annotation.*;
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
+    private final PaymentService paymentService;
 
-    public InvoiceController(InvoiceService invoiceService) {
+    public InvoiceController(InvoiceService invoiceService, PaymentService paymentService) {
         this.invoiceService = invoiceService;
+        this.paymentService = paymentService;
+    }
+
+    @GetMapping("/{id}/payments")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE')")
+    public ResponseEntity<ApiResponse<List<PaymentResponse>>> paymentAttempts(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Payment attempts retrieved", paymentService.listForInvoice(id)));
+    }
+
+    @PostMapping("/payments/{paymentId}/refresh")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'FINANCE')")
+    public ResponseEntity<ApiResponse<PaymentResponse>> refreshPayment(@PathVariable Long paymentId) {
+        return ResponseEntity.ok(ApiResponse.success("Payment status refreshed", paymentService.refreshForStaff(paymentId)));
     }
 
     @GetMapping
